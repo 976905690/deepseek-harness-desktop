@@ -30,6 +30,9 @@ linkWorkspacePackages: true
 overrides:
   '@deepseek-ai/cosmokit': 'link:vendor/cosmokit'
   '@deepseek-ai/schemastery': 'link:vendor/schemastery'
+  # app-builder-lib 26.15.3 reads a cache-mode export introduced in 3.1.0,
+  # while its declared range still permits the incompatible 3.0.0 release.
+  'app-builder-lib>@electron/get': '3.1.0'
 
 peerDependencyRules:
   allowedVersions:

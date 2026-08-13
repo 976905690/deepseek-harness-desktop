@@ -23,6 +23,7 @@ interface RootPackage {
 
 const desktopRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const repositoryRoot = resolve(desktopRoot, '../..')
+const workspaceConfiguration = readFileSync(resolve(repositoryRoot, 'pnpm-workspace.yaml'), 'utf8')
 const desktopPackage = JSON.parse(
   readFileSync(resolve(desktopRoot, 'package.json'), 'utf8'),
 ) as DesktopPackage
@@ -33,6 +34,7 @@ const rootPackage = JSON.parse(
 describe('desktop packaging configuration', () => {
   it('packages the installed Electron distribution', () => {
     expect(desktopPackage.build.electronDist).toBe('node_modules/electron/dist')
+    expect(workspaceConfiguration).toContain("'app-builder-lib>@electron/get': '3.1.0'")
   })
 
   it('keeps the supplied image byte-for-byte and shares it across macOS and Windows', () => {
