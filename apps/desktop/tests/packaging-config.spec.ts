@@ -8,6 +8,10 @@ interface DesktopPackage {
   readonly scripts: Readonly<Record<string, string>>
   readonly build: {
     readonly electronDist: string
+    readonly extraResources: readonly {
+      readonly from: string
+      readonly to: string
+    }[]
     readonly mac: {
       readonly hardenedRuntime: boolean
       readonly icon: string
@@ -36,6 +40,13 @@ describe('desktop packaging configuration', () => {
   it('packages the installed Electron distribution', () => {
     expect(desktopPackage.build.electronDist).toBe('node_modules/electron/dist')
     expect(workspaceConfiguration).toContain("'app-builder-lib@26.15.3>@electron/get': '3.1.0'")
+  })
+
+  it('maps the staged Host node_modules directory as the copy root', () => {
+    expect(desktopPackage.build.extraResources).toEqual(expect.arrayContaining([
+      { from: 'runtime-host/package.json', to: 'host/package.json' },
+      { from: 'runtime-host/node_modules', to: 'host/node_modules' },
+    ]))
   })
 
   it('unlocks the temporary signing Keychain with its own password', () => {

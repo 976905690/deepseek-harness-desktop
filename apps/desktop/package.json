@@ -37,8 +37,12 @@
         "to": "desktop-resources"
       },
       {
-        "from": "runtime-host",
-        "to": "host"
+        "from": "runtime-host/package.json",
+        "to": "host/package.json"
+      },
+      {
+        "from": "runtime-host/node_modules",
+        "to": "host/node_modules"
       }
     ],
     "mac": {
