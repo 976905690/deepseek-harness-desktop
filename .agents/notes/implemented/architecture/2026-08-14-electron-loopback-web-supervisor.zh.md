@@ -14,6 +14,8 @@ Status: implemented
 
 `apps/desktop` 中的 `@deepseek-ai/dsh-desktop` 是私有 Electron 应用和可替换的 supervisor，并非新的 Harness 组合或协议载体。它启动一个绑定到 loopback、使用操作系统分配端口的 `dsh --profile web` 子进程，再从子进程的 `dsh web: <url>` 就绪行加载规范 URL。就绪解析器按流分片而非 stdout 回调边界处理输入，忽略无关输出和可选 LAN 注释，并且只接受端口有效且非零的 HTTP loopback authority。就绪行格式错误、启动错误、子进程提前退出，或流在就绪前结束时，应用会让启动失败，而不会导航到推断出的地址。
 
+根目录的 `dev:desktop` 命令是完整的源码启动入口。Electron 启动前，该命令会构建 Host 与客户端包的编译面、Web 前端和 Electron main 进程，因此完成全新依赖安装后无需另行构建仓库。
+
 该子进程仍然独家拥有 Web profile 的 Cordis 树、会话、设置、凭据、文件系统和 shell 服务、HTTP/WebSocket 载体，以及等待完全停稳的 dispose。Electron 不会把这些服务导入 main 进程或渲染器进程。BrowserWindow 加载经过校验的 loopback URL，禁用 Node 集成，启用上下文隔离和渲染器沙箱，并且不提供 preload 能力。这仍然是既有的本地 Web 安全模型：桌面壳不会增加身份验证层或 IPC 授权层。
 
 托盘和 Host supervisor 拥有独立于 BrowserWindow 可见性的应用生命周期。用户关闭窗口时，应用拦截该操作并隐藏窗口，既不退出 Electron，也不向子进程发送信号。激活托盘或在 macOS 上激活应用时，应用重新显示现有窗口。`window-all-closed` 不是退出请求。单实例锁阻止第二个桌面进程和第二个 Host 子进程启动；再次启动只会恢复主实例窗口并将其聚焦。

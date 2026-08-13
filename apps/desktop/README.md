@@ -6,10 +6,9 @@ The desktop app supervises the existing loopback Web Host and keeps it alive fro
 
 ## Development
 
-Build the repository once, then launch Electron:
+Install dependencies, then use the single desktop development command. It builds the Host and client packages, Web frontend, and Electron main process before launching the application:
 
 ```sh
-pnpm run build
 pnpm run dev:desktop
 ```
 

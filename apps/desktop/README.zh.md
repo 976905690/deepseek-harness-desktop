@@ -6,10 +6,9 @@
 
 ## 开发
 
-先构建一次仓库，再启动 Electron：
+安装依赖后，使用单一桌面开发命令。该命令会先构建 Host 与客户端包、Web 前端和 Electron main 进程，再启动应用：
 
 ```sh
-pnpm run build
 pnpm run dev:desktop
 ```
 
