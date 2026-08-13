@@ -26,6 +26,37 @@ function declarations(selector: string): Map<string, string> | undefined {
 }
 
 describe('SidebarRoot.module.css', () => {
+  it('keeps desktop drag and safe-area rules behind the shell marker', () => {
+    expect(declarations('.titlebarDragRegion')?.get('display')).toBe('none')
+    expect(
+      declarations(":global(html[data-dsh-desktop='true']) .titlebarDragRegion")?.get('-webkit-app-region'),
+    ).toBe('drag')
+    expect(
+      declarations(":global(html[data-dsh-desktop='true']) .root")?.get('padding-top'),
+    ).toBe('calc(6px + var(--dsh-desktop-titlebar-inset, 40px))')
+    expect(
+      declarations(":global(html[data-dsh-desktop='true']) .root button")?.get('-webkit-app-region'),
+    ).toBe('no-drag')
+  })
+
+  it('admits native material only on supported desktop platforms', () => {
+    expect(
+      declarations(":global(html[data-dsh-desktop-platform='darwin']) .root")?.get('background'),
+    ).toBe('transparent')
+    expect(
+      declarations(":global(html[data-dsh-desktop-platform='win32']) .root")?.get('background'),
+    ).toBe('transparent')
+    expect(css).not.toContain("data-dsh-desktop-platform='linux']) .root")
+  })
+
+  it('keeps every shell control keyboard-visible', () => {
+    for (const selector of ['.brand:focus-visible', '.iconButton:focus-visible', '.newSession:focus-visible']) {
+      expect(declarations(selector)?.get('outline')).toBe(
+        '2px solid var(--dsw-alias-state-business-primary)',
+      )
+    }
+  })
+
   it('shares and cancels the wide shell trailing padding structurally', () => {
     const root = declarations('.root')
     expect(root?.get('--dsh-sidebar-inline-padding')).toBe('12px')

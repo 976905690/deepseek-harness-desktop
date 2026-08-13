@@ -1,0 +1,69 @@
+{
+  "name": "@deepseek-ai/dsh-desktop",
+  "description": "DeepSeek Harness desktop application with tray-owned Host lifecycle",
+  "version": "0.1.0-rc.5",
+  "private": true,
+  "type": "module",
+  "main": "lib/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsdown",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "dev": "pnpm run build && electron .",
+    "package": "pnpm run build && electron-builder --dir",
+    "dist": "pnpm run build && electron-builder"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.20.0",
+    "electron": "43.4.0",
+    "electron-builder": "26.15.3",
+    "tsdown": "^0.22.2",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  },
+  "build": {
+    "appId": "ai.deepseek.harness.desktop",
+    "productName": "DeepSeek Harness",
+    "asar": true,
+    "files": [
+      "lib/**",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources",
+        "to": "desktop-resources"
+      },
+      {
+        "from": "../cli",
+        "to": "host/apps/cli",
+        "filter": [
+          "lib/**",
+          "config/**",
+          "package.json"
+        ]
+      },
+      {
+        "from": "../../apps/web/dist",
+        "to": "host/apps/web/dist"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        "dir"
+      ]
+    },
+    "win": {
+      "target": [
+        "dir"
+      ]
+    },
+    "linux": {
+      "category": "Development",
+      "target": [
+        "dir"
+      ]
+    }
+  }
+}

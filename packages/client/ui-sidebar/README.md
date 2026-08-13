@@ -4,6 +4,8 @@ English | [中文](README.zh.md)
 
 Sidebar shell plugin: the wordmark, New Session action, layout-owned collapse control, scroll-aware region seat, and bottom-pinned Settings seat. [ui-workspace](../ui-workspace/README.md) owns the Workspace and Session browser rendered into `sidebar.workspaces`; this package neither derives its rows nor owns its view preferences. Collapse into the layout-owned 56px rail remains presentation-local. Contract: the [slot system standard](../../../.agents/notes/implemented/architecture/2026-07-22-slot-type-chain-implementation.md).
 
+An Electron document marked with `html[data-dsh-desktop='true']` exposes a sidebar-top drag strip and reserves the native title-bar inset in both expanded and rail layouts. Buttons, links, form controls, and button-role descendants remain `no-drag` so the frameless window does not consume their pointer input. The drag strip remains hidden and reserves no space in the Web application. On macOS and Windows the sidebar root is transparent for the layout-owned native material; Linux retains the normal sidebar fill.
+
 New Session starts the runtime's page-local frontend Session Intent. The runtime targets the explicit Workspace used by a scoped action, otherwise the current Session's Workspace, otherwise the most recently active Workspace; when none exists it clears into the blank New Session page. Workspace-specific controls and the shared picker belong to ui-workspace.
 
 `SidebarRootComponentProps` composes the layout owner share, the global `useSessions` and `useWorkspaces` hooks, the declared `sidebar.workspaces` and `sidebar.settings` child slots, and injected `startSession` plus sidebar-toggle callbacks. There is no plugin store.

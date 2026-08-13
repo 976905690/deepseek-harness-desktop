@@ -4,6 +4,8 @@
 
 侧边栏外壳插件：负责字标、New Session 操作、布局持有的折叠控件、可感知滚动的区域 seat，以及固定在底部的 Settings seat。[ui-workspace](../ui-workspace/README.md) 持有渲染到 `sidebar.workspaces` 的 Workspace 与 Session 浏览器；本包既不派生其中的行，也不持有其视图偏好。折叠到布局拥有的 56px 轨道仍属于本地呈现行为。约定：[slot 系统标准](../../../.agents/notes/implemented/architecture/2026-07-22-slot-type-chain-implementation.md)。
 
+Electron document 带有 `html[data-dsh-desktop='true']` 标记时，侧栏顶部会显示窗口拖拽条，并在展开与轨道布局中预留原生标题栏区域。按钮、链接、表单控件与 button role 后代保持 `no-drag`，无边框窗口不会吞掉它们的指针输入。Web 应用会隐藏拖拽条，且不为其预留空间。在 macOS 与 Windows 上，侧栏根节点保持透明以显示布局持有的原生材质；Linux 仍使用普通侧栏填充色。
+
 New Session 会启动运行时的页面局部前端 Session Intent。运行时优先使用作用域操作明确指定的 Workspace，否则使用当前 Session 所属 Workspace，再否则使用最近活跃 Workspace；一个 Workspace 都没有时则清空选择，进入空白 New Session 页面。Workspace 专属控件与共享选择器由 ui-workspace 持有。
 
 `SidebarRootComponentProps` 组合布局 owner share、全局 `useSessions` 和 `useWorkspaces` 钩子、已声明的 `sidebar.workspaces` 与 `sidebar.settings` 子 slot，以及注入的 `startSession` 与侧边栏切换回调。这里没有插件 store。

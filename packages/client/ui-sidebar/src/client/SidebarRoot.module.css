@@ -8,6 +8,7 @@
 
 .root {
   --dsh-sidebar-inline-padding: 12px;
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -22,11 +23,48 @@
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
 }
 
+/* Web does not reserve title-bar space. The Electron marker reveals this
+   sidebar-owned strip and shifts the column below the frameless controls. */
+.titlebarDragRegion {
+  display: none;
+}
+
+:global(html[data-dsh-desktop='true']) .root {
+  padding-top: calc(6px + var(--dsh-desktop-titlebar-inset, 40px));
+}
+
+:global(html[data-dsh-desktop='true']) .titlebarDragRegion {
+  display: block;
+  position: absolute;
+  inset: 0 0 auto;
+  height: var(--dsh-desktop-titlebar-inset, 40px);
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+:global(html[data-dsh-desktop='true']) .root button,
+:global(html[data-dsh-desktop='true']) .root a,
+:global(html[data-dsh-desktop='true']) .root input,
+:global(html[data-dsh-desktop='true']) .root select,
+:global(html[data-dsh-desktop='true']) .root textarea,
+:global(html[data-dsh-desktop='true']) .root [role='button'] {
+  -webkit-app-region: no-drag;
+}
+
+:global(html[data-dsh-desktop-platform='darwin']) .root,
+:global(html[data-dsh-desktop-platform='win32']) .root {
+  background: transparent;
+}
+
 /* Rail geometry (figma rail spec): 36x36 control boxes centered in the 56px
    rail (10px side padding), 12px vertical rhythm, 18px from the rail top to
    the whale's box (24px to the 24-wide whale glyph itself). */
 .root.collapsed {
   padding: 18px 10px 6px;
+}
+
+:global(html[data-dsh-desktop='true']) .root.collapsed {
+  padding-top: calc(18px + var(--dsh-desktop-titlebar-inset, 40px));
 }
 
 /* Scrollbars in the column are a pointer affordance: the shell adds this
@@ -122,6 +160,13 @@
   background: transparent;
   color: inherit;
   cursor: pointer;
+}
+
+.brand:focus-visible,
+.iconButton:focus-visible,
+.newSession:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: 2px;
 }
 
 .iconButton {

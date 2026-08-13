@@ -42,6 +42,36 @@
   border-left: 1px solid var(--dsw-alias-border-l2);
 }
 
+/* The native material is available only on macOS and Windows. AppFrame stays
+   the paint owner: its sidebar admits that material through a theme tint,
+   while the work columns remain ordinary opaque application surfaces. */
+:global(html[data-dsh-desktop-platform='darwin']) .frame,
+:global(html[data-dsh-desktop-platform='win32']) .frame {
+  background: transparent;
+}
+
+:global(html[data-dsh-desktop-platform='darwin']) .sidebarCol,
+:global(html[data-dsh-desktop-platform='win32']) .sidebarCol {
+  background: color-mix(in srgb, var(--dsw-specific-sidebar-fill) 72%, transparent);
+}
+
+:global(html[data-dsh-desktop-platform='darwin']) .centerCol,
+:global(html[data-dsh-desktop-platform='darwin']) .detailsCol,
+:global(html[data-dsh-desktop-platform='win32']) .centerCol,
+:global(html[data-dsh-desktop-platform='win32']) .detailsCol {
+  background: var(--dsw-alias-bg-base);
+}
+
+/* Windows and Linux place the native title-bar overlay above the work
+   columns. macOS traffic lights stay wholly inside the sidebar inset. */
+:global(html[data-dsh-desktop-platform='win32']) .centerCol,
+:global(html[data-dsh-desktop-platform='win32']) .detailsCol,
+:global(html[data-dsh-desktop-platform='linux']) .centerCol,
+:global(html[data-dsh-desktop-platform='linux']) .detailsCol {
+  padding-top: var(--dsh-desktop-titlebar-inset, 44px);
+  box-sizing: border-box;
+}
+
 /* The details subtree stays mounted at zero width, so its border must not paint
    a 1px seam. The collapsed sidebar instead retains a bordered compact rail. */
 .frame[data-details-collapsed] .detailsCol {

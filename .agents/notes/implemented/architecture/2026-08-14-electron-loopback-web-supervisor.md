@@ -1,0 +1,63 @@
+# Agent Note: Electron desktop starts as a replaceable loopback Web supervisor
+
+Status: implemented
+
+English | [中文](2026-08-14-electron-loopback-web-supervisor.zh.md)
+
+## Problem
+
+The desktop application needs an Electron window and a tray-owned application lifetime without making the window the owner of Harness work. Closing the window must leave sessions and background work running, while an explicit application quit must dispose the Harness process and wait for its descendants. Building the final Electron IPC carrier at the same time would also require a packaged client-module loader, an IPC streaming transport, native-operation routing, and a new renderer security boundary before the first usable shell could ship.
+
+The existing Web profile already provides the complete interactive client, ApiProxy validation, session replay, approval handling, configuration UI, and native Host operations. The first desktop implementation needs to reuse those behaviors without making its process arrangement permanent or weakening the [channel-independent GUI protocol](2026-07-19-gui-layering-and-rpc-protocol.md).
+
+## Decision
+
+`@deepseek-ai/dsh-desktop` in `apps/desktop` is a private Electron application and a replaceable supervisor, not a new Harness composition or protocol carrier. It starts one `dsh --profile web` child bound to loopback on an operating-system-assigned port, then loads the canonical URL from the child's `dsh web: <url>` readiness line. The readiness parser follows stream chunks rather than stdout callback boundaries, ignores unrelated output and the optional LAN annotation, and accepts only an HTTP loopback authority with a valid nonzero port. A malformed readiness line, startup error, early child exit, or end-of-stream before readiness fails startup instead of navigating to an inferred address.
+
+The child remains the sole owner of the Web profile's Cordis tree, sessions, settings, credentials, filesystem and shell services, HTTP/WebSocket carrier, and quiescent disposal. Electron does not import those services into its main or renderer process. The BrowserWindow loads the validated loopback URL with Node integration disabled, context isolation and renderer sandboxing enabled, and no preload capability. This is still the existing local Web security model: the desktop shell adds no authentication or IPC authorization layer.
+
+The tray and Host supervisor own application lifetime independently of BrowserWindow visibility. A user window close is intercepted and hides the window; it neither quits Electron nor signals the child. Tray activation and macOS application activation show the existing window again. `window-all-closed` is not an exit request. The single-instance lock prevents a second desktop process and second Host child; a second launch only restores and focuses the primary window.
+
+Every explicit exit path converges on one idempotent quit operation. It stops accepting window-restoration work, sends `SIGTERM` to the child, and waits for the child to exit. The ordinary `dsh` launcher handles that signal by disposing the root Cordis fiber, whose owned persistence and subprocess services drain before process exit. A bounded timeout escalates an unresponsive child to `SIGKILL` once and still waits for child settlement before Electron exits. Repeated quit requests join the same operation rather than starting another signal or timer sequence.
+
+An unexpected child exit after readiness reports its exact code and signal, then enters the same application quit operation. The shell does not leave a live window attached to a dead Host and does not restart an execution environment without an explicit recovery policy.
+
+The supervisor presents start/readiness/shutdown facts to the Electron application instead of exposing child-process mechanics to window and tray handlers. A later local custom-protocol plus IPC carrier may replace the loopback child behind this ownership point. That migration replaces asset loading and transport while retaining the tray/window lifetime rules and the existing ApiProxy message model; the first phase does not introduce a compatibility promise for the child arrangement.
+
+### Desktop chrome
+
+The BrowserWindow is frameless on every platform. macOS uses an inset hidden title bar, sidebar vibrancy, and an explicit traffic-light position; Windows uses acrylic material. The window itself allows transparency, but Linux keeps the Web client's opaque surfaces because Electron provides no equivalent native material there. The window remains hidden until the renderer is loaded and its desktop presentation marker is applied.
+
+After the validated Host document finishes loading, Electron marks its root element as a desktop document and records the platform before the window is shown. This static marker grants no preload or IPC capability. Client styles use it only to reserve the hidden title bar's vertical inset and expose a sidebar-owned drag strip. Buttons, links, form fields, and button roles inside the sidebar are explicit no-drag regions so window movement does not consume their interaction.
+
+Native material is admitted only through the sidebar on macOS and Windows: the page and AppFrame backgrounds become transparent, the sidebar paints a theme-derived translucent tint, and the conversation and details columns repaint the ordinary opaque application background. Browser-served clients have no desktop marker and retain their existing layout and colors. This keeps platform chrome a carrier-specific presentation choice rather than a new client capability or protocol field.
+
+## Verification
+
+`apps/desktop/tests/host-supervisor.spec.ts` pins readiness across arbitrary stdout chunks and an unterminated final line, rejects invalid schemes, hosts, ports, and missing readiness, and covers one in-flight start, startup failures, early exits, idempotent shutdown, cooperative `SIGTERM` settlement, and the one-shot timeout escalation. `apps/desktop/tests/window-lifecycle.spec.ts` pins close-as-hide, coalesced window creation, quit-time restoration refusal, and one Host disposal before Electron's quit retry. The client tests in `packages/client/ui-layout/tests/desktop-surfaces.client.spec.ts` and `packages/client/ui-sidebar/tests/` pin supported-platform transparency, opaque working columns, the marker-gated drag strip and title-bar inset, no-drag controls, keyboard focus visibility, and the browser fallback. Source checks and review pin the Electron event wiring, single-instance restoration, exact-origin navigation policy, hardened and frameless BrowserWindow settings, desktop marker injection, and platform material selection. Build and release checks prove the private desktop application remains outside the npm release family and that its staging manifest names the desktop entry, CLI files, and Web frontend; the application README records the production dependency and bundled-Node gaps that keep this staging manifest from being a distributable installer.
+
+## Alternatives considered
+
+**Build the IPC carrier before shipping any desktop application.** This is the target transport direction, but it combines process security, client-module packaging, bidirectional streaming, cancellation, native operations, and lifecycle work in one first release. The supervisor keeps that migration available without making all of it a prerequisite for a tray shell.
+
+**Boot the Harness plugin tree inside Electron's main process.** This removes one child process and the loopback socket, but it couples model, persistence, and subprocess failures to the process that must keep the tray and quit controls responsive. It also creates a second application assembly instead of exercising the shipped Web profile.
+
+**Terminate the child whenever the window closes.** This makes BrowserWindow visibility own agent lifetime, discards background work, and contradicts a tray-resident application. Only an explicit application quit owns Host disposal.
+
+**Destroy and recreate the BrowserWindow on close.** Session replay can reconstruct durable conversation state, but transient client state and open controls would be lost. Hiding preserves the current client generation for the first shell; accepting its renderer memory cost is explicit.
+
+**Use a fixed loopback port or infer the address from process arguments.** A fixed port creates avoidable collisions and an inferred URL can race a server that has not completed Loader activation. Port zero plus the existing post-settlement readiness line lets the child report the address it actually owns.
+
+**Kill the child immediately on explicit quit.** Immediate termination shortens shutdown but skips session flushes and managed process-tree cleanup. `SIGTERM` delegates disposal to the child; forced termination remains only the bounded failure path.
+
+**Keep the native title bar and an opaque sidebar.** This avoids carrier-specific styling, but gives the desktop application browser-like chrome and cannot use the platform material already owned by its native window. The desktop marker confines the required layout adjustment to Electron instead.
+
+**Make the whole workspace translucent.** Extending native material behind conversation and details content would reduce text contrast and make theme surfaces depend on the desktop beneath the window. Only the navigation sidebar admits material; working content remains opaque.
+
+## Consequences
+
+The desktop application ships the existing interactive product with little Host or client risk, and closing its window leaves the agent runtime available from the tray. The extra process also isolates Electron's application controls from ordinary Harness failures and leaves one explicit point where the transport can later change.
+
+This phase pays for a loopback listener, an additional Node process, readiness-line coupling, and the resource cost of a hidden renderer. It inherits the Web carrier's trust and exposure rules rather than gaining an Electron IPC security boundary. Frameless chrome also makes the client responsible for title-bar clearance, a usable drag target, and no-drag interaction regions; Linux receives the same frameless layout without a native glass material. A distributable package must carry a compatible Node runtime, CLI production dependency closure, and Web frontend; the current unpacked staging target does not yet satisfy the first two requirements. Desktop startup succeeds only after the child reports its post-Loader URL. A Host crash exits the shell instead of recovering the current window; automatic restart remains a later lifecycle decision.
+
+The child arrangement is an implementation choice, not a public protocol. A future IPC-backed desktop still uses the four-quadrant ApiProxy contract and preserves close-as-hide, tray ownership, single-instance behavior, and ordered Host disposal, while replacing the loopback server, readiness line, and supervised CLI process.
