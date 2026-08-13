@@ -16,6 +16,12 @@ Status: implemented
 
 根目录的 `dev:desktop` 命令是完整的源码启动入口。Electron 启动前，该命令会构建 Host 与客户端包的编译面、Web 前端和 Electron main 进程，因此完成全新依赖安装后无需另行构建仓库。
 
+根目录的 `package:desktop` 命令是完整的本地打包入口。它会执行同样的仓库构建，然后由 `apps/desktop/scripts/stage-runtime.ts` 根据仅含依赖的 manifest，创建已忽略的 `apps/desktop/runtime-host` 目录树。该暂存器运行仅生产环境依赖的提升式 `pnpm deploy`，补回 legacy deploy 遗漏的直接依赖，将包链接实体化，并拒绝所有残留的符号链接。Electron Builder 会把该封闭目录树与构建后的 Web 前端一起复制到应用的 `resources/host` 目录。
+
+打包后的 supervisor 使用已打包的 Electron 可执行文件和 `ELECTRON_RUN_AS_NODE=1` 启动 `resources/host/node_modules/@deepseek-ai/dsh/lib/bin.js`；源码启动仍使用宿主 `node` 命令与工作区 CLI 入口。Electron 的 Node 模式可以提供独立 Host 进程，无需在应用中增加第二个 Node 可执行文件。因此，已交付 Electron 的 Node ABI 拥有暂存依赖闭包中原生依赖的兼容性。
+
+macOS 和 Windows 使用同一个受跟踪的 `apps/desktop/build/icon.png` 输入，仓库不转换该文件。本地 `package:desktop` 生成未封装产物，不要求发布凭据。独立的 `dist:mac:desktop` 入口启用 hardened runtime，强制签名，并在创建 DMG 前要求一组完整的 Electron Builder 公证凭据。签名既可使用包含 `Developer ID Application` 证书及私钥的持久 Keychain 身份，也可使用由 Electron Builder 导入临时 Keychain 的 Base64 PKCS#12 凭据。发布 wrapper 不会把签名与公证变量传给仓库构建和运行时暂存，只会将其传给 Electron Builder。预检查会在仓库构建前拒绝非 macOS 宿主、已禁用的身份发现、非 Developer ID 身份，以及缺失或不完整的凭据。公证凭据可来自 `notarytool` Keychain profile、完整的 Apple ID 凭据组或 App Store Connect API 密钥凭据组。
+
 该子进程仍然独家拥有 Web profile 的 Cordis 树、会话、设置、凭据、文件系统和 shell 服务、HTTP/WebSocket 载体，以及等待完全停稳的 dispose。Electron 不会把这些服务导入 main 进程或渲染器进程。BrowserWindow 加载经过校验的 loopback URL，禁用 Node 集成，启用上下文隔离和渲染器沙箱，并且不提供 preload 能力。这仍然是既有的本地 Web 安全模型：桌面壳不会增加身份验证层或 IPC 授权层。
 
 托盘和 Host supervisor 拥有独立于 BrowserWindow 可见性的应用生命周期。用户关闭窗口时，应用拦截该操作并隐藏窗口，既不退出 Electron，也不向子进程发送信号。激活托盘或在 macOS 上激活应用时，应用重新显示现有窗口。`window-all-closed` 不是退出请求。单实例锁阻止第二个桌面进程和第二个 Host 子进程启动；再次启动只会恢复主实例窗口并将其聚焦。
@@ -36,7 +42,7 @@ Electron 会在经过校验的 Host URL 上附加一个白名单内的平台值�
 
 ## 验证
 
-`apps/desktop/tests/host-supervisor.spec.ts` 固定就绪解析在任意 stdout 分片和末行无换行时的行为，拒绝无效 scheme、host、port 和缺失的就绪信息，并覆盖单个在途启动、启动失败、提前退出、幂等关闭、协作式 `SIGTERM` 结算，以及只执行一次的超时升级。`apps/desktop/tests/window-lifecycle.spec.ts` 固定关闭窗口即隐藏、窗口创建合流、退出期间拒绝恢复窗口，以及 Electron 重试退出前只 dispose 一次 Host。客户端测试固定白名单内的挂载前桌面标记、macOS 90px 收起几何、Web／Windows／Linux 56px 几何、保持不变的 60px logo 行、平台专属侧栏偏移和拖拽条、不透明工作列、Windows 窗口按钮行留位、常驻中心拖拽区、标题栏交互排除、模态框存续期间暂停拖拽、原生玻璃渐变抑制、键盘焦点可见性和浏览器回退。源代码检查与评审固定 Electron 事件接线、单实例恢复、精确 origin 导航策略、加固后的 BrowserWindow 设置、Windows 标准边框和平台材质选择。构建与发布检查证明私有桌面应用保持在 NPM 发布族之外，而且其 staging manifest（元数据清单）点名桌面入口、CLI 文件和 Web 前端；应用 README 记录生产依赖与随包 Node 缺口，这些缺口意味着该 staging manifest 尚不能构成可分发安装包。
+`apps/desktop/tests/host-supervisor.spec.ts` 固定就绪解析在任意 stdout 分片和末行无换行时的行为，拒绝无效 scheme、host、port 和缺失的就绪信息，并覆盖单个在途启动、启动失败、提前退出、幂等关闭、协作式 `SIGTERM` 结算，以及只执行一次的超时升级。`apps/desktop/tests/window-lifecycle.spec.ts` 固定关闭窗口即隐藏、窗口创建合流、退出期间拒绝恢复窗口，以及 Electron 重试退出前只 dispose 一次 Host。客户端测试固定白名单内的挂载前桌面标记、macOS 90px 收起几何、Web／Windows／Linux 56px 几何、保持不变的 60px logo 行、平台专属侧栏偏移和拖拽条、不透明工作列、Windows 窗口按钮行留位、常驻中心拖拽区、标题栏交互排除、模态框存续期间暂停拖拽、原生玻璃渐变抑制、键盘焦点可见性和浏览器回退。源代码检查与评审固定 Electron 事件接线、单实例恢复、精确 origin 导航策略、加固后的 BrowserWindow 设置、Windows 标准边框和平台材质选择。打包测试固定共用源图标、完整构建与运行时暂存命令、打包后的 Host 路径、Electron Node 模式环境、封闭暂存声明、加固的 macOS 配置，以及快速失败的发布预检查。应用 README 拥有凭据设置以及构建后的签名、Gatekeeper 与装订验证命令；只有该命令使用发布凭据执行成功后，它才会声明已公证发布。
 
 ## 考虑过的替代方案
 
@@ -60,6 +66,6 @@ Electron 会在经过校验的 Host URL 上附加一个白名单内的平台值�
 
 桌面应用可以用很小的 Host 或客户端风险交付既有交互产品，关闭窗口后 agent 运行时仍可从托盘继续使用。额外的进程还会把 Electron 应用控件与普通 Harness 故障隔离，并留下一个明确的后续传输替换位置。
 
-第一阶段需要承担 loopback listener、额外 Node 进程、就绪行耦合和隐藏渲染器的资源成本。它继承 Web 载体的信任与暴露规则，而不会获得 Electron IPC 安全边界。自定义窗口外观还让客户端负责平台专属标题栏避让、可用的拖拽目标和 no-drag 交互区；Linux 保持无边框且没有原生玻璃材质，Windows 则依赖 Window Controls Overlay 几何。可分发包必须携带兼容的 Node 运行时、CLI 生产依赖闭包和 Web 前端；当前未封装 staging 目标尚未满足前两项要求。只有子进程报告 Loader 结算后的 URL，桌面启动才算成功。Host 崩溃会让桌面壳退出，而不会恢复当前窗口；自动重启仍属于后续生命周期决策。
+第一阶段需要承担 loopback listener、额外 Node 进程、就绪行耦合和隐藏渲染器的资源成本。它继承 Web 载体的信任与暴露规则，而不会获得 Electron IPC 安全边界。自定义窗口外观还让客户端负责平台专属标题栏避让、可用的拖拽目标和 no-drag 交互区；Linux 保持无边框且没有原生玻璃材质，Windows 则依赖 Window Controls Overlay 几何。可分发包携带 CLI 生产依赖闭包和 Web 前端，Electron 的 Node 模式可以避免重复的 Node 二进制文件，代价是原生依赖兼容性与 Electron 交付的 ABI 耦合。运行时暂存还依赖 legacy `pnpm deploy` 行为，因此必须在 Builder 消费该目录树前补回遗漏的直接依赖并移除链接。正式 macOS 发布需要外部 Developer ID 身份、公证凭据和 Apple 公证服务；Windows 与 Linux 安装包格式及发布签名仍属于独立的发布工作。只有子进程报告 Loader 结算后的 URL，桌面启动才算成功。Host 崩溃会让桌面壳退出，而不会恢复当前窗口；自动重启仍属于后续生命周期决策。
 
 子进程安排是一项实现选择，不是公开协议。后续采用 IPC 的桌面应用仍使用 ApiProxy 四象限约定，并保留关闭即隐藏、托盘所有权、单实例行为和有序 Host dispose，同时替换 loopback 服务器、就绪行和被监督的 CLI 进程。

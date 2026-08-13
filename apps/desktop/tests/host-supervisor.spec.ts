@@ -1,9 +1,12 @@
+import { spawn } from 'node:child_process'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   createHostSupervisor,
   createReadinessParser,
   type HostChild,
 } from '../src/host-supervisor.ts'
+
+vi.mock('node:child_process', { spy: true })
 
 type HostExitListener = Parameters<HostChild['onExit']>[0]
 type HostExitSignal = Parameters<HostExitListener>[1]
@@ -273,5 +276,33 @@ describe('desktop Host supervisor', () => {
     await vi.advanceTimersByTimeAsync(0)
     expect(settled).toHaveBeenCalledOnce()
     await expect(closing).resolves.toBeUndefined()
+  })
+})
+
+describe('desktop Host process', () => {
+  it('opts the packaged Electron executable into its Node runtime', async () => {
+    const spawned = {
+      stdout: { on: vi.fn(), off: vi.fn() },
+      stderr: { on: vi.fn(), off: vi.fn() },
+      on: vi.fn(),
+      off: vi.fn(),
+      kill: vi.fn(),
+    }
+    vi.mocked(spawn).mockReturnValue(spawned as never)
+
+    const { spawnDshWeb } = await import('../src/host-supervisor.ts')
+    spawnDshWeb({
+      nodeExecutable: '/Applications/DeepSeek Harness.app/Contents/MacOS/DeepSeek Harness',
+      cliEntry: '/Applications/DeepSeek Harness.app/Contents/Resources/host/node_modules/@deepseek-ai/dsh/lib/bin.js',
+      cwd: '/Users/tester',
+      env: { DSH_DESKTOP: '1' },
+      electronRunAsNode: true,
+    })
+
+    expect(spawn).toHaveBeenCalledWith(
+      '/Applications/DeepSeek Harness.app/Contents/MacOS/DeepSeek Harness',
+      ['--expose-internals', expect.stringContaining('/Resources/host/node_modules/@deepseek-ai/dsh/lib/bin.js'), 'web', '--host', '127.0.0.1', '--port', '0'],
+      expect.objectContaining({ env: { DSH_DESKTOP: '1', ELECTRON_RUN_AS_NODE: '1' } }),
+    )
   })
 })

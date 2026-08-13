@@ -33,19 +33,20 @@ let bootQuitPromise: Promise<void> | undefined
 let quitReleased = false
 
 /** Resolve artifacts from the checkout in development and resourcesPath when packaged. */
-function hostPaths(): { nodeExecutable: string; cliEntry: string; cwd: string } {
+function hostPaths(): { nodeExecutable: string; cliEntry: string; cwd: string; electronRunAsNode: boolean } {
   if (!app.isPackaged) {
     return {
       nodeExecutable: process.env.DSH_DESKTOP_NODE_EXECUTABLE ?? 'node',
       cliEntry: join(REPOSITORY_ROOT, 'apps/cli/lib/bin.js'),
       cwd: process.cwd(),
+      electronRunAsNode: false,
     }
   }
-  const bundledNode = join(process.resourcesPath, 'node', process.platform === 'win32' ? 'node.exe' : 'bin/node')
   return {
-    nodeExecutable: bundledNode,
-    cliEntry: join(process.resourcesPath, 'host/apps/cli/lib/bin.js'),
+    nodeExecutable: process.execPath,
+    cliEntry: join(process.resourcesPath, 'host/node_modules/@deepseek-ai/dsh/lib/bin.js'),
     cwd: app.getPath('home'),
+    electronRunAsNode: true,
   }
 }
 

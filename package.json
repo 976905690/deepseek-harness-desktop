@@ -138,6 +138,8 @@
     "dsh": "node --import tsx/esm apps/cli/src/bin.ts",
     "dev:desktop": "pnpm --filter @deepseek-ai/dsh-desktop run dev",
     "package:desktop": "pnpm --filter @deepseek-ai/dsh-desktop run package",
+    "dist:desktop": "pnpm --filter @deepseek-ai/dsh-desktop run dist",
+    "dist:mac:desktop": "pnpm --filter @deepseek-ai/dsh-desktop run dist:mac",
     "demo:code-mode": "node scripts/demo-code-mode.mjs",
     "demo:cordis": "node scripts/demo-cordis.mjs",
     "demo:acp": "node --import tsx packages/examples/acp-demo/src/bin.ts --config examples/acp-agent/cordis.yml",
