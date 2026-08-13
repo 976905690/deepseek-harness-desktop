@@ -4,8 +4,6 @@
 
 DeepSeek 官方目前通过命令行启动本地 Web UI。这个项目在官方 DeepSeek Harness 的基础上增加了 Electron 桌面外壳，负责启动和管理本地 Harness 服务，让用户无需配置 Node.js 或执行命令，即可直接使用。
 
-> 本项目是基于 DeepSeek Harness 构建的社区桌面版本，并非 DeepSeek 官方产品。
-
 <a id="run"></a>
 
 ## 下载
@@ -17,6 +15,8 @@ DeepSeek 官方目前通过命令行启动本地 Web UI。这个项目在官方 
 | Windows x64 | 支持 |
 
 前往 [deepseekdesktop.com](https://deepseekdesktop.com) 下载最新版本。
+
+## 界面预览
 
 <p align="center">
   <img src="assets/desktop-preview.png" alt="DeepSeek Harness Desktop 界面预览" width="100%">
@@ -46,15 +46,6 @@ DeepSeek Harness 的核心能力、插件系统和 Web UI 来自官方项目。�
 
 如果你希望通过命令行运行 Harness，或者参与核心功能开发，请优先查看官方仓库。
 
-## 使用方式
-
-1. 下载对应平台的安装包。
-2. 安装并启动 DeepSeek Harness Desktop。
-3. 选择工作目录。
-4. 开始使用。
-
-应用启动后会自动运行本地 Harness 服务，不需要额外执行命令。
-
 <a id="run-from-source"></a>
 
 ## 开发
@@ -72,6 +63,29 @@ pnpm install
 pnpm run dev:desktop
 ```
 
+## 加入交流群
+
+欢迎加入 DeepSeek Harness 社区。扫码添加企微小助手并填写入群问卷，完成后小助手会邀请你入群。
+
+<table>
+  <thead>
+    <tr>
+      <th align="center">企微小助手</th>
+      <th align="center">入群问卷</th>
+      <th align="center">微信公众号</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td align="center"><img src="assets/community-wecom-assistant.png" alt="DeepSeek Harness 企微小助手二维码" width="180" height="180"></td>
+      <td align="center"><a href="https://trtgsjkv6r.feishu.cn/share/base/form/shrcnIt5twSVdLGD52KJBckGCgg"><img src="assets/community-wecom-survey.png" alt="DeepSeek Harness 入群问卷二维码" width="180" height="180"></a></td>
+      <td align="center"><img src="assets/community-wechat-official-account.png" alt="DeepSeek Harness 团队微信公众号二维码" width="180" height="180"></td>
+    </tr>
+  </tbody>
+</table>
+
 ## License
 
 本项目遵循 [MIT License](LICENSE)。
+
+> 本项目是基于 DeepSeek Harness 构建的社区桌面版本，并非 DeepSeek 官方产品。
