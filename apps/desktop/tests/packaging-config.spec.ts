@@ -24,6 +24,7 @@ interface RootPackage {
 const desktopRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const repositoryRoot = resolve(desktopRoot, '../..')
 const workspaceConfiguration = readFileSync(resolve(repositoryRoot, 'pnpm-workspace.yaml'), 'utf8')
+const builderPatch = readFileSync(resolve(repositoryRoot, 'patches/app-builder-lib@26.15.3.patch'), 'utf8')
 const desktopPackage = JSON.parse(
   readFileSync(resolve(desktopRoot, 'package.json'), 'utf8'),
 ) as DesktopPackage
@@ -34,7 +35,15 @@ const rootPackage = JSON.parse(
 describe('desktop packaging configuration', () => {
   it('packages the installed Electron distribution', () => {
     expect(desktopPackage.build.electronDist).toBe('node_modules/electron/dist')
-    expect(workspaceConfiguration).toContain("'app-builder-lib>@electron/get': '3.1.0'")
+    expect(workspaceConfiguration).toContain("'app-builder-lib@26.15.3>@electron/get': '3.1.0'")
+  })
+
+  it('unlocks the temporary signing Keychain with its own password', () => {
+    expect(workspaceConfiguration).toContain(
+      'app-builder-lib@26.15.3: patches/app-builder-lib@26.15.3.patch',
+    )
+    expect(builderPatch).toContain('cscPasswords, keychainPassword')
+    expect(builderPatch).toContain('"-k", keychainPassword, keychainFile')
   })
 
   it('keeps the supplied image byte-for-byte and shares it across macOS and Windows', () => {

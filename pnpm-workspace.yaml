@@ -32,7 +32,7 @@ overrides:
   '@deepseek-ai/schemastery': 'link:vendor/schemastery'
   # app-builder-lib 26.15.3 reads a cache-mode export introduced in 3.1.0,
   # while its declared range still permits the incompatible 3.0.0 release.
-  'app-builder-lib>@electron/get': '3.1.0'
+  'app-builder-lib@26.15.3>@electron/get': '3.1.0'
 
 peerDependencyRules:
   allowedVersions:
@@ -78,4 +78,5 @@ minimumReleaseAgeExclude:
   - node-addon-require-builtin@0.1.4
 
 patchedDependencies:
+  app-builder-lib@26.15.3: patches/app-builder-lib@26.15.3.patch
   node-pty@1.1.0: patches/node-pty@1.1.0.patch
