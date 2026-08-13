@@ -72,17 +72,17 @@ pnpm run dev:desktop
     <tr>
       <th align="center">微信群</th>
       <th align="center">QQ群</th>
-      <th align="center">Discord</th>
     </tr>
   </thead>
   <tbody>
     <tr>
       <td align="center"><img src="assets/community-wechat-group.png" alt="DeepSeek Harness Desktop 微信群二维码" width="180" height="180"></td>
       <td align="center"><img src="assets/community-qq-group.jpg" alt="DeepSeek Harness Desktop QQ群二维码" width="180" height="180"></td>
-      <td align="center"><a href="https://discord.gg/TJeGqKRNM"><strong>加入 Discord</strong></a></td>
     </tr>
   </tbody>
 </table>
+
+Discord：[加入 DeepSeek Harness Desktop 社区](https://discord.gg/TJeGqKRNM)
 
 ## License
 
