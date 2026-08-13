@@ -24,6 +24,27 @@ describe('conversation desktop header', () => {
     expect(css).not.toMatch(/(?:^|\n)\.header\s*\{[^}]*-webkit-app-region/s)
   })
 
+  it('composes the Windows caption controls into the title row', () => {
+    expect(css).toMatch(
+      /:global\(html\[data-dsh-desktop-platform='win32'\]\) \.root\s*\{[^}]*--dsh-windows-caption-controls-width: 138px;/s,
+    )
+    const windowsDragSeat = css.match(
+      /:global\(html\[data-dsh-desktop-platform='win32'\]\) \.desktopTitlebarDragRegion\s*\{([^}]*)}/s,
+    )?.[1]
+    expect(windowsDragSeat).toContain('right: var(--dsh-windows-caption-controls-width);')
+    expect(css).toMatch(
+      /:global\(html\[data-dsh-desktop-platform='win32'\]\) \.header\s*\{[^}]*padding: 0 0 0 20px;[^}]*-webkit-app-region: no-drag;/s,
+    )
+    const windowsTitleRow = css.match(
+      /:global\(html\[data-dsh-desktop-platform='win32'\]\) \.titleRow\s*\{([^}]*)}/s,
+    )?.[1]
+    expect(windowsTitleRow).toContain('min-height: var(--dsh-desktop-titlebar-inset, 44px);')
+    expect(windowsTitleRow).toContain(
+      'padding-right: calc(var(--dsh-windows-caption-controls-width) + 20px);',
+    )
+    expect(windowsTitleRow).toContain('-webkit-app-region: drag;')
+  })
+
   it.each([
     'button:not(:disabled)',
     'a',

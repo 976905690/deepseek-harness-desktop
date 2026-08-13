@@ -29,17 +29,18 @@ describe('AppFrame desktop surfaces', () => {
     expect(css).toContain('padding-top: var(--dsh-desktop-titlebar-inset, 44px);')
   })
 
-  it.each(['win32', 'linux'])('keeps %s work below the native overlay', (platform) => {
-    const marker = `:global(html[data-dsh-desktop-platform='${platform}'])`
+  it('keeps Linux work below the native overlay', () => {
+    const marker = ":global(html[data-dsh-desktop-platform='linux'])"
     expect(css).toContain(`${marker} .centerCol`)
     expect(css).toContain(`${marker} .detailsCol`)
     expect(css).toContain('box-sizing: border-box;')
   })
 
-  it('does not inset macOS work columns', () => {
-    expect(css).not.toMatch(
-      /data-dsh-desktop-platform='darwin'\]\) \.centerCol[^{]*\{[^}]*padding-top/s,
-    )
+  it.each(['darwin', 'win32'])('does not inset %s work columns', (platform) => {
+    expect(css).not.toMatch(new RegExp(
+      `data-dsh-desktop-platform='${platform}'\\]\\) \\.centerCol[^{]*\\{[^}]*padding-top`,
+      's',
+    ))
   })
 
   it('uses theme tokens for the desktop tint and opaque work columns', () => {

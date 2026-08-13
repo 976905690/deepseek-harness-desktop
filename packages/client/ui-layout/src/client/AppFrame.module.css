@@ -68,10 +68,9 @@
   background: var(--dsw-alias-bg-base);
 }
 
-/* Windows and Linux place the native title-bar overlay above the work
-   columns. macOS traffic lights stay wholly inside the sidebar inset. */
-:global(html[data-dsh-desktop-platform='win32']) .centerCol,
-:global(html[data-dsh-desktop-platform='win32']) .detailsCol,
+/* Linux places its native title-bar overlay above the work columns. Windows
+   composes its overlay into the first Conversation row, while macOS traffic
+   lights stay wholly inside the sidebar. */
 :global(html[data-dsh-desktop-platform='linux']) .centerCol,
 :global(html[data-dsh-desktop-platform='linux']) .detailsCol {
   padding-top: var(--dsh-desktop-titlebar-inset, 44px);

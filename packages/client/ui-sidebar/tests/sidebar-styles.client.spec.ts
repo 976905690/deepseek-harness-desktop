@@ -49,6 +49,17 @@ describe('SidebarRoot.module.css', () => {
     expect(css).not.toContain("data-dsh-desktop-platform='linux']) .root")
   })
 
+  it('keeps Windows sidebar controls at their Web offsets without a drag strip', () => {
+    const expanded = declarations(":global(html[data-dsh-desktop-platform='win32']) .root")
+    const collapsed = declarations(":global(html[data-dsh-desktop-platform='win32']) .root.collapsed")
+    expect(expanded?.get('padding-top')).toBe('6px')
+    expect(collapsed?.get('padding-top')).toBe('18px')
+    expect(
+      declarations(":global(html[data-dsh-desktop-platform='win32']) .titlebarDragRegion")
+        ?.get('display'),
+    ).toBe('none')
+  })
+
   it('places macOS sidebar content directly below the traffic lights', () => {
     const expanded = declarations(":global(html[data-dsh-desktop-platform='darwin']) .root")
     const collapsed = declarations(":global(html[data-dsh-desktop-platform='darwin']) .root.collapsed")

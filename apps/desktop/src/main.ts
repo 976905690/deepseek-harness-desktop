@@ -103,7 +103,7 @@ async function createMainWindow(): Promise<BrowserWindow> {
     minHeight: 640,
     show: false,
     autoHideMenuBar: true,
-    frame: false,
+    frame: process.platform === 'win32',
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'hidden',
     ...(process.platform === 'darwin' ? {} : {
       titleBarOverlay: {
@@ -117,10 +117,16 @@ async function createMainWindow(): Promise<BrowserWindow> {
       vibrancy: 'sidebar' as const,
       visualEffectState: 'followWindow' as const,
     } : {}),
-    ...(process.platform === 'win32' ? { backgroundMaterial: 'acrylic' as const } : {}),
-    transparent: true,
+    ...(process.platform === 'win32' ? {
+      backgroundMaterial: 'acrylic' as const,
+      hasShadow: true,
+      roundedCorners: true,
+      thickFrame: true,
+    } : {
+      transparent: true,
+      backgroundColor: '#00000000',
+    }),
     title: APP_NAME,
-    backgroundColor: '#00000000',
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,

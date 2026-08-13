@@ -4,7 +4,7 @@
 
 侧边栏外壳插件：负责字标、New Session 操作、布局持有的折叠控件、可感知滚动的区域 seat，以及固定在底部的 Settings seat。[ui-workspace](../ui-workspace/README.md) 持有渲染到 `sidebar.workspaces` 的 Workspace 与 Session 浏览器；本包既不派生其中的行，也不持有其视图偏好。折叠仍属于本地呈现行为：布局拥有的轨道在 Web、Windows 与 Linux 中为 56px；macOS 桌面端为 88px，使原生交通灯组留有右侧余量。约定：[slot 系统标准](../../../.agents/notes/implemented/architecture/2026-07-22-slot-type-chain-implementation.md)。
 
-Electron document 带有 `html[data-dsh-desktop='true']` 标记时，侧栏顶部会显示窗口拖拽条，并在展开与轨道布局中预留原生标题栏区域。macOS 的拖拽条与侧栏内容在 32px 处相接，使 logo 行直接从交通灯下方开始；其内部 60px 几何保持不变。按钮、链接、表单控件与 button role 后代保持 `no-drag`，无边框窗口不会吞掉它们的指针输入。Web 应用会隐藏拖拽条，且不为其预留空间。在 macOS 与 Windows 上，侧栏根节点保持透明以显示布局持有的原生材质；Linux 仍使用普通侧栏填充色。
+在 macOS 上，Electron document 会显示侧栏顶部拖拽条；拖拽条与侧栏内容在 32px 处相接，使 logo 行直接从交通灯下方开始，其内部 60px 几何保持不变。Windows 使用普通的展开态 6px 与轨道态 18px 顶部间距，不显示侧栏拖拽条，因为窗口拖动由会话窗口按钮行负责。存在平台拖拽条时，侧栏控件保持 `no-drag`。Web 不预留原生标题栏空间。在 macOS 与 Windows 上，侧栏根节点保持透明以显示布局持有的原生材质；Linux 仍使用普通侧栏填充色。
 
 New Session 会启动运行时的页面局部前端 Session Intent。运行时优先使用作用域操作明确指定的 Workspace，否则使用当前 Session 所属 Workspace，再否则使用最近活跃 Workspace；一个 Workspace 都没有时则清空选择，进入空白 New Session 页面。Workspace 专属控件与共享选择器由 ui-workspace 持有。
 

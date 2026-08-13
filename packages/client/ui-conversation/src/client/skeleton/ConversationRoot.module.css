@@ -26,6 +26,10 @@
   --dsh-composer-dock-inset: 8px;
 }
 
+:global(html[data-dsh-desktop-platform='win32']) .root {
+  --dsh-windows-caption-controls-width: 138px;
+}
+
 .desktopTitlebarDragRegion {
   display: none;
 }
@@ -40,6 +44,10 @@
   user-select: none;
 }
 
+:global(html[data-dsh-desktop-platform='win32']) .desktopTitlebarDragRegion {
+  right: var(--dsh-windows-caption-controls-width);
+}
+
 .header {
   position: relative;
   z-index: 2;
@@ -50,6 +58,11 @@
 
 :global(html[data-dsh-desktop='true']) .header {
   -webkit-app-region: drag;
+}
+
+:global(html[data-dsh-desktop-platform='win32']) .header {
+  padding: 0 0 0 20px;
+  -webkit-app-region: no-drag;
 }
 
 :global(html[data-dsh-desktop='true']) .header button:not(:disabled),
@@ -87,6 +100,13 @@
   align-items: center;
   gap: 0;
   min-height: 32px;
+}
+
+:global(html[data-dsh-desktop-platform='win32']) .titleRow {
+  min-height: var(--dsh-desktop-titlebar-inset, 44px);
+  padding-right: calc(var(--dsh-windows-caption-controls-width) + 20px);
+  box-sizing: border-box;
+  -webkit-app-region: drag;
 }
 
 .titleCluster {
