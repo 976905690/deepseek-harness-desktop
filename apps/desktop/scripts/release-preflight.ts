@@ -55,6 +55,10 @@ function normalizeSigningIdentity(value: string): string {
   return value.replaceAll(/\\([ ()])/g, '$1')
 }
 
+function electronBuilderIdentity(identity: string): string {
+  return identity.slice(DEVELOPER_ID_PREFIX.length).trim()
+}
+
 /**
  * Map the desktop release secret names to Electron Builder's signing variables.
  * @param env - Environment loaded by Node or inherited from the caller.
@@ -78,12 +82,17 @@ export function adaptMacReleaseEnvironment(env: NodeJS.ProcessEnv): NodeJS.Proce
     throw new Error('Set MAC_CERT_P12_BASE64 or CSC_LINK for macOS signing, not both')
   }
   const configuredIdentity = environmentValue(env, 'CSC_NAME')
-  if (configuredIdentity !== undefined && configuredIdentity !== identity) {
+  const builderIdentity = electronBuilderIdentity(identity)
+  if (
+    configuredIdentity !== undefined
+    && configuredIdentity !== identity
+    && configuredIdentity !== builderIdentity
+  ) {
     throw new Error('MACOS_SIGN_IDENTITY and CSC_NAME select different signing identities')
   }
 
   adapted.CSC_LINK = `${P12_DATA_PREFIX}${normalizeP12Base64(p12)}`
-  adapted.CSC_NAME = identity
+  adapted.CSC_NAME = builderIdentity
   delete adapted.MAC_CERT_P12_BASE64
   delete adapted.MACOS_SIGN_IDENTITY
   return adapted
@@ -146,8 +155,11 @@ export function assertMacReleaseReady(options: MacReleasePreflightOptions): MacR
   }
 
   const configuredIdentity = environmentValue(options.env, 'CSC_NAME')
-  if (configuredIdentity !== undefined && !configuredIdentity.startsWith(DEVELOPER_ID_PREFIX)) {
+  if (configuredIdentity?.startsWith('Apple Development:') === true) {
     throw new Error('CSC_NAME must select a Developer ID Application identity for a macOS release')
+  }
+  if (configuredIdentity?.startsWith(DEVELOPER_ID_PREFIX) === true) {
+    throw new Error('CSC_NAME must omit the Developer ID Application certificate-type prefix')
   }
   const cscLink = environmentValue(options.env, 'CSC_LINK')
   let identity: string
@@ -159,17 +171,20 @@ export function assertMacReleaseReady(options: MacReleasePreflightOptions): MacR
     if (configuredIdentity === undefined) {
       throw new Error('CSC_NAME is required when CSC_LINK supplies a macOS signing certificate')
     }
-    identity = configuredIdentity
+    identity = `${DEVELOPER_ID_PREFIX} ${configuredIdentity}`
     signing = 'p12'
   } else {
     const identities = developerIdApplications(options.listCodeSigningIdentities())
     if (identities.length === 0) {
       throw new Error('A valid Developer ID Application certificate with its private key is required in the Keychain')
     }
-    identity = configuredIdentity ?? identities[0]!
-    if (!identities.includes(identity)) {
-      throw new Error(`CSC_NAME does not match a valid Keychain identity: ${identity}`)
+    const matchedIdentity = configuredIdentity === undefined
+      ? identities[0]!
+      : identities.find(candidate => electronBuilderIdentity(candidate) === configuredIdentity)
+    if (matchedIdentity === undefined) {
+      throw new Error(`CSC_NAME does not match a valid Keychain identity: ${configuredIdentity}`)
     }
+    identity = matchedIdentity
     signing = 'keychain'
   }
 

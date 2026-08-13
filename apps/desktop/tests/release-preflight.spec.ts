@@ -69,7 +69,7 @@ describe('macOS release preflight', () => {
       MACOS_SIGN_IDENTITY: 'Developer ID Application: Mengxin Yang (TEAM123456)',
     })
     expect(env.CSC_LINK).toMatch(/^data:application\/x-pkcs12;base64,/)
-    expect(env.CSC_NAME).toBe('Developer ID Application: Mengxin Yang (TEAM123456)')
+    expect(env.CSC_NAME).toBe('Mengxin Yang (TEAM123456)')
     expect(assertMacReleaseReady({
       env,
       platform: 'darwin',
@@ -84,7 +84,7 @@ describe('macOS release preflight', () => {
       MACOS_SIGN_IDENTITY: String.raw`Developer\ ID\ Application:\ Mengxin\ Yang\ (TEAM123456)`,
     })
 
-    expect(env.CSC_NAME).toBe('Developer ID Application: Mengxin Yang (TEAM123456)')
+    expect(env.CSC_NAME).toBe('Mengxin Yang (TEAM123456)')
   })
 
   it('rejects an incomplete or non-Developer-ID PKCS#12 signing group', () => {
