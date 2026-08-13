@@ -42,7 +42,7 @@ Electron 会在经过校验的 Host URL 上附加一个白名单内的平台值�
 
 ## 验证
 
-`apps/desktop/tests/host-supervisor.spec.ts` 固定就绪解析在任意 stdout 分片和末行无换行时的行为，拒绝无效 scheme、host、port 和缺失的就绪信息，并覆盖单个在途启动、启动失败、提前退出、幂等关闭、协作式 `SIGTERM` 结算，以及只执行一次的超时升级。`apps/desktop/tests/window-lifecycle.spec.ts` 固定关闭窗口即隐藏、窗口创建合流、退出期间拒绝恢复窗口，以及 Electron 重试退出前只 dispose 一次 Host。客户端测试固定白名单内的挂载前桌面标记、macOS 90px 收起几何、Web／Windows／Linux 56px 几何、保持不变的 60px logo 行、平台专属侧栏偏移和拖拽条、不透明工作列、Windows 窗口按钮行留位、常驻中心拖拽区、标题栏交互排除、模态框存续期间暂停拖拽、原生玻璃渐变抑制、键盘焦点可见性和浏览器回退。源代码检查与评审固定 Electron 事件接线、单实例恢复、精确 origin 导航策略、加固后的 BrowserWindow 设置、Windows 标准边框和平台材质选择。打包测试固定共用源图标、完整构建与运行时暂存命令、打包后的 Host 路径、Electron Node 模式环境、封闭暂存声明、加固的 macOS 配置，以及快速失败的发布预检查。应用 README 拥有凭据设置以及构建后的签名、Gatekeeper 与装订验证命令；只有该命令使用发布凭据执行成功后，它才会声明已公证发布。
+`apps/desktop/tests/host-supervisor.spec.ts` 固定就绪解析在任意 stdout 分片和末行无换行时的行为，拒绝无效 scheme、host、port 和缺失的就绪信息，并覆盖单个在途启动、启动失败、提前退出、幂等关闭、协作式 `SIGTERM` 结算，以及只执行一次的超时升级。`apps/desktop/tests/window-lifecycle.spec.ts` 固定关闭窗口即隐藏、窗口创建合流、退出期间拒绝恢复窗口，以及 Electron 重试退出前只 dispose 一次 Host。客户端测试固定白名单内的挂载前桌面标记、macOS 90px 收起几何、Web／Windows／Linux 56px 几何、保持不变的 60px logo 行、平台专属侧栏偏移和拖拽条、不透明工作列、Windows 窗口按钮行留位、常驻中心拖拽区、标题栏交互排除、模态框存续期间暂停拖拽、原生玻璃渐变抑制、键盘焦点可见性和浏览器回退。源代码检查与评审固定 Electron 事件接线、单实例恢复、精确 origin 导航策略、加固后的 BrowserWindow 设置、Windows 标准边框和平台材质选择。打包测试固定共用源图标、完整构建与运行时暂存命令、打包后的 Host 路径、Electron Node 模式环境、封闭暂存声明、加固的 macOS 配置、快速失败的发布预检查，以及在签名前拒绝缺失 Host 入口的产物。2026-08-14，arm64 发布路径生成了经过 Developer ID 签名、启用 hardened runtime、完成公证并装订票据的 DMG；挂载后的应用通过严格代码签名验证与 Gatekeeper 评估，其内置 Host 在干净退出前成功报告回环就绪并提供 HTTP 200 响应。
 
 ## 考虑过的替代方案
 

@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest'
 interface DesktopPackage {
   readonly scripts: Readonly<Record<string, string>>
   readonly build: {
+    readonly afterPack: string
     readonly electronDist: string
     readonly extraResources: readonly {
       readonly from: string
@@ -47,6 +48,7 @@ describe('desktop packaging configuration', () => {
       { from: 'runtime-host/package.json', to: 'host/package.json' },
       { from: 'runtime-host/node_modules', to: 'host/node_modules' },
     ]))
+    expect(desktopPackage.build.afterPack).toBe('./scripts/verify-packaged-runtime.ts')
   })
 
   it('unlocks the temporary signing Keychain with its own password', () => {

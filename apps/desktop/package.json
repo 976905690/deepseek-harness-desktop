@@ -26,6 +26,7 @@
     "appId": "ai.deepseek.harness.desktop",
     "productName": "DeepSeek Harness",
     "electronDist": "node_modules/electron/dist",
+    "afterPack": "./scripts/verify-packaged-runtime.ts",
     "asar": true,
     "files": [
       "lib/**",
