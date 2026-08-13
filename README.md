@@ -63,23 +63,23 @@ pnpm install
 pnpm run dev:desktop
 ```
 
-## 加入交流群
+## 社区交流
 
-欢迎加入 DeepSeek Harness 社区。扫码添加企微小助手并填写入群问卷，完成后小助手会邀请你入群。
+可选择常用的平台参与讨论，交流使用问题、插件开发和项目进展。
 
 <table>
   <thead>
     <tr>
-      <th align="center">企微小助手</th>
-      <th align="center">入群问卷</th>
-      <th align="center">微信公众号</th>
+      <th align="center">微信群</th>
+      <th align="center">QQ群</th>
+      <th align="center">Discord</th>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <td align="center"><img src="assets/community-wecom-assistant.png" alt="DeepSeek Harness 企微小助手二维码" width="180" height="180"></td>
-      <td align="center"><a href="https://trtgsjkv6r.feishu.cn/share/base/form/shrcnIt5twSVdLGD52KJBckGCgg"><img src="assets/community-wecom-survey.png" alt="DeepSeek Harness 入群问卷二维码" width="180" height="180"></a></td>
-      <td align="center"><img src="assets/community-wechat-official-account.png" alt="DeepSeek Harness 团队微信公众号二维码" width="180" height="180"></td>
+      <td align="center"><img src="assets/community-wechat-group.png" alt="DeepSeek Harness Desktop 微信群二维码" width="180" height="180"></td>
+      <td align="center"><img src="assets/community-qq-group.jpg" alt="DeepSeek Harness Desktop QQ群二维码" width="180" height="180"></td>
+      <td align="center"><a href="https://discord.gg/TJeGqKRNM"><strong>加入 Discord</strong></a></td>
     </tr>
   </tbody>
 </table>
