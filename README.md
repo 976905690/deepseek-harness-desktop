@@ -1,5 +1,7 @@
 # DeepSeek Harness Desktop
 
+中文 | [English](README.en.md)
+
 将 DeepSeek Harness 打包成开箱即用的桌面应用。
 
 DeepSeek 官方目前通过命令行启动本地 Web UI。这个项目在官方 DeepSeek Harness 的基础上增加了 Electron 桌面外壳，负责启动和管理本地 Harness 服务，让用户无需配置 Node.js 或执行命令，即可直接使用。
