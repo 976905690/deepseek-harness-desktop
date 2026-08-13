@@ -4,6 +4,7 @@
    a 2px active bar. */
 
 .root {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -25,11 +26,42 @@
   --dsh-composer-dock-inset: 8px;
 }
 
+.desktopTitlebarDragRegion {
+  display: none;
+}
+
+:global(html[data-dsh-desktop='true']) .desktopTitlebarDragRegion {
+  display: block;
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 1;
+  height: var(--dsh-desktop-titlebar-inset, 40px);
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
 .header {
   position: relative;
+  z-index: 2;
   flex: none;
   padding: 12px 28px 0 20px;
   border-bottom: 1px solid transparent;
+}
+
+:global(html[data-dsh-desktop='true']) .header {
+  -webkit-app-region: drag;
+}
+
+:global(html[data-dsh-desktop='true']) .header button:not(:disabled),
+:global(html[data-dsh-desktop='true']) .header a,
+:global(html[data-dsh-desktop='true']) .header input,
+:global(html[data-dsh-desktop='true']) .header select,
+:global(html[data-dsh-desktop='true']) .header textarea,
+:global(html[data-dsh-desktop='true']) .header [role='button'],
+:global(html[data-dsh-desktop='true']) .header [role='link'],
+:global(html[data-dsh-desktop='true']) .header [role='tab'],
+:global(html[data-dsh-desktop='true']) .header [contenteditable='true'] {
+  -webkit-app-region: no-drag;
 }
 
 .header::after {

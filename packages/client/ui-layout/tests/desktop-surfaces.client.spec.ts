@@ -6,6 +6,12 @@ import { describe, expect, it } from 'vitest'
 const css = readFileSync(fileURLToPath(new URL('../src/client/AppFrame.module.css', import.meta.url)), 'utf8')
 
 describe('AppFrame desktop surfaces', () => {
+  it('pins each content surface to its grid track', () => {
+    expect(css).toMatch(/\.sidebarCol\s*\{[^}]*grid-column: 1;[^}]*grid-row: 1;/s)
+    expect(css).toMatch(/\.centerCol\s*\{[^}]*grid-column: 2;[^}]*grid-row: 1;/s)
+    expect(css).toMatch(/\.detailsCol\s*\{[^}]*grid-column: 3;[^}]*grid-row: 1;/s)
+  })
+
   it.each(['darwin', 'win32'])('admits %s material through the sidebar only', (platform) => {
     const marker = `:global(html[data-dsh-desktop-platform='${platform}'])`
     expect(css).toContain(`${marker} .frame`)

@@ -8,6 +8,8 @@
 
 .root {
   --dsh-sidebar-inline-padding: 12px;
+  --dsh-sidebar-collapsed-width: 56px;
+  --dsh-sidebar-rail-inline-padding: 10px;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -51,7 +53,13 @@
   -webkit-app-region: no-drag;
 }
 
-:global(html[data-dsh-desktop-platform='darwin']) .root,
+:global(html[data-dsh-desktop-platform='darwin']) .root {
+  --dsh-sidebar-collapsed-width: 88px;
+  --dsh-sidebar-rail-inline-padding: 26px;
+  padding-top: 32px;
+  background: transparent;
+}
+
 :global(html[data-dsh-desktop-platform='win32']) .root {
   background: transparent;
 }
@@ -60,11 +68,22 @@
    rail (10px side padding), 12px vertical rhythm, 18px from the rail top to
    the whale's box (24px to the 24-wide whale glyph itself). */
 .root.collapsed {
-  padding: 18px 10px 6px;
+  padding: 18px var(--dsh-sidebar-rail-inline-padding) 6px;
 }
 
 :global(html[data-dsh-desktop='true']) .root.collapsed {
   padding-top: calc(18px + var(--dsh-desktop-titlebar-inset, 40px));
+}
+
+/* The traffic lights end near x=72/y=32. The expanded 60px logo row places
+   its 28px toggle at y=48; the collapsed rail starts its 36px controls at the
+   same y-coordinate. The separate drag strip ends at y=32. */
+:global(html[data-dsh-desktop-platform='darwin']) .root.collapsed {
+  padding-top: 48px;
+}
+
+:global(html[data-dsh-desktop-platform='darwin']) .titlebarDragRegion {
+  height: 32px;
 }
 
 /* Scrollbars in the column are a pointer affordance: the shell adds this
@@ -114,7 +133,9 @@
 @keyframes rail-in {
   from {
     opacity: 0;
-    transform: translateX(49px);
+    transform: translateX(calc(
+      var(--dsh-sidebar-collapsed-width) - var(--dsh-sidebar-rail-inline-padding) + 3px
+    ));
   }
 }
 

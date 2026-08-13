@@ -142,11 +142,9 @@ async function createMainWindow(): Promise<BrowserWindow> {
     if (isExternalUrl(url)) void shell.openExternal(url)
     return { action: 'deny' }
   })
-  await window.loadURL(origin)
-  await window.webContents.executeJavaScript(
-    "document.documentElement.dataset.dshDesktop = 'true'; document.documentElement.dataset.dshDesktopPlatform = "
-      + `${JSON.stringify(process.platform)};`,
-  )
+  const rendererUrl = new URL(origin)
+  rendererUrl.searchParams.set('dsh-desktop-platform', process.platform)
+  await window.loadURL(rendererUrl.href)
   if (!lifecycle?.isQuitting) window.show()
   return window
 }

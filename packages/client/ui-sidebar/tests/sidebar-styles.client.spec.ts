@@ -49,6 +49,19 @@ describe('SidebarRoot.module.css', () => {
     expect(css).not.toContain("data-dsh-desktop-platform='linux']) .root")
   })
 
+  it('places macOS sidebar content directly below the traffic lights', () => {
+    const expanded = declarations(":global(html[data-dsh-desktop-platform='darwin']) .root")
+    const collapsed = declarations(":global(html[data-dsh-desktop-platform='darwin']) .root.collapsed")
+    expect(expanded?.get('--dsh-sidebar-collapsed-width')).toBe('88px')
+    expect(expanded?.get('--dsh-sidebar-rail-inline-padding')).toBe('26px')
+    expect(expanded?.get('padding-top')).toBe('32px')
+    expect(collapsed?.get('padding-top')).toBe('48px')
+    expect(
+      declarations(":global(html[data-dsh-desktop-platform='darwin']) .titlebarDragRegion")
+        ?.get('height'),
+    ).toBe('32px')
+  })
+
   it('keeps every shell control keyboard-visible', () => {
     for (const selector of ['.brand:focus-visible', '.iconButton:focus-visible', '.newSession:focus-visible']) {
       expect(declarations(selector)?.get('outline')).toBe(
@@ -83,13 +96,22 @@ describe('SidebarRoot.module.css', () => {
     expect(declarations('.railIn .footArea')?.get('animation')).toBe(
       'rail-fade-in 150ms var(--ds-ease-in-out) backwards',
     )
-    expect(css).toMatch(
-      /@keyframes rail-in\s*\{\s*from\s*\{\s*opacity: 0;\s*transform: translateX\(49px\);\s*}\s*}/,
-    )
+    const railTranslation = [
+      '@keyframes rail-in',
+      'from',
+      'opacity: 0;',
+      'var(--dsh-sidebar-collapsed-width) - var(--dsh-sidebar-rail-inline-padding) + 3px',
+    ]
+    for (const text of railTranslation) expect(css).toContain(text)
     expect(css).toMatch(/@keyframes rail-fade-in\s*\{\s*from\s*\{\s*opacity: 0;\s*}\s*}/)
   })
 
   it('gives shell rail controls the same base anchor for their shared translation', () => {
+    expect(declarations('.logoRow')?.get('height')).toBe('60px')
+    expect(declarations('.root')?.get('--dsh-sidebar-rail-inline-padding')).toBe('10px')
+    expect(declarations('.root.collapsed')?.get('padding')).toBe(
+      '18px var(--dsh-sidebar-rail-inline-padding) 6px',
+    )
     expect(declarations('.collapsed .logoRow')?.get('justify-content')).toBe('flex-start')
     expect(declarations('.collapsed .newSession')?.get('align-self')).toBe('flex-start')
     expect(declarations('.collapsed .newSession')?.get('width')).toBe('36px')

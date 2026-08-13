@@ -17,7 +17,7 @@ Closing the window hides it. Use the tray menu to restore the window or quit the
 
 The desktop app accepts only the readiness URL emitted by `dsh web` for `127.0.0.1` or `localhost`. Navigation stays on that origin; HTTP and HTTPS links open in the system browser.
 
-The native window is frameless. macOS keeps its traffic lights and uses sidebar vibrancy; Windows keeps title-bar overlay controls and uses acrylic. The client reserves the native title-bar area, makes only the sidebar translucent, and keeps the conversation and details surfaces opaque. Linux uses the same frameless layout with an opaque sidebar fallback.
+The native window is frameless. macOS keeps its traffic lights and uses sidebar vibrancy; Windows keeps title-bar overlay controls and uses acrylic. The client reserves the native title-bar area, makes only the sidebar translucent, and keeps the conversation and details surfaces opaque. The macOS collapsed sidebar is 88px wide; its controls are centered and its top control aligns with the expanded logo row below the traffic lights. The center title-bar band remains draggable with or without a visible Session header, while controls inside a visible header remain clickable. Linux uses the same frameless layout with an opaque sidebar fallback.
 
 ## Known limitations
 
