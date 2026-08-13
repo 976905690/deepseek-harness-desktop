@@ -54,8 +54,8 @@
 }
 
 :global(html[data-dsh-desktop-platform='darwin']) .root {
-  --dsh-sidebar-collapsed-width: 88px;
-  --dsh-sidebar-rail-inline-padding: 26px;
+  --dsh-sidebar-collapsed-width: 90px;
+  --dsh-sidebar-rail-inline-padding: 27px;
   padding-top: 32px;
   background: transparent;
 }

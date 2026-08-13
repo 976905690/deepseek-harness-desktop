@@ -29,6 +29,7 @@ describe('computeColumns', () => {
   })
 
   it('uses the carrier-selected compact rail in the full concession solve', () => {
+    expect(SIDEBAR_COLLAPSED_MACOS).toBe(90)
     expect(computeColumns(1920, closed(300), closed(360), SIDEBAR_COLLAPSED_MACOS))
       .toEqual({
         sidebar: SIDEBAR_COLLAPSED_MACOS,

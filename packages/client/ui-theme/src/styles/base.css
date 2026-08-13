@@ -35,3 +35,10 @@ html[data-dsh-desktop-platform='win32'] body,
 html[data-dsh-desktop-platform='win32'] #root {
   background: transparent;
 }
+
+/* Electron drag regions ignore visual stacking. Suspend every renderer-owned
+ * drag target while a modal is mounted so its mask and controls retain pointer
+ * input; removing the final modal restores the platform-specific regions. */
+html[data-dsh-desktop='true']:has([aria-modal='true']) body * {
+  -webkit-app-region: no-drag;
+}

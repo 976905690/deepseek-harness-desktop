@@ -29,4 +29,10 @@ describe('desktop theme surfaces', () => {
       /html\[data-dsh-desktop-platform='linux'\]\s*\{\s*background:/s,
     )
   })
+
+  it('suspends every renderer drag region while a modal is mounted', () => {
+    expect(css).toMatch(
+      /html\[data-dsh-desktop='true'\]:has\(\[aria-modal='true'\]\) body \*\s*\{[^}]*-webkit-app-region:\s*no-drag;/s,
+    )
+  })
 })

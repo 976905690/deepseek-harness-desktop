@@ -102,6 +102,7 @@ describe('SettingsPanel chrome seats', () => {
     mount()
     openPanel()
     const dialog = screen.getByRole('dialog')
+    expect(dialog.getAttribute('aria-modal')).toBe('true')
     const titleId = dialog.getAttribute('aria-labelledby')!
     expect(titleId).toBeTruthy()
     const title = document.getElementById(titleId)!

@@ -28,15 +28,15 @@ supervisor 向 Electron 应用提供启动、就绪和关闭事实，不会把�
 
 ### 桌面窗口外观
 
-BrowserWindow 的窗口外观按平台区分。macOS 使用无边框内嵌式隐藏标题栏、侧栏 vibrancy 和显式交通灯位置；其收起侧栏解析为 88px 轨道，其中的 36px 控件水平居中，最上方控件在交通灯下方与展开态 logo 行对齐。Windows 保留标准粗边框和阴影以支持缩放、Snap 与 Windows 11 圆角，再通过隐藏标题栏让内容延伸到原生窗口按钮和 acrylic 材质之下。Linux 保持无边框，并保留 Web 客户端的不透明表面，因为 Electron 在该平台没有对应的原生材质。窗口会保持隐藏，直到渲染器带着桌面呈现标记加载完成。
+BrowserWindow 的窗口外观按平台区分。macOS 使用无边框内嵌式隐藏标题栏、侧栏 vibrancy 和显式交通灯位置；其收起侧栏解析为 90px 轨道，其中的 36px 控件水平居中，最上方控件在交通灯下方与展开态 logo 行对齐。Windows 保留标准粗边框和阴影以支持缩放、Snap 与 Windows 11 圆角，再通过隐藏标题栏让内容延伸到原生窗口按钮和 acrylic 材质之下。Linux 保持无边框，并保留 Web 客户端的不透明表面，因为 Electron 在该平台没有对应的原生材质。窗口会保持隐藏，直到渲染器带着桌面呈现标记加载完成。
 
-Electron 会在经过校验的 Host URL 上附加一个白名单内的平台值。Web 入口在挂载客户端树之前消费该值，把根元素标记为桌面文档，并记录当前平台。这项静态标记不会授予 preload 或 IPC 能力。客户端样式只把它用于原生呈现和标题栏命中区。常驻的会话根始终挂载中心列拖拽带，包括没有可见 Session header 的状态。macOS 的可见标题栏可以拖动；Windows 则把 44px 首行与原生窗口按钮组合，预留按钮所占的右侧区域，并只让该行的非交互区域可拖动。按钮、链接、表单字段、ARIA 控件、标签页和可编辑后代都是显式 no-drag 区域，因此移动窗口不会吞掉这些控件的交互。macOS 与 Linux 持有独立的侧栏拖拽条；Windows 不预留交通灯区域，也不显示侧栏拖拽条。
+Electron 会在经过校验的 Host URL 上附加一个白名单内的平台值。Web 入口在挂载客户端树之前消费该值，把根元素标记为桌面文档，并记录当前平台。这项静态标记不会授予 preload 或 IPC 能力。客户端样式只把它用于原生呈现和标题栏命中区。常驻的会话根始终挂载中心列拖拽带，包括没有可见 Session header 的状态。macOS 的可见标题栏可以拖动；Windows 则把 44px 首行与原生窗口按钮组合，预留按钮所占的右侧区域，并只让该行的非交互区域可拖动。按钮、链接、表单字段、ARIA 控件、标签页和可编辑后代都是显式 no-drag 区域，因此移动窗口不会吞掉这些控件的交互。只要挂载了任意 `aria-modal="true"` 对话框，document 就会把包括底层标题栏与模态遮罩在内的所有渲染器拖拽目标改为 `no-drag`；最后一个模态框卸载后再恢复平台规则。macOS 与 Linux 持有独立的侧栏拖拽条；Windows 不预留交通灯区域，也不显示侧栏拖拽条。
 
 只有 macOS 和 Windows 的侧栏会透出原生材质：页面和 AppFrame 背景变为透明，侧栏绘制由主题颜色派生的半透明 tint，而对话与详情列重新绘制普通的不透明应用背景。这些原生玻璃侧栏会隐藏 Session 列表不透明的底部溢出渐变，避免 tint 在列表边缘变暗。通过浏览器访问的客户端没有桌面标记，会保留既有布局与颜色。因此，平台窗口外观仍然是载体专属的呈现选择，而不是新的客户端 capability 或协议字段。
 
 ## 验证
 
-`apps/desktop/tests/host-supervisor.spec.ts` 固定就绪解析在任意 stdout 分片和末行无换行时的行为，拒绝无效 scheme、host、port 和缺失的就绪信息，并覆盖单个在途启动、启动失败、提前退出、幂等关闭、协作式 `SIGTERM` 结算，以及只执行一次的超时升级。`apps/desktop/tests/window-lifecycle.spec.ts` 固定关闭窗口即隐藏、窗口创建合流、退出期间拒绝恢复窗口，以及 Electron 重试退出前只 dispose 一次 Host。客户端测试固定白名单内的挂载前桌面标记、macOS 88px 收起几何、Web／Windows／Linux 56px 几何、保持不变的 60px logo 行、平台专属侧栏偏移和拖拽条、不透明工作列、Windows 窗口按钮行留位、常驻中心拖拽区、标题栏交互排除、原生玻璃渐变抑制、键盘焦点可见性和浏览器回退。源代码检查与评审固定 Electron 事件接线、单实例恢复、精确 origin 导航策略、加固后的 BrowserWindow 设置、Windows 标准边框和平台材质选择。构建与发布检查证明私有桌面应用保持在 NPM 发布族之外，而且其 staging manifest（元数据清单）点名桌面入口、CLI 文件和 Web 前端；应用 README 记录生产依赖与随包 Node 缺口，这些缺口意味着该 staging manifest 尚不能构成可分发安装包。
+`apps/desktop/tests/host-supervisor.spec.ts` 固定就绪解析在任意 stdout 分片和末行无换行时的行为，拒绝无效 scheme、host、port 和缺失的就绪信息，并覆盖单个在途启动、启动失败、提前退出、幂等关闭、协作式 `SIGTERM` 结算，以及只执行一次的超时升级。`apps/desktop/tests/window-lifecycle.spec.ts` 固定关闭窗口即隐藏、窗口创建合流、退出期间拒绝恢复窗口，以及 Electron 重试退出前只 dispose 一次 Host。客户端测试固定白名单内的挂载前桌面标记、macOS 90px 收起几何、Web／Windows／Linux 56px 几何、保持不变的 60px logo 行、平台专属侧栏偏移和拖拽条、不透明工作列、Windows 窗口按钮行留位、常驻中心拖拽区、标题栏交互排除、模态框存续期间暂停拖拽、原生玻璃渐变抑制、键盘焦点可见性和浏览器回退。源代码检查与评审固定 Electron 事件接线、单实例恢复、精确 origin 导航策略、加固后的 BrowserWindow 设置、Windows 标准边框和平台材质选择。构建与发布检查证明私有桌面应用保持在 NPM 发布族之外，而且其 staging manifest（元数据清单）点名桌面入口、CLI 文件和 Web 前端；应用 README 记录生产依赖与随包 Node 缺口，这些缺口意味着该 staging manifest 尚不能构成可分发安装包。
 
 ## 考虑过的替代方案
 

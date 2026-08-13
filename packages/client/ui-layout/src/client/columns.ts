@@ -30,7 +30,7 @@ export const SIDEBAR_DEFAULT = 280
 /** Closed-sidebar rail: a 24px icon column between 16px horizontal paddings. */
 export const SIDEBAR_COLLAPSED = 56
 /** macOS desktop rail: clears the native traffic-light group and its trailing inset. */
-export const SIDEBAR_COLLAPSED_MACOS = 88
+export const SIDEBAR_COLLAPSED_MACOS = 90
 /** Viewport width below which the sidebar auto-collapses to the rail (deepsuite
  * LG breakpoint); a manual toggle below it re-expands over the squeezed center
  * (stores.ts narrowExpanded). */

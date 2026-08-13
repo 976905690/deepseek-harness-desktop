@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-外壳插件：三栏 AppFrame（拖动手柄与让步链）加 `ctx.layout` 面板几何服务；它注册到运行时拥有的 `root` slot，并声明 `sidebar`、`conversation`、`details` 和 `conversation.empty`。侧边栏的缩放边界是不可见命中条带，详情栏边界则保留其浮动胶囊；让步期间只有详情栏会收缩并随后自动关闭。关闭的侧边栏在 Web、Windows 与 Linux 中保留 56px 控制栏；macOS 桌面载体使用 88px，使交通灯组保持在控制栏内。详情栏关闭到零宽度。该包还提供主题呈现器：它消费解析后的 `ctx.theme` 快照，并将其投影到 document（用 `html { color-scheme }` 驱动原生 UA 控件，依据当前配色方案设置 `body[data-ds-dark-theme]`，并将主题的别名 token 设为 body 上的内联变量，同时拥有一个 `<meta name="theme-color">`，其内容随计算后的 body 背景色更新）。在应用调色板和 token 后进行测量，可确保渲染后的背景成为唯一的颜色依据；呈现器在 dispose（资源释放）时会移除其自有的元数据节点，并一并清除其写入的其他全局状态。
+外壳插件：三栏 AppFrame（拖动手柄与让步链）加 `ctx.layout` 面板几何服务；它注册到运行时拥有的 `root` slot，并声明 `sidebar`、`conversation`、`details` 和 `conversation.empty`。侧边栏的缩放边界是不可见命中条带，详情栏边界则保留其浮动胶囊；让步期间只有详情栏会收缩并随后自动关闭。关闭的侧边栏在 Web、Windows 与 Linux 中保留 56px 控制栏；macOS 桌面载体使用 90px，使交通灯组保持在控制栏内。详情栏关闭到零宽度。该包还提供主题呈现器：它消费解析后的 `ctx.theme` 快照，并将其投影到 document（用 `html { color-scheme }` 驱动原生 UA 控件，依据当前配色方案设置 `body[data-ds-dark-theme]`，并将主题的别名 token 设为 body 上的内联变量，同时拥有一个 `<meta name="theme-color">`，其内容随计算后的 body 背景色更新）。在应用调色板和 token 后进行测量，可确保渲染后的背景成为唯一的颜色依据；呈现器在 dispose（资源释放）时会移除其自有的元数据节点，并一并清除其写入的其他全局状态。
 
 Electron 外壳将 `html[data-dsh-desktop-platform]` 标为 `darwin` 或 `win32` 时，AppFrame 只让自身框架与侧栏列半透明，使原生窗口材质透过侧栏；会话列和详情列继续绘制 `--dsw-alias-bg-base`。Web 页面与 Linux 桌面窗口不匹配这些材质选择器，因此仍使用普通的不透明侧栏。Windows 把原生窗口按钮覆盖层组合进会话首行，Linux 在工作列上方预留覆盖层高度，macOS 交通灯则只占用侧栏预留区域。一条由桌面标记控制的拖拽 seat 会独立于会话内容覆盖中心列标题栏带，因此在没有可见 Session header 的空白、加载和未选中状态中，窗口仍可移动。
 

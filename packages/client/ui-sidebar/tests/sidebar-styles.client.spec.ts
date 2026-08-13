@@ -63,8 +63,8 @@ describe('SidebarRoot.module.css', () => {
   it('places macOS sidebar content directly below the traffic lights', () => {
     const expanded = declarations(":global(html[data-dsh-desktop-platform='darwin']) .root")
     const collapsed = declarations(":global(html[data-dsh-desktop-platform='darwin']) .root.collapsed")
-    expect(expanded?.get('--dsh-sidebar-collapsed-width')).toBe('88px')
-    expect(expanded?.get('--dsh-sidebar-rail-inline-padding')).toBe('26px')
+    expect(expanded?.get('--dsh-sidebar-collapsed-width')).toBe('90px')
+    expect(expanded?.get('--dsh-sidebar-rail-inline-padding')).toBe('27px')
     expect(expanded?.get('padding-top')).toBe('32px')
     expect(collapsed?.get('padding-top')).toBe('48px')
     expect(

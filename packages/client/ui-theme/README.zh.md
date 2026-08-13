@@ -8,7 +8,7 @@
 
 `src/styles/` 下有五张样式表，全部由 web 壳的 `base.css` 导入：`base.css`、`design-platform.css`、`scrollbar.css`、`gradient-shadow-text.css` 与 `shiki.css`。`scrollbar.css` 是 `--dsw-alias-scrollbar-*` token 的唯一消费方，必须排在声明这些 token 的 `design-platform.css` 之后。
 
-`base.css` 还定义无边框桌面的标题栏预留高度：macOS、Windows 与 Linux 使用 44px，其他桌面标记使用 40px 兜底。对于带有 `data-dsh-desktop-platform="darwin"` 或 `"win32"` 标记的 document，它会使 `html`／`body`／`#root` 层级透明，让 Electron 窗口材质透过布局持有的半透明区域；Web document 与 Linux 桌面 document 仍保留基础背景。
+`base.css` 还定义桌面的标题栏预留高度：macOS、Windows 与 Linux 使用 44px，其他桌面标记使用 40px 兜底。对于带有 `data-dsh-desktop-platform="darwin"` 或 `"win32"` 标记的 document，它会使 `html`／`body`／`#root` 层级透明，让 Electron 窗口材质透过布局持有的半透明区域；Web document 与 Linux 桌面 document 仍保留基础背景。桌面 document 中只要存在 `aria-modal="true"` 对话框，所有由渲染器持有的窗口拖拽区都会变为 `no-drag`，从而让遮罩与控件保留指针输入；最后一个模态框卸载后，各平台的拖拽区会恢复。
 
 滚动条重新绑定约定：`scrollbar.css` 在 `body` 上把 `--dsh-scrollbar-thumb` 与 `--dsh-scrollbar-thumb-hover` 绑定到 l1（基础表面）token，两条渲染路径都读取这一组变量。高层级表面（菜单、浮层、对话框）在自己的容器上设置 `--dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2)` 与 `--dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2)`；一次重新绑定即可为引擎实际走的那条路径换色。这组变量的另一个合法目标是 `transparent`，即完全不绘制滑块——[ui-sidebar](../ui-sidebar/README.md) 在指针不在栏内时就这样重新绑定自己的列。绑回 l1 那组不算重新绑定，它只是重述基础表面的默认值。`--dsh-scrollbar-width` 镜像 WebKit 滚动条的布局宽度，供需要与占布局宽度的滚动条对齐的表面使用——[ui-conversation](../ui-conversation/README.md) 用它作为覆盖 composer 座位 `right` 偏移——scrollbar-styles 规格把它与镜像规则及消费者配对检查。
 
