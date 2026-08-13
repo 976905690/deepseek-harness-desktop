@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest'
 interface DesktopPackage {
   readonly scripts: Readonly<Record<string, string>>
   readonly build: {
+    readonly electronDist: string
     readonly mac: {
       readonly hardenedRuntime: boolean
       readonly icon: string
@@ -30,6 +31,10 @@ const rootPackage = JSON.parse(
 ) as RootPackage
 
 describe('desktop packaging configuration', () => {
+  it('packages the installed Electron distribution', () => {
+    expect(desktopPackage.build.electronDist).toBe('node_modules/electron/dist')
+  })
+
   it('keeps the supplied image byte-for-byte and shares it across macOS and Windows', () => {
     const icon = readFileSync(resolve(desktopRoot, 'build/icon.png'))
 
