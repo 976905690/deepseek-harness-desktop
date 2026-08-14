@@ -10,13 +10,11 @@
 
 <p align="center"><sub><a href="README.md">中文</a> · English</sub></p>
 
-<p align="center">
-  <strong>A modern desktop experience for the DeepSeek Harness ecosystem (<a href="#plugin-ecosystem">Plugin</a>)</strong>
-</p>
+<h3 align="center">A modern desktop experience for the DeepSeek Harness ecosystem (<a href="#plugin-ecosystem">Plugin</a>)</h3>
 
-<p align="center">
+<h4 align="center">
   DeepSeek Harness currently launches its local Web UI from the command line. This project brings service startup, runtime management, and the desktop window into one ready-to-use experience, with no Node.js setup or commands required.
-</p>
+</h4>
 
 <a id="run"></a>
 

@@ -10,13 +10,11 @@
 
 <p align="center"><sub>中文 · <a href="README.en.md">English</a></sub></p>
 
-<p align="center">
-  <strong>为DeepSeek Harness生态打造的现代化桌面端体验（<a href="#插件生态">插件</a>）</strong>
-</p>
+<h3 align="center">为DeepSeek Harness生态打造的现代化桌面端体验（<a href="#插件生态">插件</a>）</h3>
 
-<p align="center">
+<h4 align="center">
   DeepSeek Harness 官方目前通过命令行启动本地 Web UI。本项目将服务启动、运行管理和桌面窗口整合为开箱即用的桌面体验，让用户无需配置 Node.js 或执行命令，即可直接使用。
-</p>
+</h4>
 
 <a id="run"></a>
 
