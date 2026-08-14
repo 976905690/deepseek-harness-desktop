@@ -7,10 +7,11 @@
   "main": "lib/main.js",
   "scripts": {
     "build": "tsc -p tsconfig.json && tsdown",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tests/tsconfig.json",
     "dev": "pnpm --workspace-root run build && electron .",
-    "package": "pnpm run build && electron-builder --dir",
-    "dist": "pnpm run build && electron-builder"
+    "package": "pnpm --workspace-root run build && node --import tsx scripts/stage-runtime.ts && electron-builder --dir",
+    "dist": "pnpm --workspace-root run build && node --import tsx scripts/stage-runtime.ts && electron-builder",
+    "dist:mac": "node --import tsx scripts/release-mac.ts"
   },
   "license": "MIT",
   "devDependencies": {
@@ -24,6 +25,8 @@
   "build": {
     "appId": "ai.deepseek.harness.desktop",
     "productName": "DeepSeek Harness",
+    "electronDist": "node_modules/electron/dist",
+    "afterPack": "./scripts/verify-packaged-runtime.ts",
     "asar": true,
     "files": [
       "lib/**",
@@ -35,26 +38,25 @@
         "to": "desktop-resources"
       },
       {
-        "from": "../cli",
-        "to": "host/apps/cli",
-        "filter": [
-          "lib/**",
-          "config/**",
-          "package.json"
-        ]
+        "from": "runtime-host/package.json",
+        "to": "host/package.json"
       },
       {
-        "from": "../../apps/web/dist",
-        "to": "host/apps/web/dist"
+        "from": "runtime-host/node_modules",
+        "to": "host/node_modules"
       }
     ],
     "mac": {
       "category": "public.app-category.developer-tools",
+      "hardenedRuntime": true,
+      "icon": "build/icon.png",
+      "notarize": true,
       "target": [
         "dir"
       ]
     },
     "win": {
+      "icon": "build/icon.png",
       "target": [
         "dir"
       ]

@@ -249,7 +249,7 @@ export function createHostSupervisor(options: HostSupervisorOptions): HostSuperv
 
 /** Options for the real `dsh web` child. */
 export interface SpawnDshWebOptions {
-  /** Node executable bundled with or selected by the desktop app. */
+  /** Node-compatible executable selected by the desktop app. */
   readonly nodeExecutable: string
   /** Built dsh CLI entry. */
   readonly cliEntry: string
@@ -257,6 +257,8 @@ export interface SpawnDshWebOptions {
   readonly cwd: string
   /** Frozen environment for the Host process. */
   readonly env: NodeJS.ProcessEnv
+  /** Run the Electron executable as its bundled Node runtime. */
+  readonly electronRunAsNode?: boolean
 }
 
 function streamAdapter(stream: NodeJS.ReadableStream): HostChild['stdout'] {
@@ -275,9 +277,12 @@ function streamAdapter(stream: NodeJS.ReadableStream): HostChild['stdout'] {
  * @returns The child handle consumed by {@link createHostSupervisor}.
  */
 export function spawnDshWeb(options: SpawnDshWebOptions): HostChild {
-  const process = spawn(options.nodeExecutable, [options.cliEntry, 'web', '--host', '127.0.0.1', '--port', '0'], {
+  const env = options.electronRunAsNode
+    ? { ...options.env, ELECTRON_RUN_AS_NODE: '1' }
+    : options.env
+  const process = spawn(options.nodeExecutable, ['--expose-internals', options.cliEntry, 'web', '--host', '127.0.0.1', '--port', '0'], {
     cwd: options.cwd,
-    env: options.env,
+    env,
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
   })
