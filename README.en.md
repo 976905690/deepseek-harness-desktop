@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="https://github.com/anywhere-labs/deepseek-harness-desktop"><img src="https://img.shields.io/github/stars/anywhere-labs/deepseek-harness-desktop?style=flat&amp;label=%E2%98%85&amp;color=08C" alt="GitHub stars"></a>
-  <img src="https://img.shields.io/badge/Electron-Desktop-47848F?style=flat&amp;logo=electron&amp;logoColor=white" alt="Electron desktop application">
+  <img src="https://img.shields.io/badge/Desktop-App-47848F?style=flat" alt="Desktop application">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2EA44F?style=flat" alt="MIT License"></a>
   <a href="https://discord.gg/TJeGqKRNM"><img src="https://img.shields.io/badge/Discord-5865F2?style=flat&amp;logo=discord&amp;logoColor=white" alt="Join Discord"></a>
   <img src="https://img.shields.io/badge/macOS%20%7C%20Windows-4493F8?style=flat-square" alt="Supported platforms: macOS and Windows">
@@ -11,8 +11,8 @@
 <p align="center"><sub><a href="README.md">中文</a> · English</sub></p>
 
 <p align="center">
-  <strong>An Electron desktop app built on the official DeepSeek Harness</strong><br>
-  DeepSeek officially provides a local Web UI launched from the command line. This project adds an Electron desktop shell on top of the official DeepSeek Harness, handling startup and management of the local Harness service so users can get started without configuring Node.js or running commands.
+  <strong>A modern desktop experience for the DeepSeek Harness ecosystem<sup><a href="#plugin-ecosystem">Plugin</a></sup></strong><br>
+  DeepSeek Harness currently launches its local Web UI from the command line. This project brings service startup, runtime management, and the desktop window into one ready-to-use experience, with no Node.js setup or commands required.
 </p>
 
 <a id="run"></a>
@@ -48,13 +48,21 @@
   </tr>
 </table>
 
+## Plugin Ecosystem
+
+DeepSeek Harness is built on [Cordis](https://github.com/cordiverse/cordis) and follows an “everything is a plugin” architecture. Core capabilities such as model adapters, the tool registry, the session log, and the Agent Loop participate in the runtime as plugins, so they can be composed or replaced through configuration. External plugins can also join a runtime through profiles and bundles. See the official [architecture overview](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/architecture.md) and [plugin management documentation](https://github.com/deepseek-ai/deepseek-harness/blob/master/apps/cli/reference/README.md#plugin-management).
+
+We want Desktop to become more than a standalone desktop wrapper: it should serve as a desktop entry point into the DeepSeek Harness plugin ecosystem. We plan to reorganize the desktop capabilities around the official plugin model so service management, system integrations, and the plugin marketplace can follow the same composition model as Harness.
+
+> **Coming soon:** Desktop is not currently distributed as a DeepSeek Harness plugin. This plugin integration is still in development.
+
 ## Relationship to the Official Project
 
 This project is built on [deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness).
 
 The core capabilities, plugin system, and Web UI come from the official DeepSeek Harness project. This project primarily provides:
 
-- Electron desktop packaging
+- Desktop application packaging
 - Local service lifecycle management
 - Desktop window and system tray integration
 - macOS and Windows installer builds and releases
