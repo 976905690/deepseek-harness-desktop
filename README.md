@@ -1,24 +1,23 @@
-# DeepSeek Harness Desktop
+<h1 align="center">DeepSeek Harness <sup>DESKTOP</sup></h1>
 
-中文 | [English](README.en.md)
+<p align="center">
+  <a href="https://github.com/anywhere-labs/deepseek-harness-desktop"><img src="https://img.shields.io/github/stars/anywhere-labs/deepseek-harness-desktop?style=flat&amp;label=%E2%98%85&amp;color=08C" alt="GitHub stars"></a>
+  <img src="https://img.shields.io/badge/Electron-Desktop-47848F?style=flat&amp;logo=electron&amp;logoColor=white" alt="Electron desktop application">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2EA44F?style=flat" alt="MIT License"></a>
+  <a href="https://discord.gg/TJeGqKRNM"><img src="https://img.shields.io/badge/Discord-5865F2?style=flat&amp;logo=discord&amp;logoColor=white" alt="Join Discord"></a>
+  <img src="https://img.shields.io/badge/macOS%20%7C%20Windows-4493F8?style=flat-square" alt="Supported platforms: macOS and Windows">
+</p>
 
-将 DeepSeek Harness 打包成开箱即用的桌面应用。
+<p align="center"><sub>中文 · <a href="README.en.md">English</a></sub></p>
 
-DeepSeek 官方目前通过命令行启动本地 Web UI。这个项目在官方 DeepSeek Harness 的基础上增加了 Electron 桌面外壳，负责启动和管理本地 Harness 服务，让用户无需配置 Node.js 或执行命令，即可直接使用。
+<p align="center">
+  <strong>基于官方 DeepSeek Harness 打造的 Electron 桌面端</strong><br>
+  DeepSeek 官方目前通过命令行启动本地 Web UI。这个项目在官方 DeepSeek Harness 的基础上增加了 Electron 桌面外壳，负责启动和管理本地 Harness 服务，让用户无需配置 Node.js 或执行命令，即可直接使用。
+</p>
 
 <a id="run"></a>
 
-## 下载
-
-| 平台 | 支持情况 |
-| --- | --- |
-| macOS Apple Silicon | 支持 |
-| macOS Intel | 计划支持 |
-| Windows x64 | 支持 |
-
-前往 [deepseekdesktop.com](https://deepseekdesktop.com) 下载最新版本。
-
-## 界面预览
+<h3 align="center"><a href="https://www.deepseekdesktop.com"><ins>Download Desktop</ins></a></h3>
 
 <p align="center">
   <img src="assets/desktop-preview.png" alt="DeepSeek Harness Desktop 界面预览" width="100%">
@@ -26,13 +25,28 @@ DeepSeek 官方目前通过命令行启动本地 Web UI。这个项目在官方 
 
 ## 主要功能
 
-- 将 DeepSeek Harness 打包为原生桌面应用
-- 自动启动和管理本地 Harness 服务
-- 无需手动安装 Node.js 或运行命令
-- 支持系统托盘驻留
-- 针对 macOS 和 Windows 优化窗口与界面
-- 保留官方 Harness 的插件化能力和本地 Web UI
-- 应用数据和 Harness 服务均运行在本地
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>Desktop</h3>
+      <p>把官方 DeepSeek Harness 的本地 Web UI 带到原生桌面。应用自动启动和管理本地 Harness 服务，集成系统托盘与桌面窗口，无需安装 Node.js 或执行命令。</p>
+    </td>
+    <td width="50%" valign="top">
+      <h3>手机远程控制 <img src="https://img.shields.io/badge/COMING_SOON-F59E0B?style=flat-square" alt="Coming Soon"></h3>
+      <p>通过 iOS 和 Android 远程连接 Desktop，在手机上发起任务、查看 Agent 进度，并在需要时继续跟进。</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>插件市场 <img src="https://img.shields.io/badge/COMING_SOON-F59E0B?style=flat-square" alt="Coming Soon"></h3>
+      <p>Harness 遵循“一切皆插件”的架构。桌面端插件市场将提供插件的发现、安装、更新和管理，让模型、工具、界面与工作流能力按需组合。</p>
+    </td>
+    <td width="50%" valign="top">
+      <h3>Channels <img src="https://img.shields.io/badge/COMING_SOON-F59E0B?style=flat-square" alt="Coming Soon"></h3>
+      <p>接入微信、飞书、Discord、WhatsApp 等 IM 通道，直接在日常聊天工具中向 Agent 发起任务、接收进度并继续对话。</p>
+    </td>
+  </tr>
+</table>
 
 ## 与官方项目的关系
 
