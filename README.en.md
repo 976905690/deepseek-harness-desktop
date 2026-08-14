@@ -1,4 +1,4 @@
-<h1 align="center">DeepSeek Harness <sup>DESKTOP</sup></h1>
+<h1 align="center">DeepSeek Harness Desktop</h1>
 
 <p align="center">
   <a href="https://github.com/anywhere-labs/deepseek-harness-desktop"><img src="https://img.shields.io/github/stars/anywhere-labs/deepseek-harness-desktop?style=flat&amp;label=%E2%98%85&amp;color=08C" alt="GitHub stars"></a>
