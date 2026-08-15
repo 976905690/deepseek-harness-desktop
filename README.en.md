@@ -120,6 +120,7 @@ DeepSeek Harness ecosystem projects and developer tools.
 | dsh-web-ui | Plugins and themes for the DeepSeek Harness Web UI. | [GitHub](https://github.com/zhu1090093659/dsh-web-ui) · [Gallery](https://gallery.dsh-market.com) |
 | dsh-TUI | A full-screen terminal interface for DeepSeek Harness. | [GitHub](https://github.com/ccch1mneyyy/dsh-TUI) |
 | Agents-Anywhere | Control coding agents remotely from your phone. | [GitHub](https://github.com/anywhere-labs/Agents-Anywhere) |
+| DSH-better-sidebar | A DeepSeek Harness sidebar workspace with files, terminal, Git, and subagents. | [GitHub](https://github.com/omdsh-dev/DSH-better-sidebar) |
 | MkSaaS · TanStarter (Sponsor) | Commercial SaaS starter kits for indie makers. MkSaaS is built on Next.js, while TanStarter uses TanStack Start and Cloudflare, with AI, authentication, payments, and dashboards included. | [MkSaaS](https://mksaas.com) · [TanStarter](https://tanstarter.dev) |
 
 <sub>To have your project listed, join the WeChat group and message @王博升Benson.</sub>
