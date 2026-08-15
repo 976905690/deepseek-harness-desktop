@@ -109,6 +109,18 @@ Choose whichever platform you prefer to discuss usage, plugin development, and p
 
 Discord: [Join the DeepSeek Harness Desktop community](https://discord.gg/TJeGqKRNM)
 
+## Friendly Links
+
+Community projects related to the DeepSeek Harness ecosystem.
+
+| Project | Description | Links |
+| --- | --- | --- |
+| Awesome DSH Plugin | A curated list for discovering plugins across the DeepSeek Harness ecosystem. | [GitHub](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) · [Website](https://awesome-dsh-plugin.com) |
+| dsh-web-ui | A collection of plugins and themes for the DeepSeek Harness Web UI, including a task board, Git graph, side panel, mobile remote control, and theme center. | [GitHub](https://github.com/zhu1090093659/dsh-web-ui) · [Gallery](https://gallery.dsh-market.com) |
+| dsh-TUI | A full-screen interactive TUI for DeepSeek Harness, with streamed thinking, live status, context progress, and rollback controls. | [GitHub](https://github.com/ccch1mneyyy/dsh-TUI) |
+
+<sub>To have your project listed, join the WeChat group and message @王博升Benson.</sub>
+
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
