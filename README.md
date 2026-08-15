@@ -115,6 +115,7 @@ Discord：[加入 DeepSeek Harness Desktop 社区](https://discord.gg/TJeGqKRNM)
 
 | 项目 | 简介 | 链接 |
 | --- | --- | --- |
+| DeepSeek Harness 橙皮书 | DeepSeek Harness 社区实测手册，包含系统提示词、启动清单与原始会话记录，并提供 PDF、EPUB 和 HTML 版本。 | [GitHub](https://github.com/alchaincyf/deepseek-harness-orange-book) |
 | Awesome DSH Plugin | DeepSeek Harness 社区插件精选列表，帮助用户发现和了解插件生态。 | [GitHub](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) · [官网](https://awesome-dsh-plugin.com) |
 | dsh-web-ui | DeepSeek Harness Web UI 插件与皮肤合集，包含任务看板、Git 图谱、右侧面板、移动端远程和皮肤中心等功能。 | [GitHub](https://github.com/zhu1090093659/dsh-web-ui) · [展示站](https://gallery.dsh-market.com) |
 | dsh-TUI | 面向命令行用户的 DeepSeek Harness 全屏交互式 TUI，支持流式思考、实时状态、上下文进度和回滚等能力。 | [GitHub](https://github.com/ccch1mneyyy/dsh-TUI) |
