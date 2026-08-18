@@ -577,6 +577,31 @@ describe('MarketSettingsTab', () => {
     expect(within(dialog).queryByRole('link', { name: `${en.source}: Fixture catalog · Unsafe provider claim` })).toBeNull()
   })
 
+  it('falls back to a safe attribution link when the item homepage is unsafe', async () => {
+    const sourceWithUnsafeHomepage: MarketSourceView = {
+      ...firstSource,
+      homepage: 'javascript:alert(1)',
+      attribution: {
+        name: 'Safe provider attribution',
+        url: 'https://safe.example/catalog',
+      },
+    }
+    const item = makeItem(sourceWithUnsafeHomepage, 'unsafe-homepage-plugin', 'Unsafe Homepage Plugin')
+    vi.mocked(readMarketState).mockResolvedValue({ ...enabledState, sources: [sourceWithUnsafeHomepage] })
+    vi.mocked(readMarketCatalog).mockResolvedValue(catalogForSource(sourceWithUnsafeHomepage, [item]))
+    vi.mocked(previewMarketOperation).mockRejectedValue(new Error('managed install unavailable'))
+    render(<MarketSettingsTab {...props} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Unsafe Homepage Plugin/u }))
+    const dialog = await screen.findByRole('dialog', { name: item.displayName })
+    const sourceLink = within(dialog).getByRole('link', {
+      name: `${en.source}: Fixture catalog · Safe provider attribution`,
+    }) as HTMLAnchorElement
+    expect(sourceLink.href).toBe('https://safe.example/catalog')
+    expect(sourceLink.target).toBe('_blank')
+    expect(sourceLink.rel).toContain('noopener')
+  })
+
   it('links failed install verification to the standard-plugin requirements', async () => {
     const item = makeInstallableItem(firstSource)
     vi.mocked(readMarketState).mockResolvedValue(enabledState)
