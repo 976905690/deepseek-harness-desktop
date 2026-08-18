@@ -1535,7 +1535,7 @@ function OperationConfirmModal({ preview, pending, error, onCancel, onConfirm, t
     >
       <div className="dshMarketOperationReview">
         <OperationFacts operation={preview} t={t} />
-        <div className="dshMarketOperationWarning"><StateDot state="warning" size={12} /><span>{t('operationWarning')}</span></div>
+        {installing && <div className="dshMarketOperationWarning"><StateDot state="warning" size={12} /><span>{t('operationWarning')}</span></div>}
         {installing && (
           <div className="dshMarketOperationWarning">
             <StateDot state="warning" size={12} />

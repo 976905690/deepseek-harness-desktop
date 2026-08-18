@@ -1121,7 +1121,7 @@ describe('MarketSettingsTab', () => {
     fireEvent.click(screen.getByRole('button', { name: en.tab }))
     expect(await screen.findByRole('dialog', { name: en.title })).toBeTruthy()
     expect(await screen.findByRole('heading', { name: en.emptyTitle })).toBeTruthy()
-    fireEvent.click(screen.getAllByRole('button', { name: en.close })[1]!)
+    fireEvent.click(screen.getAllByRole('button', { name: en.closeMarket })[1]!)
     await waitFor(() => { expect(screen.queryByRole('dialog', { name: en.title })).toBeNull() })
   })
 })
