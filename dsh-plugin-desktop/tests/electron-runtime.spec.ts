@@ -580,6 +580,20 @@ describe('Electron compatibility runtime', () => {
 
     await release()
     expect(electron.webContents.off).toHaveBeenCalledWith('before-input-event', zoomListener)
+    expect(electron.webContents.off).toHaveBeenCalledWith(
+      'render-process-gone',
+      electron.webContents.on.mock.calls.find(([event]) => event === 'render-process-gone')?.[1],
+    )
+    expect(electron.webContents.off).toHaveBeenCalledWith(
+      'did-fail-load',
+      electron.webContents.on.mock.calls.find(([event]) => event === 'did-fail-load')?.[1],
+    )
+    expect(electron.trays[0]?.destroy).toHaveBeenCalledOnce()
+    expect(electron.browserWindows[0]?.destroy).toHaveBeenCalledOnce()
+
+    await release()
+    expect(electron.trays[0]?.destroy).toHaveBeenCalledOnce()
+    expect(electron.browserWindows[0]?.destroy).toHaveBeenCalledOnce()
   })
 
   it('does not mount a registration disposed before Host boot settles', async () => {
