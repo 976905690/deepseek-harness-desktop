@@ -38,7 +38,14 @@ import {
   desktopLocaleFromLanguageTag,
   desktopTrayLabel,
 } from './tray-locale.ts'
-import { downloadDesktopUpdate } from './update-download.ts'
+import {
+  desktopUpdateFilename,
+  downloadDesktopUpdate,
+  pendingDesktopUpdateArtifact,
+  recordDesktopUpdateArtifact,
+  resolveDesktopUpdateArtifact,
+  type DesktopUpdateArtifact,
+} from './update-download.ts'
 import type { UpdateCheckResult } from './update-checker.ts'
 import {
   evaluateWindowsWorkspaceVolume,
@@ -99,6 +106,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
   private terminalSpec: DesktopTerminalSpec | undefined
   private diagnosticExport: Promise<void> | undefined
   private directoryPickTask: Promise<string | null> | undefined
+  private updateCleanupTask: Promise<void> | undefined
   private rendererBootReported = false
   private rendererBootMonitoring = false
   private rendererBootTimer: NodeJS.Timeout | undefined
@@ -214,7 +222,11 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
         logError: message => { this.logError(message) },
       })
       this.generation = generation
-      this.mountTask = generation.mount(beforeInteractive).catch((cause: unknown) => {
+      this.mountTask = generation.mount(beforeInteractive).then(() => {
+        void this.offerUpdateArtifactCleanup().catch((cause: unknown) => {
+          this.logError(`dsh-plugin-desktop: failed to resolve update installer cleanup: ${cause instanceof Error ? cause.message : String(cause)}`)
+        })
+      }).catch((cause: unknown) => {
         if (this.generation === generation) this.generation = undefined
         throw cause
       })
@@ -578,14 +590,23 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
     if (platform === undefined) {
       throw new Error(`dsh-plugin-desktop: updates are unavailable on ${this.platform}`)
     }
+    const destinationPath = await this.chooseUpdateDestination(version)
+    if (destinationPath === undefined) return
+    signal.throwIfAborted()
     const artifactPath = await downloadDesktopUpdate({
       platform,
       version,
-      userDataPath: app.getPath('userData'),
+      destinationPath,
       request: (url, init) => net.fetch(url, init),
       signal,
     })
     signal.throwIfAborted()
+    const artifact: DesktopUpdateArtifact = { platform, version, path: artifactPath }
+    try {
+      await recordDesktopUpdateArtifact(app.getPath('userData'), artifact)
+    } catch (cause) {
+      this.logError(`dsh-plugin-desktop: failed to remember update installer for cleanup: ${cause instanceof Error ? cause.message : String(cause)}`)
+    }
 
     if (platform === 'darwin') {
       const openError = await shell.openPath(artifactPath)
@@ -621,6 +642,58 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
     await this.launchWindowsUpdateInstaller(artifactPath)
     this.quitting = true
     spec.requestQuit(0)
+  }
+
+  private async chooseUpdateDestination(version: string): Promise<string | undefined> {
+    if (this.platform !== 'darwin' && this.platform !== 'win32') return undefined
+    const zh = this.currentLocale === 'zh'
+    const filename = desktopUpdateFilename(this.platform, version)
+    const extension = this.platform === 'darwin' ? 'dmg' : 'exe'
+    const result = await dialog.showSaveDialog({
+      title: zh ? '保存更新安装包' : 'Save Update Installer',
+      defaultPath: join(app.getPath('downloads'), filename),
+      buttonLabel: zh ? '保存并下载' : 'Save and Download',
+      filters: [{
+        name: this.platform === 'darwin'
+          ? zh ? '磁盘映像' : 'Disk Image'
+          : zh ? 'Windows 安装程序' : 'Windows Installer',
+        extensions: [extension],
+      }],
+      properties: ['createDirectory', 'showOverwriteConfirmation', 'dontAddToRecent'],
+    })
+    return result.canceled ? undefined : result.filePath
+  }
+
+  private offerUpdateArtifactCleanup(): Promise<void> {
+    if (this.updateCleanupTask !== undefined) return this.updateCleanupTask
+    const task = this.performUpdateArtifactCleanup().finally(() => {
+      if (this.updateCleanupTask === task) this.updateCleanupTask = undefined
+    })
+    this.updateCleanupTask = task
+    return task
+  }
+
+  private async performUpdateArtifactCleanup(): Promise<void> {
+    if (this.platform !== 'darwin' && this.platform !== 'win32') return
+    const userDataPath = app.getPath('userData')
+    const artifact = await pendingDesktopUpdateArtifact(userDataPath, PRODUCT_VERSION, this.platform)
+    if (artifact === undefined) return
+    const zh = this.currentLocale === 'zh'
+    const result = await dialog.showMessageBox({
+      type: 'question',
+      title: zh ? '删除更新安装包' : 'Remove Update Installer',
+      message: zh
+        ? `DSH Desktop ${artifact.version} 已安装。`
+        : `DSH Desktop ${artifact.version} has been installed.`,
+      detail: zh
+        ? `是否删除下载的安装包以释放磁盘空间？\n\n${artifact.path}`
+        : `Delete the downloaded installer to free disk space?\n\n${artifact.path}`,
+      buttons: zh ? ['删除安装包', '保留安装包'] : ['Delete Installer', 'Keep Installer'],
+      defaultId: 1,
+      cancelId: 1,
+      noLink: true,
+    })
+    await resolveDesktopUpdateArtifact(userDataPath, artifact, result.response === 0)
   }
 
   /** Start the downloaded NSIS installer before releasing the current process. */
