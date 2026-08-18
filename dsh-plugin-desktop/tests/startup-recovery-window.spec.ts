@@ -3,14 +3,17 @@ import type {
   DesktopStartupRecoverySnapshot,
 } from '../src/startup-recovery-controller.ts'
 import {
+  desktopStartupRecoveryWindowBounds,
   parseDesktopStartupRecoveryAction,
   renderDesktopStartupRecoveryHtml,
+  type DesktopStartupRecoveryScreenApi,
   type DesktopStartupRecoveryViewModel,
 } from '../src/startup-recovery-window.ts'
 
 vi.mock('electron', () => ({
   app: {},
   BrowserWindow: class {},
+  screen: {},
   shell: {},
 }))
 
@@ -44,6 +47,16 @@ describe('Desktop startup recovery document', () => {
     expect(html).toContain("frame-ancestors 'none'")
     expect(html).not.toMatch(/<script\b/iu)
     expect(html).not.toMatch(/\son[a-z]+\s*=/iu)
+  })
+
+  it('keeps the page and footer usable at narrow widths', () => {
+    const html = renderDesktopStartupRecoveryHtml(viewModel())
+
+    expect(html).toContain('.footer{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap')
+    expect(html).toContain('@media(max-width:640px)')
+    expect(html).toContain('.footer .button{flex:1 1 180px}')
+    expect(html).toContain('@media(max-width:420px)')
+    expect(html).toContain('.row-actions,.actions,.footer{align-items:stretch;flex-direction:column}')
   })
 
   it('escapes failure, profile, bundle, diagnostics, and notice values', () => {
@@ -136,6 +149,76 @@ describe('Desktop startup recovery document', () => {
     expect(html).toContain('example-plugin')
     expect(html).toContain('安装前配置已恢复。请重新启动 Desktop。')
     expect(html).toContain('class="button primary" href="dsh-recovery://restart"')
+  })
+})
+
+describe('Desktop startup recovery window bounds', () => {
+  function screenApi(
+    current: { readonly width: number; readonly height: number } | Error,
+    primary: { readonly width: number; readonly height: number } = { width: 1920, height: 1040 },
+  ): DesktopStartupRecoveryScreenApi & {
+    readonly getCursorScreenPoint: ReturnType<typeof vi.fn>
+    readonly getDisplayNearestPoint: ReturnType<typeof vi.fn>
+    readonly getPrimaryDisplay: ReturnType<typeof vi.fn>
+  } {
+    const getCursorScreenPoint = vi.fn(() => ({ x: 120, y: 80 }))
+    const getDisplayNearestPoint = vi.fn(() => {
+      if (current instanceof Error) throw current
+      return { workAreaSize: current }
+    })
+    const getPrimaryDisplay = vi.fn(() => ({ workAreaSize: primary }))
+    return { getCursorScreenPoint, getDisplayNearestPoint, getPrimaryDisplay }
+  }
+
+  it('uses the 800x760 default on a spacious current display', () => {
+    const electronScreen = screenApi({ width: 1440, height: 900 })
+
+    expect(desktopStartupRecoveryWindowBounds(electronScreen)).toEqual({
+      width: 800,
+      height: 760,
+      minWidth: 680,
+      minHeight: 560,
+    })
+    expect(electronScreen.getDisplayNearestPoint).toHaveBeenCalledWith({ x: 120, y: 80 })
+    expect(electronScreen.getPrimaryDisplay).not.toHaveBeenCalled()
+  })
+
+  it('subtracts 48px and clamps each dimension to the current work area', () => {
+    const bounds = desktopStartupRecoveryWindowBounds(screenApi({ width: 760, height: 640 }))
+
+    expect(bounds).toEqual({
+      width: 712,
+      height: 592,
+      minWidth: 680,
+      minHeight: 560,
+    })
+    expect(bounds.width).toBeLessThanOrEqual(760)
+    expect(bounds.height).toBeLessThanOrEqual(640)
+  })
+
+  it('lowers native minimums safely for very small work areas', () => {
+    const bounds = desktopStartupRecoveryWindowBounds(screenApi({ width: 480, height: 320 }))
+
+    expect(bounds).toEqual({
+      width: 432,
+      height: 272,
+      minWidth: 432,
+      minHeight: 272,
+    })
+    expect(bounds.minWidth).toBeLessThanOrEqual(bounds.width)
+    expect(bounds.minHeight).toBeLessThanOrEqual(bounds.height)
+  })
+
+  it('falls back to the primary display when the current display cannot be read', () => {
+    const electronScreen = screenApi(new Error('screen unavailable'), { width: 700, height: 600 })
+
+    expect(desktopStartupRecoveryWindowBounds(electronScreen)).toEqual({
+      width: 652,
+      height: 552,
+      minWidth: 652,
+      minHeight: 552,
+    })
+    expect(electronScreen.getPrimaryDisplay).toHaveBeenCalledOnce()
   })
 })
 

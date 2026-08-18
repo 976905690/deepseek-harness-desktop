@@ -1,6 +1,6 @@
 /** Host-independent Electron recovery window for profile startup failures. */
 
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, screen, shell } from 'electron'
 import { basename } from 'node:path'
 import type { DesktopLocale } from './runtime.ts'
 import {
@@ -12,6 +12,11 @@ import {
 
 const RECOVERY_SCHEME = 'dsh-recovery:'
 const MAX_FAILURE_DETAIL_LENGTH = 4_000
+const DEFAULT_RECOVERY_WIDTH = 800
+const DEFAULT_RECOVERY_HEIGHT = 760
+const DEFAULT_RECOVERY_MIN_WIDTH = 680
+const DEFAULT_RECOVERY_MIN_HEIGHT = 560
+const RECOVERY_WORK_AREA_INSET = 48
 
 type RecoveryWindowResult = 'restart' | 'quit'
 type RecoveryNoticeTone = 'info' | 'success' | 'warning' | 'error'
@@ -49,6 +54,71 @@ export interface DesktopStartupRecoveryWindowOptions {
   readonly failureStage: DesktopStartupFailureStage
   readonly failureDetail: string
   readonly exportDiagnostics: () => Promise<string>
+}
+
+export interface DesktopStartupRecoveryScreenApi {
+  getCursorScreenPoint(): { readonly x: number; readonly y: number }
+  getDisplayNearestPoint(point: { readonly x: number; readonly y: number }): {
+    readonly workAreaSize: { readonly width: number; readonly height: number }
+  }
+  getPrimaryDisplay(): {
+    readonly workAreaSize: { readonly width: number; readonly height: number }
+  }
+}
+
+export interface DesktopStartupRecoveryWindowBounds {
+  readonly width: number
+  readonly height: number
+  readonly minWidth: number
+  readonly minHeight: number
+}
+
+function validWorkAreaSize(
+  value: { readonly width: number; readonly height: number } | undefined,
+): { readonly width: number; readonly height: number } | undefined {
+  if (value === undefined
+    || !Number.isFinite(value.width)
+    || !Number.isFinite(value.height)
+    || value.width < 1
+    || value.height < 1) return undefined
+  return { width: Math.floor(value.width), height: Math.floor(value.height) }
+}
+
+function currentWorkAreaSize(
+  screenApi: DesktopStartupRecoveryScreenApi,
+): { readonly width: number; readonly height: number } | undefined {
+  try {
+    const current = validWorkAreaSize(
+      screenApi.getDisplayNearestPoint(screenApi.getCursorScreenPoint()).workAreaSize,
+    )
+    if (current !== undefined) return current
+  } catch {
+    // Electron's screen API can be unavailable during an early-ready failure.
+  }
+  try {
+    return validWorkAreaSize(screenApi.getPrimaryDisplay().workAreaSize)
+  } catch {
+    return undefined
+  }
+}
+
+/** Clamp recovery dimensions to the current display, with the primary display as fallback. */
+export function desktopStartupRecoveryWindowBounds(
+  screenApi: DesktopStartupRecoveryScreenApi = screen,
+): DesktopStartupRecoveryWindowBounds {
+  const workArea = currentWorkAreaSize(screenApi)
+  const width = workArea === undefined
+    ? DEFAULT_RECOVERY_WIDTH
+    : Math.min(DEFAULT_RECOVERY_WIDTH, Math.max(1, workArea.width - RECOVERY_WORK_AREA_INSET))
+  const height = workArea === undefined
+    ? DEFAULT_RECOVERY_HEIGHT
+    : Math.min(DEFAULT_RECOVERY_HEIGHT, Math.max(1, workArea.height - RECOVERY_WORK_AREA_INSET))
+  return {
+    width,
+    height,
+    minWidth: Math.min(DEFAULT_RECOVERY_MIN_WIDTH, width),
+    minHeight: Math.min(DEFAULT_RECOVERY_MIN_HEIGHT, height),
+  }
 }
 
 export interface DesktopStartupRecoveryViewModel {
@@ -289,7 +359,7 @@ export function renderDesktopStartupRecoveryHtml(model: DesktopStartupRecoveryVi
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(copy.title)}</title>
   <style>
-    :root{color-scheme:light dark;font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f2f3f5;color:#202124}*{box-sizing:border-box}body{margin:0}main{width:min(820px,100%);margin:0 auto;padding:34px 30px 28px}h1{font-size:28px;margin:0 0 8px}h2{font-size:17px;margin:0 0 10px}p{margin:7px 0}.lead{color:#5f6368;margin-bottom:20px}.profile{font-size:13px;color:#6b7280}.card,.notice{background:#fff;border:1px solid #dfe1e5;border-radius:12px;padding:18px;margin:14px 0;box-shadow:0 1px 2px #0000000d}.error-detail{white-space:pre-wrap;overflow-wrap:anywhere;max-height:130px;overflow:auto;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;background:#f6f7f8;border-radius:8px;padding:12px}.notice strong{display:block}.notice.error,.notice.warning{border-color:#d97706}.notice.success{border-color:#16a34a}.notice.info{border-color:#2563eb}ul{list-style:none;padding:0;margin:14px 0 0;border-top:1px solid #e5e7eb}li{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid #e5e7eb}.meta{display:block;color:#6b7280;font-size:12px;margin-top:2px}.row-actions,.actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.actions{margin-top:15px}.button{display:inline-flex;align-items:center;justify-content:center;min-height:36px;padding:7px 13px;border:1px solid #9aa0a6;border-radius:9px;color:inherit;text-decoration:none;background:transparent}.button:hover{background:#eef0f2}.button.primary{background:#1a73e8;border-color:#1a73e8;color:white}.pill{font-size:12px;padding:3px 8px;border-radius:999px;background:#e8eaed}.muted{font-size:12px;color:#6b7280}.footer{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}.busy{opacity:.7;pointer-events:none}@media(prefers-color-scheme:dark){:root{background:#202124;color:#f1f3f4}.lead,.profile,.meta,.muted{color:#9aa0a6}.card,.notice{background:#292a2d;border-color:#45464a}.error-detail{background:#202124}.button:hover{background:#35363a}.pill{background:#3c4043}ul,li{border-color:#45464a}}
+    :root{color-scheme:light dark;font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f2f3f5;color:#202124}*{box-sizing:border-box}body{margin:0}main{width:min(820px,100%);margin:0 auto;padding:34px 30px 28px}h1{font-size:28px;margin:0 0 8px}h2{font-size:17px;margin:0 0 10px}p{margin:7px 0}.lead{color:#5f6368;margin-bottom:20px}.profile{font-size:13px;color:#6b7280}.card,.notice{background:#fff;border:1px solid #dfe1e5;border-radius:12px;padding:18px;margin:14px 0;box-shadow:0 1px 2px #0000000d}.error-detail{white-space:pre-wrap;overflow-wrap:anywhere;max-height:130px;overflow:auto;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;background:#f6f7f8;border-radius:8px;padding:12px}.notice strong{display:block}.notice.error,.notice.warning{border-color:#d97706}.notice.success{border-color:#16a34a}.notice.info{border-color:#2563eb}ul{list-style:none;padding:0;margin:14px 0 0;border-top:1px solid #e5e7eb}li{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid #e5e7eb}.meta{display:block;color:#6b7280;font-size:12px;margin-top:2px}.row-actions,.actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.actions{margin-top:15px}.button{display:inline-flex;align-items:center;justify-content:center;min-height:36px;padding:7px 13px;border:1px solid #9aa0a6;border-radius:9px;color:inherit;text-decoration:none;background:transparent}.button:hover{background:#eef0f2}.button.primary{background:#1a73e8;border-color:#1a73e8;color:white}.pill{font-size:12px;padding:3px 8px;border-radius:999px;background:#e8eaed}.muted{font-size:12px;color:#6b7280}.footer{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:18px}.busy{opacity:.7;pointer-events:none}@media(max-width:640px){main{padding:22px 16px 18px}h1{font-size:24px}.card,.notice{padding:14px}.footer{justify-content:stretch}.footer .button{flex:1 1 180px}}@media(max-width:420px){main{padding:18px 12px 14px}li{align-items:stretch;flex-direction:column}.row-actions,.actions,.footer{align-items:stretch;flex-direction:column}.button{width:100%}}@media(prefers-color-scheme:dark){:root{background:#202124;color:#f1f3f4}.lead,.profile,.meta,.muted{color:#9aa0a6}.card,.notice{background:#292a2d;border-color:#45464a}.error-detail{background:#202124}.button:hover{background:#35363a}.pill{background:#3c4043}ul,li{border-color:#45464a}}
   </style>
 </head>
 <body><main class="${model.busy ? 'busy' : ''}">
@@ -366,10 +436,7 @@ export class DesktopStartupRecoveryWindow {
     }
     const window = new BrowserWindow({
       title: COPY[this.options.locale].title,
-      width: 880,
-      height: 760,
-      minWidth: 680,
-      minHeight: 560,
+      ...desktopStartupRecoveryWindowBounds(),
       show: false,
       autoHideMenuBar: true,
       backgroundColor: '#202124',
