@@ -142,6 +142,9 @@ describe('published package surface', () => {
     ), 'utf8')
     for (const marker of [
       '__DSH_DESKTOP_PICK_DIRECTORY__',
+      '__DSH_DESKTOP_VALIDATE_DIRECTORY__',
+      'openDirectory(path)',
+      'openDirectory(targetPath)',
       'IconFolderOpen16',
       'nativePickerButton',
       'browser.nativePicker',
