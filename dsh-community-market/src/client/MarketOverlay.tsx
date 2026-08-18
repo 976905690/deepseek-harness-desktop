@@ -5,15 +5,15 @@ import {
   Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
-import { MarketSurface } from './MarketSettingsTab.js'
+import { MarketSurface, type MarketView } from './MarketSettingsTab.js'
 import type { createMarketViewStore } from './market-view-store.js'
 
 export type MarketOverlayProps = PropsRuntime<'shell.overlay'>
   & PropsStore<ReturnType<typeof createMarketViewStore>>
   & PropsLocale<'community-market'>
-  & { readLocale: () => string }
+  & { readLocale: () => string; initialView?: MarketView }
 
-export function MarketOverlay({ useStore, actions, readLocale, t }: MarketOverlayProps) {
+export function MarketOverlay({ useStore, actions, readLocale, t, initialView }: MarketOverlayProps) {
   const open = useStore(state => state.open)
   const panel = useRef<HTMLElement>(null)
 
@@ -50,7 +50,12 @@ export function MarketOverlay({ useStore, actions, readLocale, t }: MarketOverla
           </Tooltip>
         </header>
         <div className="dshMarketOverlayBody">
-          <MarketSurface readLocale={readLocale} showHeader={false} t={t} />
+          <MarketSurface
+            {...(initialView === undefined ? {} : { initialView })}
+            readLocale={readLocale}
+            showHeader={false}
+            t={t}
+          />
         </div>
       </section>
     </div>

@@ -50,7 +50,7 @@ import {
 } from './api.js'
 
 type MarketItem = CatalogSnapshot['items'][number]
-type MarketView = 'discover' | 'installable' | 'installed' | 'sources'
+export type MarketView = 'discover' | 'installable' | 'installed' | 'sources'
 const INSTALLABLE_PAGE_SIZE = 50
 const INSTALL_REQUIREMENTS_DOCS = {
   en: 'https://github.com/anywhere-labs/deepseek-harness-desktop/blob/master/dsh-community-market/docs/install-and-uninstall.md',
@@ -323,7 +323,11 @@ export function MarketSurface({ initialView = 'installable', readLocale, t, show
       setCatalog(current => retainEnabledCatalog(current, next.sources))
       readRequest.current = undefined
       if (!loadCatalogAfterState) {
-        setLoading(false)
+        if (viewRef.current === 'discover') {
+          await loadCatalog(next, q, categories, forceRefresh)
+        } else {
+          setLoading(false)
+        }
         return
       }
       await loadCatalog(next, q, categories, forceRefresh)
@@ -573,6 +577,16 @@ export function MarketSurface({ initialView = 'installable', readLocale, t, show
       installableRequest.current = undefined
       setInstallableLoading(false)
       void loadInstallations()
+    } else if (next === 'discover') {
+      installableRequest.current?.abort()
+      installationsRequest.current?.abort()
+      installableRequest.current = undefined
+      installationsRequest.current = undefined
+      setInstallableLoading(false)
+      setInstallationsLoading(false)
+      if (state !== undefined && catalog === undefined && readRequest.current === undefined) {
+        void loadCatalog(state, appliedQuery, selectedCategories)
+      }
     } else {
       installableRequest.current?.abort()
       installationsRequest.current?.abort()

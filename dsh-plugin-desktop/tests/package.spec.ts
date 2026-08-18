@@ -218,6 +218,49 @@ describe('published package surface', () => {
     expect(ready).toBeGreaterThan(markClean)
   })
 
+  it('claims plugin install recovery before profile composition and gates health in Electron main', () => {
+    const main = readFileSync(new URL('src/main.ts', packageRoot), 'utf8')
+    const fixedStatePath = main.indexOf("desktopInstallRecoveryStatePath(app.getPath('userData'))")
+    const beginProfile = main.indexOf('profileStartup = beginDesktopProfileStartup(')
+    const claim = main.indexOf('const recoveryClaim = await installRecovery.claim()')
+    const prepare = main.indexOf('const prepared = prepareDesktopProfile(')
+    const monitor = main.indexOf('runtime.beginRendererBootMonitoring()')
+    const mount = main.indexOf('await runtime.mountScheduled()')
+    const awaitRenderer = main.indexOf('const rendererReport = await rendererBoot')
+    const verified = main.indexOf('await installRecovery.markHealthy(')
+    const profileHealthy = main.indexOf('markDesktopProfileHealthy(selectionStatePath')
+    const clearVerified = main.indexOf('await installRecovery.clear(verifiedInstallToClear.transactionId)')
+
+    expect(fixedStatePath).toBeGreaterThanOrEqual(0)
+    expect(main).not.toContain("desktopInstallRecoveryStatePath(app.getPath('userData'), process.env)")
+    expect(main).not.toContain('process.env[DESKTOP_INSTALL_RECOVERY_STATE_ENV]')
+    expect(beginProfile).toBeGreaterThan(fixedStatePath)
+    expect(claim).toBeGreaterThan(beginProfile)
+    expect(prepare).toBeGreaterThan(claim)
+    expect(main).toContain('installRecoveryStatePath,\n      generationId,')
+    expect(monitor).toBeGreaterThan(prepare)
+    expect(mount).toBeGreaterThan(monitor)
+    expect(awaitRenderer).toBeGreaterThan(mount)
+    expect(verified).toBeGreaterThan(awaitRenderer)
+    expect(profileHealthy).toBeGreaterThan(verified)
+    expect(clearVerified).toBeGreaterThan(profileHealthy)
+  })
+
+  it('captures diagnostics before both startup recovery restore paths', () => {
+    const main = readFileSync(new URL('src/main.ts', packageRoot), 'utf8')
+    const diagnostics = [...main.matchAll(/await saveInstallRecoveryDiagnostics\(electronLogger\)/gu)]
+      .map(match => match.index)
+    const restores = [...main.matchAll(/await installRecovery\.restore\(/gu)]
+      .map(match => match.index)
+
+    expect(diagnostics).toHaveLength(2)
+    expect(restores).toHaveLength(2)
+    expect(diagnostics[0]).toBeLessThan(restores[0]!)
+    expect(diagnostics[1]).toBeLessThan(restores[1]!)
+    expect(main).toContain("await installRecovery.markManualRecoveryRequired(transaction.transactionId, 'recovery-failed')")
+    expect(main).toContain('if (!installRecoveryRelaunch && retryLastKnownGood)')
+  })
+
   it('uses the upstream child-environment scrub around login-shell recovery', () => {
     const shellEnvironment = readFileSync(new URL('src/shell-environment.ts', packageRoot), 'utf8')
 

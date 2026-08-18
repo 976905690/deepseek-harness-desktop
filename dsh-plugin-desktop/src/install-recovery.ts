@@ -445,10 +445,40 @@ export class DesktopInstallRecoveryStore {
     if (state.phase !== 'prepared' || state.createdByGeneration !== this.generationId) {
       throw new Error(`${BIN_NAME}: plugin install recovery transaction cannot be sealed in phase ${state.phase}`)
     }
+    const next = await this.capturePostImage(state, true)
+    await this.writeState(next)
+    return next
+  }
+
+  /**
+   * Admit the just-finished command's partial image, then restore it atomically.
+   * This is only valid in the generation that began the still-exclusive install.
+   */
+  async restoreCurrentInstall(
+    transactionId: string,
+    failureReason: DesktopInstallRecoveryFailureReason,
+  ): Promise<DesktopInstallRecoveryRestoreResult> {
+    return await this.withMutationLock(async () => {
+      const state = await this.requireTransaction(transactionId)
+      this.assertBound(state)
+      if (state.phase === 'prepared') {
+        if (state.createdByGeneration !== this.generationId) {
+          throw new Error(`${BIN_NAME}: plugin install recovery belongs to another generation`)
+        }
+        await this.writeState(await this.capturePostImage(state, false))
+      }
+      return await this.restoreLocked(transactionId, failureReason)
+    })
+  }
+
+  private async capturePostImage(
+    state: DesktopInstallRecoveryTransaction,
+    requireManifest: boolean,
+  ): Promise<DesktopInstallRecoveryTransaction> {
     const files: DesktopInstallRecoveryFileRecord[] = []
     for (const file of state.files) {
       const after = (await this.readProfileFile(file.name)).metadata
-      if (file.name === 'package.json' && !after.present) {
+      if (requireManifest && file.name === 'package.json' && !after.present) {
         throw new Error(`${BIN_NAME}: installed profile package.json is unavailable`)
       }
       files.push({ ...file, after })
@@ -459,7 +489,6 @@ export class DesktopInstallRecoveryStore {
       files,
       sealedAt: timestamp(this.now),
     }
-    await this.writeState(next)
     return next
   }
 

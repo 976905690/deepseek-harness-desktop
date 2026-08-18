@@ -243,6 +243,25 @@ describe('MarketSettingsTab', () => {
     expect(readMarketCatalog).not.toHaveBeenCalled()
   })
 
+  it('loads the catalog when leaving the default Installable view for Discover', async () => {
+    vi.mocked(readMarketState).mockResolvedValue(enabledState)
+    vi.mocked(readMarketInstallable).mockResolvedValue(installableResponse([]))
+    vi.mocked(readMarketCatalog).mockResolvedValue(catalog)
+    render(<MarketSettingsTab {...({ t, readLocale: () => 'en' } as MarketSettingsTabProps)} />)
+
+    await waitFor(() => expect(readMarketInstallable).toHaveBeenCalledOnce())
+    fireEvent.click(screen.getByRole('button', { name: en.discover }))
+
+    expect(await screen.findByRole('button', { name: /Fixture Plugin/u })).toBeTruthy()
+    expect(readMarketCatalog).toHaveBeenCalledWith(
+      firstSource.sourceRecordId,
+      '',
+      'en',
+      [],
+      expect.any(AbortSignal),
+    )
+  })
+
   it('loads source state on mount and avoids catalog I/O when none are selected', async () => {
     vi.mocked(readMarketState).mockResolvedValue(emptyState)
     render(<MarketSettingsTab {...props} />)

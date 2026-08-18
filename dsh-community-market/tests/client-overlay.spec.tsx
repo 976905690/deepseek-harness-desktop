@@ -77,6 +77,7 @@ function renderOpenOverlay() {
     actions: instance.actions,
     useStore,
     readLocale: () => 'en',
+    initialView: 'discover',
     t,
   } as unknown as MarketOverlayProps
   const rendered = render(<MarketOverlay {...props} />)
