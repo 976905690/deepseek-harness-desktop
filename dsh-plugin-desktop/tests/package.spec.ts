@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto'
+import { execFileSync } from 'node:child_process'
 import { readFileSync, readdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
 
@@ -413,6 +415,31 @@ describe('published package surface', () => {
     expect(macosJob).toContain('- run: yarn workspace dsh-community-market check')
     expect(macosJob).toContain('- run: yarn dist:mac-smoke')
     expect(macosJob).not.toContain('yarn workspace dsh-plugin-desktop dist:mac-smoke')
+  })
+
+  it('skips product packaging only for documentation-only changes', () => {
+    const classifier = fileURLToPath(new URL('../../scripts/classify-ci-changes.mjs', import.meta.url))
+    const classify = (paths: string[]): string => execFileSync(
+      process.execPath,
+      [classifier],
+      { input: Buffer.from(`${paths.join('\0')}\0`), encoding: 'utf8' },
+    ).trim()
+
+    expect(classify([
+      'docs/architecture.md',
+      '.agents/notes/implemented/architecture/decision.md',
+      '.agents/notes/implemented/architecture/decision.i18n.yaml',
+      'dsh-community-market/docs/schema.json',
+      '.github/ISSUE_TEMPLATE/feature_request.yml',
+    ])).toBe('false')
+    expect(classify(['README.md', 'dsh-plugin-desktop/src/index.ts'])).toBe('true')
+    expect(classify(['.github/workflows/ci.yml'])).toBe('true')
+    expect(classify(['THIRD_PARTY_NOTICES.md'])).toBe('true')
+    expect(classify([])).toBe('true')
+
+    expect(ciWorkflow).toContain('product="$(git diff --name-only -z')
+    expect(ciWorkflow).toContain("if: needs.changes.outputs.product == 'true'")
+    expect(ciWorkflow).toContain('Documentation-only change; product build and tests are not required.')
   })
 
   it('keeps one fixed brand-blue tray source for generated native assets', () => {
