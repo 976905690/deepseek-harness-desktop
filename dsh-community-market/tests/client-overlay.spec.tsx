@@ -48,6 +48,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     IconCordisPluginOutline14: icon,
     IconDataOutline16: icon,
     IconDownloadOutline16: icon,
+    IconPlayOutline16: icon,
     IconGlobeOutline14: icon,
     IconLoadingOutline16: icon,
     IconPlusOutline16: icon,

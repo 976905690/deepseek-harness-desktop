@@ -2,7 +2,7 @@
 
 [English](market-shell.md)
 
-状态：Host/Client 市场与有限 npm 安装、基于 receipt 的卸载已实现，正在进行 private 集成测试
+状态：Host/Client 市场与有限 npm 安装、基于 receipt 的卸载及 direct-bundle 启用/禁用已实现，正在进行 private 集成测试
 
 本文定义 `dsh-community-market` 第一阶段的实现边界。它刻意比完整的插件市场更小：package 只负责产品内的市场壳和适配器，不负责社区目录、包 registry 或 DSH profile 格式。
 
@@ -78,7 +78,7 @@ Market 界面包含四个视图：
 
 - **发现**对当前已选来源完整本地索引中的全部标准化条目进行分页。点击卡片会立即打开统一操作弹窗；Host 会让合格条目进入受管 preview，否则弹窗保持为详情。
 - **可安装**在本地以 fail-closed 方式生成。条目必须具有经过审核的 provider 验证与 `repository_backlink`、精确稳定的 npm 目标和规范仓库，同时排除被阻止的 package，以及当前 profile 或 Market receipt 中已经存在的 package。这里的卡片使用同一个弹窗。结构候选身份不等于 npm 复核、代码审核或推荐。
-- **已安装**读取当前 profile 的合法 Market receipt，绝不会根据目录猜测安装状态。
+- **已安装**会核对当前 profile 的 Host 清单与合法 Market receipt，绝不会根据目录猜测安装状态。
 - **来源**管理已保存来源和唯一的当前选择。
 
 目录浏览提供：
@@ -123,7 +123,7 @@ Preview 会针对这一个 package 完整检查 npm registry、规范仓库、de
 
 ## 安装恢复边界
 
-恢复记录是针对一次受保护 `plugin add` 的 Desktop 私有 write-ahead log，不是完整 profile 或插件备份。它保存 metadata，以及当前 profile 的 `package.json`、`pnpm-lock.yaml` 和 `pnpm-workspace.yaml` 私有前镜像。它不会备份或主动移除 `node_modules`，不会收集环境变量或独立凭据存储，也不适用于卸载或禁用外部 bundle。三个白名单文件会按原内容复制，因此其中不得嵌入凭据。
+恢复记录是针对一次受保护 `plugin add` 的 Desktop 私有 write-ahead log，不是完整 profile 或插件备份。它保存 metadata，以及当前 profile 的 `package.json`、`pnpm-lock.yaml` 和 `pnpm-workspace.yaml` 私有前镜像。它不会备份或主动移除 `node_modules`，不会收集环境变量或独立凭据存储，也不适用于卸载或 direct-bundle 启用/禁用。三个白名单文件会按原内容复制，因此其中不得嵌入凭据。
 
 Add 成功后，系统会在开放重启许可前封存白名单文件的结果 hash 和 Market receipt 标识。下一次 Desktop generation 会在准备 profile 前认领这条 pending 记录。Host 成功启动，并且 Renderer 在 30 秒期限内报告健康后，安装才会提交并清除恢复材料。如果发生 Host 故障、主 frame 加载失败、Renderer 故障、超时或验证中断，系统会先保存本地诊断归档，再仅恢复当前 hash 与已记录前镜像或后镜像匹配的文件。未知第三方漂移会 fail closed 到手动恢复，不会被覆盖。自动恢复成功后最多重新启动 Desktop 一次，绝不会形成循环。
 
@@ -131,9 +131,11 @@ Add 成功后，系统会在开放重启许可前封存白名单文件的结果 
 
 ## 卸载边界
 
-**已安装**视图只来自当前 profile 的合法本地 receipt，不依赖已选来源。因此，即使安装来源后来被禁用、删除或离线，通过 Market 安装的插件仍然可以卸载。
+**已安装**视图来自当前 profile 的 direct-bundle 清单与合法本地 receipt，不依赖已选来源。因此，即使安装来源后来被禁用、删除或离线，通过 Market 安装的插件仍然可以卸载。
 
 卸载预览只接受 `receiptId`。Host 会确认 receipt 仍然存在，并且当前 profile 仍包含 receipt 记录的精确 package 版本和 DSH bundle。执行阶段只接受由此生成的不透明一次性 preview，调用受管 `remove` 操作，确认 package 已移除后再删除 receipt。通过其他方式安装的 package、其他 profile 的 receipt，或安装后已经发生变化的 package，当前 MVP 都不会移除。成功后同样显示**立即重启**与**稍后重启**。
+
+可变 direct bundle 还会暴露 generation-scoped 不透明启用/禁用能力。已禁用的 Market 受管 bundle 会保留基于 receipt 的“卸载”，并可独立选择“启用”。Host 与 Desktop 会在 preview 和执行时重验精确 bundle 状态、可变性、profile generation 与 receipt 所有权；renderer 绝不会提交 package 名或文件系统目标。
 
 ## Profile 行为
 
@@ -188,7 +190,7 @@ Add 成功后，系统会在开放重启许可前封存白名单文件的结果 
 - 精确稳定 npm 目标复核和两步用户意图。
 - 受管、串行化且带验证 receipt 的安装；读取和预览可取消，已接受的 mutation 则由 Host 持有。
 - 为 Market 安装和内置终端中的 `dsh plugin add` 提供配置级 write-ahead 恢复，并在下一次启动验证 Host/Renderer 健康。
-- 不依赖目录来源、基于 receipt 的卸载。
+- 不依赖目录来源、基于 receipt 的卸载，以及针对可变 direct bundle 的不透明启用/禁用。
 - profile 修改成功后的重启说明。
 
 ### 后续工作

@@ -1006,23 +1006,36 @@ describe('market install Host routes', () => {
       openTerminal: vi.fn(),
       requestRestart: vi.fn(async () => { desktopEvents.push('restart') }),
     }
+    let bundleStatus: 'active' | 'disabled' = 'active'
     const bundle = {
       bundleId: 'bundle_opaque_external',
       packageName: 'dsh-plugin-external',
-      status: 'active' as const,
       mutable: true,
     }
     const desktopPlugins = {
-      list: vi.fn(() => [bundle]),
-      isDisabled: vi.fn(() => false),
-      disabledPackageNames: vi.fn(() => []),
+      list: vi.fn(() => [{ ...bundle, status: bundleStatus }]),
+      isDisabled: vi.fn(() => bundleStatus === 'disabled'),
+      disabledPackageNames: vi.fn(() => bundleStatus === 'disabled' ? [bundle.packageName] : []),
       previewDisable: vi.fn(() => ({
         previewId: 'disable_opaque_preview',
         profileName: 'web',
         packageName: bundle.packageName,
         expiresAt: '2099-08-18T00:05:00.000Z',
       })),
-      executeDisable: vi.fn(async () => ({ packageName: bundle.packageName })),
+      executeDisable: vi.fn(async () => {
+        bundleStatus = 'disabled'
+        return { packageName: bundle.packageName }
+      }),
+      previewEnable: vi.fn(() => ({
+        previewId: 'enable_opaque_preview',
+        profileName: 'web',
+        packageName: bundle.packageName,
+        expiresAt: '2099-08-18T00:05:00.000Z',
+      })),
+      executeEnable: vi.fn(async () => {
+        bundleStatus = 'active'
+        return { packageName: bundle.packageName }
+      }),
     }
     const dispose = registerMarketRoutes(
       ctx as never,
@@ -1181,6 +1194,49 @@ describe('market install Host routes', () => {
       body: {
         installations: [{
           kind: 'external',
+          status: 'disabled',
+          action: 'enable',
+          bundleId: bundle.bundleId,
+          packageName: bundle.packageName,
+        }],
+      },
+    })
+
+    const enablePreview = await request(marketRoutes.operationPreview, 'POST', {
+      action: 'enable',
+      bundleId: bundle.bundleId,
+    })
+    expect(enablePreview).toMatchObject({
+      status: 200,
+      body: {
+        action: 'enable',
+        packageName: bundle.packageName,
+        previewId: 'enable_opaque_preview',
+      },
+    })
+    expect(desktopPlugins.previewEnable).toHaveBeenCalledWith(bundle.bundleId)
+    await expect(request(marketRoutes.operationPreview, 'POST', {
+      action: 'enable',
+      bundleId: bundle.bundleId,
+      packageName: bundle.packageName,
+    })).resolves.toMatchObject({ status: 400, body: { code: 'invalid-request' } })
+
+    const enabled = await request(marketRoutes.operationExecute, 'POST', { previewId: 'enable_opaque_preview' })
+    expect(enabled).toMatchObject({
+      status: 200,
+      body: { action: 'enable', packageName: bundle.packageName },
+    })
+    expect(desktopPlugins.executeEnable).toHaveBeenCalledWith('enable_opaque_preview')
+    const enableRestartToken = enabled.body.restartToken as string
+    await expect(request(marketRoutes.requestRestart, 'POST', { restartToken: enableRestartToken }))
+      .resolves.toEqual({ status: 200, body: { ok: true } })
+    expect(install.consumeRestartToken).toHaveBeenCalledTimes(1)
+
+    await expect(request(marketRoutes.installations, 'GET')).resolves.toMatchObject({
+      status: 200,
+      body: {
+        installations: [{
+          kind: 'external',
           status: 'active',
           action: 'disable',
           bundleId: bundle.bundleId,
@@ -1188,6 +1244,36 @@ describe('market install Host routes', () => {
         }],
       },
     })
+
+    bundleStatus = 'disabled'
+    listVerifiedReceipts.mockResolvedValue([receiptRace])
+    await expect(request(marketRoutes.installations, 'GET')).resolves.toMatchObject({
+      status: 200,
+      body: {
+        installations: [{
+          kind: 'managed',
+          status: 'disabled',
+          action: 'uninstall',
+          enableBundleId: bundle.bundleId,
+          receipt: { receiptId: receiptRace.receiptId },
+        }],
+      },
+    })
+    await expect(request(marketRoutes.operationPreview, 'POST', {
+      action: 'enable',
+      bundleId: bundle.bundleId,
+    })).resolves.toMatchObject({ status: 200, body: { action: 'enable' } })
+    listVerifiedReceipts.mockResolvedValue([])
+    await expect(request(marketRoutes.operationExecute, 'POST', { previewId: 'enable_opaque_preview' }))
+      .resolves.toMatchObject({ status: 409, body: { code: 'conflict' } })
+
+    listVerifiedReceipts.mockResolvedValue([receiptRace])
+    await expect(request(marketRoutes.operationPreview, 'POST', {
+      action: 'enable',
+      bundleId: bundle.bundleId,
+    })).resolves.toMatchObject({ status: 200, body: { action: 'enable' } })
+    await expect(request(marketRoutes.operationExecute, 'POST', { previewId: 'enable_opaque_preview' }))
+      .resolves.toMatchObject({ status: 200, body: { action: 'enable' } })
     expect(install.listInstallable).not.toHaveBeenCalled()
     dispose()
   })
@@ -1221,6 +1307,8 @@ describe('market install Host routes', () => {
       disabledPackageNames: vi.fn(() => []),
       previewDisable: vi.fn(),
       executeDisable: vi.fn(),
+      previewEnable: vi.fn(),
+      executeEnable: vi.fn(),
     }
     const dispose = registerMarketRoutes(
       ctx as never,

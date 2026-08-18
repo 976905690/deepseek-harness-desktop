@@ -4,7 +4,7 @@
 
 Status: implemented for private Desktop integration testing; not a plugin security review
 
-This guide explains what users see and the boundary developers must preserve. The current Market installs only a narrow class of exact npm packages into the active DSH Desktop profile. It does not install from GitHub, run a command supplied by a catalog, or manage plugins that were installed outside this Market.
+This guide explains what users see and the boundary developers must preserve. The current Market installs only a narrow class of exact npm packages into the active DSH Desktop profile. It does not install from GitHub or run a command supplied by a catalog. For plugins installed elsewhere, it can only persist a Desktop-owned enabled/disabled loading choice; it never claims uninstall ownership.
 
 ## The four views
 
@@ -12,7 +12,7 @@ This guide explains what users see and the boundary developers must preserve. Th
 | --- | --- | --- |
 | **Discover** | Every normalized item in the selected source's complete local index, shown 50 at a time | A listing is not install approval, compatibility evidence, or endorsement |
 | **Installable** | A fail-closed local structural subset requiring reviewed provider verification with `repository_backlink`, an exact stable npm target, and a canonical repository, while excluding blocked, installed, or receipted packages | Presence is not npm verification, compatibility proof, a code review, or endorsement |
-| **Installed** | Host-reconciled direct bundles for the active profile | A valid matching Market receipt grants uninstall; other mutable bundles are external and grant disable only |
+| **Installed** | Host-reconciled direct bundles for the active profile | A valid matching Market receipt grants uninstall; disabled mutable bundles can be enabled, while external active bundles grant disable but never uninstall |
 | **Sources** | Saved source records and the one currently selected source | Changing source does not change the active profile or remove receipts |
 
 Exactly one catalog source is browsed at a time. The Host completes and caches one full index for that source and locale; search, multi-category OR filtering, complete category choices, and 50-item pagination are local views over that index. Switching source resets the index view, search, categories, and cursor. The **Installed** view instead follows the active profile's direct-bundle inventory and locally verified receipts.
@@ -56,7 +56,7 @@ The recovery boundary is deliberately configuration-level and applies only to `p
 - `pnpm-lock.yaml`; and
 - `pnpm-workspace.yaml`.
 
-It does not back up or actively roll back `node_modules`, plugin payload files, environment variables, or separate credential stores. The three allowlisted profile files are copied as raw bytes, so users and integrations must not embed credentials in them. Uninstall and external-bundle disable do not create this snapshot.
+It does not back up or actively roll back `node_modules`, plugin payload files, environment variables, or separate credential stores. The three allowlisted profile files are copied as raw bytes, so users and integrations must not embed credentials in them. Uninstall and bundle enable/disable do not create this snapshot.
 
 After a successful add, Desktop seals hashes for the resulting allowlisted files and keeps one write-ahead recovery record pending. A second protected plugin add is refused until the record is verified or reconciled. This gate covers Market installs and the built-in terminal's `dsh plugin add`; it is not a global filesystem lock and cannot protect raw package-manager commands or an external system terminal.
 
@@ -86,9 +86,11 @@ A GitHub repository link may still appear as inert provenance and may be used to
 
 Uninstall does not need the provider to remain online and does not refetch the original listing. If a plugin has no Market receipt, belongs to another profile, or was changed after installation, this MVP refuses to remove it. That conservative behavior avoids claiming ownership of packages managed elsewhere.
 
-## Disable an externally installed plugin
+## Disable or enable a plugin
 
 An active mutable direct bundle without a valid matching Market receipt is externally owned. **Disable** sends only Desktop's generation-scoped opaque `bundleId`. Desktop mints a short-lived preview and revalidates the profile, exact bundle, mutability, and receipt boundary before persisting the disable. It does not uninstall the package or sandbox its code. Restart after success. If a broken bundle patch already prevents the current startup, this control cannot recover that failed startup.
+
+A disabled mutable direct bundle exposes a new generation-scoped opaque `bundleId` for **Enable**. The Host accepts that capability only while the exact bundle is still disabled and mutable. It also revalidates receipt ownership: an externally owned bundle must remain external, while a Market-managed bundle must retain the same receipt. A disabled Market-managed plugin therefore keeps **Uninstall** and **Enable** as separate actions. Enabling changes only Desktop's private loading choice; after restart the plugin runs again as local code with the user's permissions.
 
 Desktop stores this versioned, profile-scoped choice in `<Desktop user data>/plugin-management/state.json`. It does not edit the profile's `package.json`, lockfile, dependency tree, or `dsh.profile.bundles` list.
 
@@ -119,12 +121,12 @@ Keep those states separate:
 - The Host owns fail-closed **Installable** structural filtering. The renderer displays only Host-returned candidate identities and must not infer candidacy from `latestVersion` or promote another listing. Listing does not query npm for every package.
 - Install preview accepts only `sourceRecordId` and `itemId`. The Host selects its previously observed candidate, performs the full official-registry, runtime, lifecycle, integrity, repository, DSH bundle, and active-profile verification for that package, and returns an opaque `previewId` plus the exact confirmation summary only on success.
 - Execute accepts only that `previewId`. The one-shot token binds the candidate, registry evidence, active profile, and expiry; the Host revalidates all mutable state. Desktop must publish the allowlisted preimages before starting the managed add and seal the known partial or successful postimage before reporting its outcome.
-- Installed-state reads return receipts scoped to the active profile. Uninstall preview accepts only `receiptId`, and execution again accepts only an opaque `previewId`.
+- Installed-state reads reconcile the active profile's direct-bundle inventory with verified receipts. Uninstall preview accepts only `receiptId`. Disable and enable preview accept only a generation-scoped opaque `bundleId`. Every execution accepts only its one-shot opaque `previewId`, and enable revalidates both disabled status and receipt ownership.
 - The renderer never receives filesystem, process, environment, or package-manager authority. Package changes go through `desktopPnpm.runPlugin()` with fixed argument construction and the active profile's absolute directory. The only command-shaped value it may receive is a bounded display-only manual hint; the terminal action cannot receive or execute it.
 
 The receipt records the profile, exact npm identity, integrity, DSH bundle patch, catalog provenance, display name, and installation time. It is local evidence that this Market completed and verified a managed install; it is not a provider credential and must not depend on the source remaining registered.
 
-If Desktop package capabilities are unavailable, browsing still works while managed install and uninstall return an unavailable state. The managed path never falls back to an ambient `pnpm`, shell, guessed executable, repository command, or inactive profile. Opening DSH Terminal is a separate explicit user action and never starts a package operation by itself. Only a later `dsh plugin add` through the built-in terminal receives the Desktop recovery handoff; other terminal commands do not.
+If Desktop package capabilities are unavailable, browsing still works while install, uninstall, disable, and enable return an unavailable state. The managed path never falls back to an ambient `pnpm`, shell, guessed executable, repository command, or inactive profile. Opening DSH Terminal is a separate explicit user action and never starts a package operation by itself. Only a later `dsh plugin add` through the built-in terminal receives the Desktop recovery handoff; other terminal commands do not.
 
 ## Failure and recovery
 
@@ -142,5 +144,6 @@ If Desktop package capabilities are unavailable, browsing still works while mana
 | Startup recovery rolls back an install whose receipt was saved | The exact receipt is removed before the recovery record is acknowledged; a persistence failure leaves recovery pending for retry |
 | Receipt or installed bundle changed before uninstall | Uninstall is refused without taking ownership of the changed package |
 | Managed uninstall succeeds but receipt persistence fails | The package is removed, but the receipt store reports a persistence error |
+| Bundle or receipt ownership changes after an enable/disable preview | Execution is refused; refresh Installed and create a new preview |
 
 User-facing errors remain bounded and do not expose response bodies, local paths, environment variables, credentials, or commands. See [Security](../SECURITY.md) for the full trust model and [Market shell design](market-shell.md) for the surrounding catalog architecture.

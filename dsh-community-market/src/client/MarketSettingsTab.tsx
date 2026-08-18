@@ -10,6 +10,7 @@ import {
   IconGlobeOutline14,
   IconPlusOutline16,
   IconPauseOutline16,
+  IconPlayOutline16,
   IconRefreshOutline16,
   IconRightUpOutline16,
   IconSearchOutline16,
@@ -620,7 +621,9 @@ export function MarketSurface({ initialView = 'installable', readLocale, t, show
       } else {
         setOperationError(t(requestValue.action === 'install'
           ? 'previewError'
-          : requestValue.action === 'uninstall' ? 'uninstallPreviewError' : 'disablePreviewError'))
+          : requestValue.action === 'uninstall'
+            ? 'uninstallPreviewError'
+            : requestValue.action === 'disable' ? 'disablePreviewError' : 'enablePreviewError'))
       }
     } finally {
       if (operationRequest.current === request) {
@@ -669,27 +672,57 @@ export function MarketSurface({ initialView = 'installable', readLocale, t, show
       const result = await executeMarketOperation(preview.previewId, request.signal)
       if (request.signal.aborted || operationRequest.current !== request) return
       if (result.action !== preview.action) throw new Error('operation response action mismatch')
-      setInstallations(current => result.action === 'install'
-        ? current
-        : result.action === 'uninstall'
-          ? current.filter(installation => installation.kind !== 'managed'
+      setInstallations(current => {
+        if (result.action === 'install') return current
+        if (result.action === 'uninstall') {
+          return current.filter(installation => installation.kind !== 'managed'
             || installation.receipt.receiptId !== result.receiptId)
-          : current.map(installation => installation.kind === 'external'
+        }
+        if (result.action === 'disable') {
+          return current.map(installation => installation.kind === 'external'
               && installation.action === 'disable'
               && installation.packageName === result.packageName
             ? {
                 kind: 'external' as const,
                 status: 'disabled' as const,
-                action: 'none' as const,
+                action: 'enable' as const,
+                bundleId: installation.bundleId,
                 packageName: installation.packageName,
               }
-            : installation))
+            : installation)
+        }
+        return current.map(installation => {
+          if (installation.kind === 'external'
+            && installation.action === 'enable'
+            && installation.packageName === result.packageName) {
+            return {
+              kind: 'external' as const,
+              status: 'active' as const,
+              action: 'disable' as const,
+              bundleId: installation.bundleId,
+              packageName: installation.packageName,
+            }
+          }
+          if (installation.kind === 'managed'
+            && installation.status === 'disabled'
+            && installation.receipt.packageName === result.packageName) {
+            return {
+              kind: 'managed' as const,
+              status: 'active' as const,
+              action: 'uninstall' as const,
+              receipt: installation.receipt,
+            }
+          }
+          return installation
+        })
+      })
       setInstallationsLoaded(true)
       setOperationPreview(undefined)
       setSelected(undefined)
       setOperationSuccess({ preview, restartToken: result.restartToken })
       if (result.action === 'install' && viewRef.current === 'installable') void loadInstallable()
-      if ((result.action === 'uninstall' || result.action === 'disable') && viewRef.current === 'installed') {
+      if ((result.action === 'uninstall' || result.action === 'disable' || result.action === 'enable')
+        && viewRef.current === 'installed') {
         void loadInstallations()
       }
     } catch (cause) {
@@ -834,6 +867,9 @@ export function MarketSurface({ initialView = 'installable', readLocale, t, show
             }}
             onDisable={bundleId => {
               void beginOperationPreview({ action: 'disable', bundleId })
+            }}
+            onEnable={bundleId => {
+              void beginOperationPreview({ action: 'enable', bundleId })
             }}
             t={t}
           />
@@ -1202,6 +1238,7 @@ function InstalledView(props: {
   onRetry: () => void
   onUninstall: (receipt: Extract<MarketInstallationView, { kind: 'managed' }>['receipt']) => void
   onDisable: (bundleId: string) => void
+  onEnable: (bundleId: string) => void
   t: MarketSettingsTabProps['t']
 }) {
   if (props.unavailable) return (
@@ -1263,22 +1300,40 @@ function InstalledView(props: {
                   {installation.status === 'disabled' && <span>{props.t('disabledRestartRequired')}</span>}
                 </div>
               </div>
-              {installation.action === 'uninstall' && <Button
-                variant="outline"
-                size="sm"
-                aria-label={`${props.t('uninstall')}: ${displayName}`}
-                disabled={props.operationPending}
-                icon={<IconTrashOutline16 />}
-                onClick={() => props.onUninstall(installation.receipt)}
-              >{props.t('uninstall')}</Button>}
-              {installation.action === 'disable' && <Button
-                variant="outline"
-                size="sm"
-                aria-label={`${props.t('disable')}: ${displayName}`}
-                disabled={props.operationPending}
-                icon={<IconPauseOutline16 />}
-                onClick={() => props.onDisable(installation.bundleId)}
-              >{props.t('disable')}</Button>}
+              <div className="dshMarketReceiptActions">
+                {installation.kind === 'managed' && installation.enableBundleId !== undefined && <Button
+                  variant="outline"
+                  size="sm"
+                  aria-label={`${props.t('enable')}: ${displayName}`}
+                  disabled={props.operationPending}
+                  icon={<IconPlayOutline16 />}
+                  onClick={() => props.onEnable(installation.enableBundleId!)}
+                >{props.t('enable')}</Button>}
+                {installation.action === 'uninstall' && <Button
+                  variant="outline"
+                  size="sm"
+                  aria-label={`${props.t('uninstall')}: ${displayName}`}
+                  disabled={props.operationPending}
+                  icon={<IconTrashOutline16 />}
+                  onClick={() => props.onUninstall(installation.receipt)}
+                >{props.t('uninstall')}</Button>}
+                {installation.action === 'disable' && <Button
+                  variant="outline"
+                  size="sm"
+                  aria-label={`${props.t('disable')}: ${displayName}`}
+                  disabled={props.operationPending}
+                  icon={<IconPauseOutline16 />}
+                  onClick={() => props.onDisable(installation.bundleId)}
+                >{props.t('disable')}</Button>}
+                {installation.action === 'enable' && <Button
+                  variant="outline"
+                  size="sm"
+                  aria-label={`${props.t('enable')}: ${displayName}`}
+                  disabled={props.operationPending}
+                  icon={<IconPlayOutline16 />}
+                  onClick={() => props.onEnable(installation.bundleId)}
+                >{props.t('enable')}</Button>}
+              </div>
             </article>
             )
           })}
@@ -1545,11 +1600,29 @@ function OperationConfirmModal({ preview, pending, error, onCancel, onConfirm, t
 }) {
   const installing = preview.action === 'install'
   const uninstalling = preview.action === 'uninstall'
-  const title = installing ? t('confirmInstallTitle') : uninstalling ? t('confirmUninstallTitle') : t('confirmDisableTitle')
-  const description = installing ? t('confirmInstallBody') : uninstalling ? t('confirmUninstallBody') : t('confirmDisableBody')
+  const disabling = preview.action === 'disable'
+  const enabling = preview.action === 'enable'
+  const title = installing
+    ? t('confirmInstallTitle')
+    : uninstalling
+      ? t('confirmUninstallTitle')
+      : disabling ? t('confirmDisableTitle') : t('confirmEnableTitle')
+  const description = installing
+    ? t('confirmInstallBody')
+    : uninstalling
+      ? t('confirmUninstallBody')
+      : disabling ? t('confirmDisableBody') : t('confirmEnableBody')
   const confirmLabel = pending
-    ? installing ? t('installing') : uninstalling ? t('uninstalling') : t('disabling')
-    : installing ? t('confirmInstall') : uninstalling ? t('confirmUninstall') : t('confirmDisable')
+    ? installing
+      ? t('installing')
+      : uninstalling
+        ? t('uninstalling')
+        : disabling ? t('disabling') : t('enabling')
+    : installing
+      ? t('confirmInstall')
+      : uninstalling
+        ? t('confirmUninstall')
+        : disabling ? t('confirmDisable') : t('confirmEnable')
   return (
     <Modal
       open
@@ -1564,7 +1637,11 @@ function OperationConfirmModal({ preview, pending, error, onCancel, onConfirm, t
         <Button
           variant="primary"
           disabled={pending}
-          icon={installing ? <IconDownloadOutline16 /> : uninstalling ? <IconTrashOutline16 /> : <IconPauseOutline16 />}
+          icon={installing
+            ? <IconDownloadOutline16 />
+            : uninstalling
+              ? <IconTrashOutline16 />
+              : enabling ? <IconPlayOutline16 /> : <IconPauseOutline16 />}
           onClick={onConfirm}
         >{confirmLabel}</Button>
       </>}
@@ -1582,10 +1659,11 @@ function OperationConfirmModal({ preview, pending, error, onCancel, onConfirm, t
             </span>
           </div>
         )}
-        {!installing && !uninstalling && <>
+        {disabling && <>
           <div className="dshMarketOperationWarning"><StateDot state="warning" size={12} /><span>{t('disableWarning')}</span></div>
           <div className="dshMarketOperationWarning"><StateDot state="warning" size={12} /><span>{t('disableRecoveryWarning')}</span></div>
         </>}
+        {enabling && <div className="dshMarketOperationWarning"><StateDot state="warning" size={12} /><span>{t('enableWarning')}</span></div>}
         <div className="dshMarketOperationWarning"><StateDot state="warning" size={12} /><span>{t('restartAfterOperation')}</span></div>
         {pending && <div className="dshMarketOperationProgress" role="status"><StateDot state="ongoing" size={12} />{confirmLabel}</div>}
         {error !== undefined && <div className="dshMarketError" role="alert">{error}</div>}
@@ -1605,7 +1683,9 @@ function OperationSuccessModal({ operation, canRestart, pending, error, onClose,
 }) {
   const title = operation.preview.action === 'install'
     ? t('installComplete')
-    : operation.preview.action === 'uninstall' ? t('uninstallComplete') : t('disableComplete')
+    : operation.preview.action === 'uninstall'
+      ? t('uninstallComplete')
+      : operation.preview.action === 'disable' ? t('disableComplete') : t('enableComplete')
   return (
     <Modal
       open
