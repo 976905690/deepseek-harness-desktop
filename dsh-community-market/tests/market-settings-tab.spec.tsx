@@ -677,6 +677,51 @@ describe('MarketSettingsTab', () => {
     ))
   })
 
+  it('ignores a late inventory result after switching the selected catalog item', async () => {
+    const firstItem = makeInstallableItem(firstSource, 'race-first', 'Race First Plugin', 'dsh-plugin-race-first')
+    const secondItem = makeInstallableItem(firstSource, 'race-second', 'Race Second Plugin', 'dsh-plugin-race-second')
+    let resolveFirstInventory: ((value: { installations: readonly [] }) => void) | undefined
+    let resolveSecondInventory: ((value: { installations: readonly [] }) => void) | undefined
+    vi.mocked(readMarketState).mockResolvedValue(enabledState)
+    vi.mocked(readMarketCatalog).mockResolvedValue(catalogForSource(firstSource, [firstItem, secondItem]))
+    vi.mocked(readMarketInstallable).mockResolvedValue(installableResponse([firstItem, secondItem]))
+    vi.mocked(readMarketInstallations)
+      .mockImplementationOnce(() => new Promise(resolve => { resolveFirstInventory = resolve }))
+      .mockImplementationOnce(() => new Promise(resolve => { resolveSecondInventory = resolve }))
+    vi.mocked(previewMarketOperation).mockResolvedValue({
+      action: 'install',
+      profileName: 'web',
+      packageName: secondItem.package!.name,
+      version: secondItem.latestVersion!,
+      displayName: secondItem.displayName,
+      expiresAt: '2026-08-18T00:05:00.000Z',
+      previewId: 'opaque-race-install-preview',
+    })
+    render(<MarketSettingsTab {...props} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: en.installable }))
+    const firstButton = await screen.findByRole('button', { name: `${en.install}: ${firstItem.displayName}` })
+    const secondButton = await screen.findByRole('button', { name: `${en.install}: ${secondItem.displayName}` })
+    fireEvent.click(firstButton)
+    expect(await screen.findByRole('dialog', { name: firstItem.displayName })).toBeTruthy()
+    fireEvent.click(secondButton)
+    expect(await screen.findByRole('dialog', { name: secondItem.displayName })).toBeTruthy()
+
+    await act(async () => { resolveFirstInventory?.({ installations: [] }) })
+    expect(previewMarketOperation).not.toHaveBeenCalled()
+
+    await act(async () => { resolveSecondInventory?.({ installations: [] }) })
+    await waitFor(() => expect(previewMarketOperation).toHaveBeenCalledWith(
+      {
+        action: 'install',
+        sourceRecordId: firstSource.sourceRecordId,
+        itemId: secondItem.id,
+      },
+      expect.any(AbortSignal),
+    ))
+    expect(previewMarketOperation).toHaveBeenCalledTimes(1)
+  })
+
   it('uninstalls only from the current profile receipt and executes the Host preview id', async () => {
     const receipt = makeReceipt()
     vi.mocked(readMarketState).mockResolvedValue(emptyState)
