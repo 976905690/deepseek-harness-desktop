@@ -413,9 +413,9 @@ describe('published package surface', () => {
   })
 
   it('resolves electron-builder through the pinned app-builder-lib keychain patch', () => {
-    const patchResolution = 'patch:app-builder-lib@npm%3A26.15.3#./patches/app-builder-lib@26.15.3.patch'
+    const patchResolution = 'patch:app-builder-lib@npm%3A26.15.7#./patches/app-builder-lib@26.15.7.patch'
     const lockfile = readFileSync(new URL('yarn.lock', workspaceRoot), 'utf8')
-    const patch = readFileSync(new URL('patches/app-builder-lib@26.15.3.patch', workspaceRoot), 'utf8')
+    const patch = readFileSync(new URL('patches/app-builder-lib@26.15.7.patch', workspaceRoot), 'utf8')
     const workspaceRequire = createRequire(new URL('package.json', packageRoot))
     const electronBuilderManifest = workspaceRequire.resolve('electron-builder/package.json')
     const electronBuilderRequire = createRequire(electronBuilderManifest)
@@ -423,9 +423,10 @@ describe('published package surface', () => {
     const installedCodeSign = readFileSync(join(dirname(appBuilderManifest), 'out/codeSign/macCodeSign.js'), 'utf8')
 
     expect(workspaceManifest.resolutions).toMatchObject({
-      'app-builder-lib@npm:26.15.3': patchResolution,
+      'app-builder-lib@npm:26.15.7': patchResolution,
     })
-    expect(lockfile).toContain('app-builder-lib@patch:app-builder-lib@npm%3A26.15.3#./patches/app-builder-lib@26.15.3.patch')
+    expect(manifest.devDependencies?.['electron-builder']).toBe('26.15.7')
+    expect(lockfile).toContain('app-builder-lib@patch:app-builder-lib@npm%3A26.15.7#./patches/app-builder-lib@26.15.7.patch')
     expect(patch).toContain('importCerts(keychainFile, certPaths, cscPasswords, keychainPassword)')
     expect(patch).toContain('"-k", keychainPassword, keychainFile')
     expect(installedCodeSign).toContain('importCerts(keychainFile, certPaths, cscPasswords, keychainPassword)')
