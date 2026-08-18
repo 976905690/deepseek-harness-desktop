@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -8,6 +8,9 @@ import {
   UpdateDownloadError,
   desktopUpdateFilename,
   downloadDesktopUpdate,
+  pendingDesktopUpdateArtifact,
+  recordDesktopUpdateArtifact,
+  resolveDesktopUpdateArtifact,
   type DesktopDownloadPlatform,
   type UpdateArtifactRequest,
 } from '../src/update-download.ts'
@@ -297,5 +300,57 @@ describe('desktop update installer download', () => {
       request,
     }), 'invalid-options')
     expect(requested).toBe(false)
+  })
+})
+
+describe('desktop update artifact cleanup', () => {
+  it('rejects malformed cleanup state with a typed failure', async () => {
+    const userDataPath = await temporaryDirectory()
+    const updates = join(userDataPath, 'updates')
+    await mkdir(updates)
+    await writeFile(join(updates, 'pending-installer.json'), '{}')
+
+    await expectFailure(
+      pendingDesktopUpdateArtifact(userDataPath, '2.1.0', 'win32'),
+      'invalid-options',
+    )
+  })
+
+  it('offers a recorded artifact only after the installed version reaches the update', async () => {
+    const userDataPath = await temporaryDirectory()
+    const downloads = await temporaryDirectory()
+    const path = destinationPath(downloads, 'win32', '2.1.0')
+    await writeFile(path, windowsArtifact())
+
+    await recordDesktopUpdateArtifact(userDataPath, {
+      platform: 'win32',
+      version: '2.1.0',
+      path,
+    })
+
+    await expect(pendingDesktopUpdateArtifact(userDataPath, '2.0.1', 'win32')).resolves.toBeUndefined()
+    await expect(pendingDesktopUpdateArtifact(userDataPath, '2.1.0', 'win32')).resolves.toEqual({
+      platform: 'win32',
+      version: '2.1.0',
+      path,
+    })
+  })
+
+  it.each([false, true])('resolves one cleanup choice with remove=%s', async (remove) => {
+    const userDataPath = await temporaryDirectory()
+    const downloads = await temporaryDirectory()
+    const artifact = {
+      platform: 'darwin' as const,
+      version: '2.1.0',
+      path: destinationPath(downloads, 'darwin', '2.1.0'),
+    }
+    await writeFile(artifact.path, dmgArtifact())
+    await recordDesktopUpdateArtifact(userDataPath, artifact)
+
+    await resolveDesktopUpdateArtifact(userDataPath, artifact, remove)
+
+    await expect(pendingDesktopUpdateArtifact(userDataPath, '2.1.0', 'darwin')).resolves.toBeUndefined()
+    if (remove) await expect(access(artifact.path)).rejects.toMatchObject({ code: 'ENOENT' })
+    else await expect(access(artifact.path)).resolves.toBeUndefined()
   })
 })
