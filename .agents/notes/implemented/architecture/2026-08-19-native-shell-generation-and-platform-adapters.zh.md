@@ -19,6 +19,63 @@ Status: implemented
 
 Runtime 负责协调这两个 module，但不会把任何一个暴露为第三方 interface。Renderer carrier、公开的 profile 与 pnpm interface，以及 pinned 上游 checkout 均保持不变。
 
+### 架构变化
+
+这次重构把原生生命周期与平台策略放到两个聚焦的 interface 后面：
+
+```mermaid
+flowchart LR
+  subgraph Before[变更前]
+    RuntimeBefore[ElectronRuntime]
+    RuntimeBefore --> WindowBefore[BrowserWindow]
+    RuntimeBefore --> TrayBefore[Tray]
+    RuntimeBefore --> ListenersBefore[Electron listener]
+    RuntimeBefore --> PlatformBranches[process.platform 分支]
+  end
+
+  subgraph After[变更后]
+    RuntimeAfter[ElectronRuntime]
+    Generation[ElectronShellGeneration]
+    Strategy[ElectronPlatformStrategy seam]
+    RuntimeAfter --> Generation
+    RuntimeAfter --> Strategy
+    Generation --> WindowAfter[BrowserWindow]
+    Generation --> TrayAfter[Tray]
+    Generation --> ListenersAfter[Listener 与导航策略]
+    Strategy --> Windows[Windows adapter]
+    Strategy --> macOS[macOS adapter]
+    Strategy --> Linux[Linux adapter]
+  end
+```
+
+`ElectronRuntime` interface 仍然是协调入口。Generation module 通过把资源放在一起拥有 locality；strategy seam 则通过让共享生命周期在一个位置消费平台能力获得 leverage。
+
+### Generation 生命周期
+
+```mermaid
+sequenceDiagram
+  participant Runtime as ElectronRuntime
+  participant Generation as ElectronShellGeneration
+  participant Window as BrowserWindow
+  participant Tray as Tray
+
+  Runtime->>Generation: mount()
+  Generation->>Window: 构造并注册 listener
+  Generation->>Window: loadURL(loopback origin)
+  alt 加载成功
+    Generation->>Tray: 创建托盘与菜单
+    Generation-->>Runtime: mounted generation
+  else 加载失败
+    Generation->>Generation: release() 清理部分资源
+    Generation-->>Runtime: 抛出启动错误
+  end
+  Runtime->>Generation: 重启或退出时 release()
+  Generation->>Tray: 移除 listener 并销毁
+  Generation->>Window: 移除 listener 并销毁
+```
+
+相同的 `release()` 路径同时处理部分启动和正常关闭，因此重启不会遗留上一代 generation 的 listener、托盘或窗口。
+
 ### 原生 Shell 资源只有一个 owner
 
 `ElectronShellGeneration.mount()` 创建应用图标，通过选中的平台 adapter 配置应用，创建窗口，注册全部 window/application/webContents listener，加载 loopback URL，并仅在加载成功后创建托盘。它也负责同源导航限制、外链委托、renderer 失败报告、托盘菜单刷新和有界缩放快捷键。

@@ -19,6 +19,63 @@ Keep `DesktopRuntime` as the existing Host-facing interface and deepen two priva
 
 The runtime coordinates these modules but does not expose either one as a third-party interface. The renderer carrier, public profile and pnpm interfaces, and the pinned upstream checkout remain unchanged.
 
+### Architecture shift
+
+The refactor moves the native lifecycle and platform policy behind two focused interfaces:
+
+```mermaid
+flowchart LR
+  subgraph Before[Before]
+    RuntimeBefore[ElectronRuntime]
+    RuntimeBefore --> WindowBefore[BrowserWindow]
+    RuntimeBefore --> TrayBefore[Tray]
+    RuntimeBefore --> ListenersBefore[Electron listeners]
+    RuntimeBefore --> PlatformBranches[process.platform branches]
+  end
+
+  subgraph After[After]
+    RuntimeAfter[ElectronRuntime]
+    Generation[ElectronShellGeneration]
+    Strategy[ElectronPlatformStrategy seam]
+    RuntimeAfter --> Generation
+    RuntimeAfter --> Strategy
+    Generation --> WindowAfter[BrowserWindow]
+    Generation --> TrayAfter[Tray]
+    Generation --> ListenersAfter[Listeners and navigation policy]
+    Strategy --> Windows[Windows adapter]
+    Strategy --> macOS[macOS adapter]
+    Strategy --> Linux[Linux adapter]
+  end
+```
+
+The `ElectronRuntime` interface remains the orchestration point. The generation module earns locality by owning resources together, while the strategy seam earns leverage by giving the shared lifecycle one place to consume platform capabilities.
+
+### Generation lifecycle
+
+```mermaid
+sequenceDiagram
+  participant Runtime as ElectronRuntime
+  participant Generation as ElectronShellGeneration
+  participant Window as BrowserWindow
+  participant Tray as Tray
+
+  Runtime->>Generation: mount()
+  Generation->>Window: construct and register listeners
+  Generation->>Window: loadURL(loopback origin)
+  alt load succeeds
+    Generation->>Tray: create tray and menu
+    Generation-->>Runtime: mounted generation
+  else load fails
+    Generation->>Generation: release() partial resources
+    Generation-->>Runtime: throw startup error
+  end
+  Runtime->>Generation: release() on restart or quit
+  Generation->>Tray: remove listeners and destroy
+  Generation->>Window: remove listeners and destroy
+```
+
+The same `release()` path handles both partial startup and ordinary shutdown, so a restart cannot leave a listener, tray, or window from the previous generation alive.
+
 ### One owner for native shell resources
 
 `ElectronShellGeneration.mount()` creates the application icon, configures the application through the selected platform adapter, creates the window, registers every window/application/webContents listener, loads the loopback URL, and creates the tray only after loading succeeds. It also owns same-origin navigation enforcement, external-link delegation, renderer failure reporting, tray menu refresh, and bounded zoom shortcuts.
