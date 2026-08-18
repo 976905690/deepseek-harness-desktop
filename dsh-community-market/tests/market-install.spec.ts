@@ -435,44 +435,48 @@ describe('market install service', () => {
     expect(settings.receipts()).toEqual([])
   })
 
-  it('lists structurally installable, currently uninstalled candidates without registry fan-out', async () => {
+  it('lists structural catalog candidates independently of profile, receipt, and disabled state without registry fan-out', async () => {
     const profileDir = await createProfile()
     await writeFile(join(profileDir, 'package.json'), JSON.stringify({
       name: 'fixture-profile',
       dependencies: { [`${packageName}-0`]: version },
       dsh: { profile: { bundles: [`${packageName}-0`] } },
     }))
-    let active = 0
-    let maximumActive = 0
-    const verifiedPackages: string[] = []
-    const verifier = {
-      verify: vi.fn(async (candidate: { packageName: string }, signal: AbortSignal) => {
-        signal.throwIfAborted()
-        verifiedPackages.push(candidate.packageName)
-        active += 1
-        maximumActive = Math.max(maximumActive, active)
-        try {
-          await new Promise(resolve => setTimeout(resolve, 5))
-          if (candidate.packageName === `${packageName}-1`) {
-            throw new MarketInstallError('verification-failed', 'fixture rejection')
-          }
-          return verification
-        } finally {
-          active -= 1
-        }
-      }),
+    const receipt: MarketInstallReceipt = {
+      receiptId: 'receipt:list-state-independent-0001',
+      profileName: 'web',
+      packageName: `${packageName}-1`,
+      version,
+      integrity,
+      bundlePatch: './cordis.patch.yml',
+      sourceRecordId: 'source-1',
+      providerId: DSH_1024STORE_PROVIDER_ID,
+      itemId: `example/${packageName}-1`,
+      displayName: 'Safe Plugin 1',
+      installedAt: '2026-08-18T00:00:00.000Z',
     }
+    const verifier = {
+      verify: vi.fn(async () => verification),
+    }
+    const recoveredInstallReceiptIds = vi.fn(async () => [receipt.receiptId])
+    const acknowledgeRecoveredInstall = vi.fn(async () => {})
+    const currentProfile = vi.fn(() => ({ name: 'web', dir: profileDir }))
+    const disabledPackageNames = vi.fn(() => [`${packageName}-2`])
     const service = new MarketInstallService(
-      memoryScope().scope,
-      () => ({ name: 'web', dir: profileDir }),
-      runner(profileDir, []),
+      memoryScope([receipt]).scope,
+      currentProfile,
+      {
+        ...runner(profileDir, []),
+        recoveredInstallReceiptIds,
+        acknowledgeRecoveredInstall,
+      },
       verifier,
+      { disabledPackageNames },
     )
     const index = fullIndex(snapshotWithCandidates(7))
     const installable = await service.listInstallable(index, new AbortController().signal)
-    expect(maximumActive).toBe(0)
-    expect(verifiedPackages).toHaveLength(0)
     expect(installable.items.map(target => target.package?.name)).toEqual([
+      `${packageName}-0`,
       `${packageName}-1`,
       `${packageName}-2`,
       `${packageName}-3`,
@@ -481,11 +485,15 @@ describe('market install service', () => {
       `${packageName}-6`,
     ])
     expect(installable.items[0]).toMatchObject({
-      id: `example/${packageName}-1`,
+      id: `example/${packageName}-0`,
       latestVersion: version,
     })
     await expect(service.listInstallable(index, new AbortController().signal)).resolves.toMatchObject({ items: installable.items })
     expect(verifier.verify).not.toHaveBeenCalled()
+    expect(currentProfile).not.toHaveBeenCalled()
+    expect(disabledPackageNames).not.toHaveBeenCalled()
+    expect(recoveredInstallReceiptIds).not.toHaveBeenCalled()
+    expect(acknowledgeRecoveredInstall).not.toHaveBeenCalled()
   })
 
   it('returns the complete local catalog beyond the former 2048-candidate cap', async () => {

@@ -141,7 +141,7 @@ export interface MarketInstallationsResponse {
   readonly installations: readonly MarketInstallationView[]
 }
 
-/** Complete Host-preverified subset for the active catalog source. */
+/** Complete Host-derived structural subset; local install state never changes catalog membership. */
 export interface MarketInstallableResponse {
   readonly source: MarketSourceView
   readonly items: CatalogSnapshot['items']

@@ -11,7 +11,7 @@ DSH Community Market 是 [DSH Desktop](../README.md) 内置的开放插件市场
 当前界面分为四个视图：
 
 1. **发现**展示当前来源已经加载并标准化的全部条目。点击任一卡片都会立即打开同一个操作弹窗：Desktop 先检查能否受管安装，不能时再显示详情或安全的只展示手动提示。
-2. **可安装**是从完整索引中以 fail-closed 方式生成的本地结构候选列表。条目必须具有经过审核的 provider 验证与 `repository_backlink`、精确稳定的 npm 版本和规范仓库，同时排除被阻止的 package，以及当前 profile 或 Market receipt 中已经存在的 package。生成列表时不会逐包请求 npm；这里的卡片与发现页共用同一个操作弹窗。
+2. **可安装**是从已选来源完整索引中以 fail-closed 方式生成的结构候选列表。条目必须具有经过审核的 provider 验证与 `repository_backlink`、精确稳定的 npm 版本和规范仓库，同时排除产品 blocklist 中的 package。目录成员资格与 package 是否已安装、已有 receipt、处于禁用状态或后来已在本地卸载无关，这些状态都不会移除卡片。生成列表时不会逐包请求 npm；preview 与执行阶段会另行判断本地操作是否允许，这里的卡片与发现页共用同一个操作弹窗。
 3. **已安装**会把有效 Market receipt 与 Desktop 当前 profile 的 direct bundle 清单进行核对。Receipt 持有的 bundle 可以卸载；可变 bundle 可以禁用并重新启用。已禁用且由 receipt 持有的 bundle 会同时保留“启用”和“卸载”。
 4. **来源**用于选择和管理目录来源；同一时间只浏览一个来源。
 
@@ -23,7 +23,7 @@ DSH Community Market 是 [DSH Desktop](../README.md) 内置的开放插件市场
 
 任何人都可以提供、接入和使用插件数据源。符合规范的数据源只需发布一份 [`catalog-source` manifest](docs/schemas/catalog-source.schema.json)，并由其 `/v1/plugins` 接口返回符合 [`catalog-provider-page` Schema](docs/schemas/catalog-provider-page.schema.json) 的数据，无需为 Market 编写自定义代码。已有 API 无需更换自己的格式，也可以联系我们，通过随 Market 发布的受审 adapter 作为合作数据源接入。来源可以提供 `media.icon`，Desktop 会先校验并代理图片再显示；没有图标的来源仍然合法，界面会使用本地 fallback。
 
-展示已选来源前，Host 会先建立一份完整、经过校验的本地索引。标准来源按照声明的 cursor 与 page limit 扫描；经过审核的 1024Store adapter 只读取一次完整 registry，再按 Schema 上限分块标准化；经过审核的 dshfind adapter 则遍历 REST 分页，并在整次扫描中固定同一个 `data_version`。之后的搜索、多分类 OR 筛选、分类选项和分页都在这份完整本地索引上进行，不会因为每次交互重新请求 provider。每个可见页面最多展示 50 条，分类选项覆盖索引中的全部分类，而不只是已经显示的页面。**可安装**是同一索引上 fail-closed 的结构子集；只有用户预览某个候选时，才开始权威 npm 复核。
+展示已选来源前，Host 会先建立一份完整、经过校验的本地索引。标准来源按照声明的 cursor 与 page limit 扫描；经过审核的 1024Store adapter 只读取一次完整 registry，再按 Schema 上限分块标准化；经过审核的 dshfind adapter 则遍历 REST 分页，并在整次扫描中固定同一个 `data_version`。之后的搜索、多分类 OR 筛选、分类选项和分页都在这份完整本地索引上进行，不会因为每次交互重新请求 provider。每个可见页面最多展示 50 条，分类选项覆盖索引中的全部分类，而不只是已经显示的页面。**可安装**是同一索引上 fail-closed 的结构子集，不随本地安装、receipt 或启用/禁用状态变化；只有用户预览某个候选时，才开始权威 npm 与本地操作复核。
 
 Host 会在 cache 过期前复用已经完成的索引（当前默认五分钟）。如果 response 提供可选索引 metadata，`scannedAt` 表示扫描完成时间，`expiresAt` 表示 cache 截止时间，可选 `providerRevision` 表示整次扫描中一致观察到的来源 revision，`cacheStatus` 表示本次使用新扫描还是复用 cache。用户明确刷新时会替换索引并绕过底层目录 response cache，不只是重新绘制当前 50 条。
 
@@ -39,7 +39,7 @@ dshfind 当前会返回由提供方维护的安装结论和命令文本，但没
 
 - 后台浏览不会安装任何包，也不会执行仓库代码。
 - 只有用户明确点击并确认后，安装才会开始。
-- **可安装**是 Host 以 fail-closed 方式生成的结构候选集合，不是 renderer 猜测，也不表示 npm 已经复核。候选必须具有经过审核的 provider 验证与 `repository_backlink`、精确稳定的 npm 目标和规范仓库，而且不能已经安装、已有 receipt 或被本地策略阻止。Preview 才会针对这个 package 首次执行官方 registry 权威复核；执行前会再检查可变状态。
+- **可安装**是 Host 从已选目录以 fail-closed 方式生成的结构候选集合，不是 renderer 猜测，也不表示 npm 已经复核。候选必须具有经过审核的 provider 验证与 `repository_backlink`、精确稳定的 npm 目标和规范仓库，而且不能位于产品 blocklist。安装状态、receipt、卸载历史和启用/禁用状态都不会授予或移除目录成员资格。Preview 才会针对这个 package 首次执行官方 registry 与本地操作权威复核；执行前会再检查可变状态。
 - 受管安装器只接受精确、稳定的 npm 版本。GitHub URL、可变版本范围或 tag、deprecated package、目标 manifest 中定义了 `preinstall`、`install`、`postinstall` 或 `prepare` 的 package，以及不兼容内置 DSH rc.7 或 Node.js runtime 的 package，都会被拒绝。
 - 目录提供方返回的命令字符串、安装片段和仓库安装指令都会被丢弃，既不会作为 Host 手动提示展示，也绝不会执行。可用时，Host 会根据规范化身份单独重建一条精确 npm 手动提示；它会明确标为未完成全部验证，只供用户自行决定是否执行。dshfind 当前没有提供可用于重建该提示的精确版本。
 - 受管操作中，renderer 只提交来源/条目或 receipt 标识。“打开 DSH 终端”提交的是空请求，不会接收、复制或执行界面展示的手动命令。

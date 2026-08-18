@@ -72,7 +72,7 @@ DSH Community Market 以开放方式与各种插件数据源合作。任何人�
 
 Host 会先针对已选来源和当前 locale 完成一次全量标准化扫描，再提供目录交互。标准来源按照声明的 cursor 和有效 page limit 扫描到结束；经过审核的 1024Store adapter 则只执行一次完整 registry GET，标准化每个合法条目，并按每块最多 100 条的 Schema 上限输出。dshfind adapter 会遍历每页最多 100 条的 REST 数据，并在所有后续分页中固定首页的 `data_version`。由于其公布的匿名配额低于当前首次同步所需的 page 数，首次扫描会主动节流，可能明显更慢；版本过期或限流失败时不会发布部分索引。10,000 条 Host 上限、来源身份、取消、provenance 和同源检查覆盖整次扫描。
 
-搜索、排序、多分类 OR 筛选、分类枚举和分页只在这份完整本地索引上运行。UI 每页最多展示 50 条匹配结果；**加载更多**推进 Host 拥有的本地 cursor，不会再次向 provider 发出带筛选的请求。分类列表是索引中存在的完整分类集合。**可安装**是同一索引上 fail-closed 的结构子集，不是第二个 provider feed，也不是逐包请求 registry 得出的结果。
+搜索、排序、多分类 OR 筛选、分类枚举和分页只在这份完整本地索引上运行。UI 每页最多展示 50 条匹配结果；**加载更多**推进 Host 拥有的本地 cursor，不会再次向 provider 发出带筛选的请求。分类列表是索引中存在的完整分类集合。**可安装**是同一索引上 fail-closed 的结构子集，不是第二个 provider feed，也不是逐包请求 registry 得出的结果。它的目录成员资格与本地安装、receipt、卸载历史及启用/禁用状态无关。
 
 完成的索引会在有界时间内复用，当前默认五分钟。可选 response metadata 可以提供：`scannedAt`（扫描完成时间）、`expiresAt`（cache 截止时间）、可选 `providerRevision`（所有分块中一致观察到的 revision），以及 `cacheStatus`（完成新扫描时为 `fresh`，复用索引时为 `cached`）。明确刷新会使旧索引失效，并绕过底层目录 HTTP cache 后重新建立。选择另一个来源会取消旧扫描并建立独立索引。
 
@@ -81,7 +81,7 @@ Host 会先针对已选来源和当前 locale 完成一次全量标准化扫描�
 Market 界面包含四个视图：
 
 - **发现**对当前已选来源完整本地索引中的全部标准化条目进行分页。点击卡片会立即打开统一操作弹窗；Host 会让合格条目进入受管 preview，否则弹窗保持为详情。
-- **可安装**在本地以 fail-closed 方式生成。条目必须具有经过审核的 provider 验证与 `repository_backlink`、精确稳定的 npm 目标和规范仓库，同时排除被阻止的 package，以及当前 profile 或 Market receipt 中已经存在的 package。这里的卡片使用同一个弹窗。结构候选身份不等于 npm 复核、代码审核或推荐。由于 dshfind 当前没有提供精确稳定的 npm 版本，它的所有条目都只在**发现**中浏览。
+- **可安装**从已选来源的完整索引中以 fail-closed 方式生成。条目必须具有经过审核的 provider 验证与 `repository_backlink`、精确稳定的 npm 目标和规范仓库，同时排除产品 blocklist 中的 package。只要已选目录仍然包含条目，已经安装、已有 receipt、处于禁用状态或后来已卸载的 package 都会继续显示。这里的卡片使用同一个弹窗。结构候选身份不等于 npm 复核、本地操作许可、代码审核或推荐。由于 dshfind 当前没有提供精确稳定的 npm 版本，它的所有条目都只在**发现**中浏览。
 - **已安装**会核对当前 profile 的 Host 清单与合法 Market receipt，绝不会根据目录猜测安装状态。
 - **来源**管理已保存来源和唯一的当前选择。
 
@@ -102,7 +102,7 @@ Market 界面包含四个视图：
 
 ## 安装边界
 
-点击卡片表示用户明确要求检查该条目。弹窗会同步打开，同时由 Host 判断这个精确的标准化来源/条目能否进入受管 preview。候选身份由 Host 而不是 renderer 掌握；Host 会首次针对该 package 访问官方 npm registry，并结合当前 profile 做权威复核。只有 preview 成功后，同一个弹窗才会切换成确认框并展示：
+点击卡片表示用户明确要求检查该条目。弹窗会同步打开，同时由 Host 判断这个精确的标准化来源/条目能否进入受管 preview。目录推导的结构候选身份与本地操作是否可用是两件事：Host 可以因为当前 profile、receipt 或其他本地状态拒绝安装，但不会因此移除目录卡片。候选身份由 Host 而不是 renderer 掌握；Host 会首次针对该 package 访问官方 npm registry，并结合当前 profile 做权威复核。只有 preview 成功后，同一个弹窗才会切换成确认框并展示：
 
 - 插件名称；
 - Host 解析出的精确 npm package 名与稳定版本；
