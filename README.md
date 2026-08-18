@@ -31,14 +31,14 @@ DSH Desktop 把 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harne
 
 ## 下载与安装
 
-当前正式安装包支持 Windows x64 和搭载 Apple 芯片的 macOS。普通用户不需要单独安装 Node.js、pnpm 或 DSH。
+当前正式安装包支持 Windows x64 和 macOS Universal。无需额外环境，下载安装，一键使用。
 
 | 平台 | 下载 | 安装方式 |
 | --- | --- | --- |
 | Windows x64 | [下载安装程序](https://www.dshdesktop.cn/api/downloads/windows) | 运行 NSIS 安装程序并按提示完成安装 |
-| macOS Apple Silicon | [下载 DMG](https://www.dshdesktop.cn/api/downloads/mac) | 打开 DMG，将 DSH Desktop 拖入 Applications |
+| macOS Universal | [下载 DMG](https://www.dshdesktop.cn/api/downloads/mac) | 打开 DMG，将 DSH Desktop 拖入 Applications |
 
-也可以从 [GitHub Releases](https://github.com/anywhere-labs/deepseek-harness-desktop/releases/latest) 获取安装包和 SHA-256 摘要。首次启动会创建默认 `desktop` profile，并在本机启动官方 DSH Web 界面。详细步骤、插件命令和故障排查见[用户指南](docs/user-guide.md)与[常见问题](docs/faq.md)。
+详细步骤、插件命令和故障排查见[用户指南](docs/user-guide.md)与[常见问题](docs/faq.md)。
 
 我们希望和所有插件作者一起，构建一个开放、可组合、可持续的 DSH 插件生态，让每个插件都能与其他插件共同进步：[DSH 插件生态倡议书](docs/plugin-ecosystem.md)。
 
@@ -185,7 +185,7 @@ Discord：[加入 DeepSeek Harness Desktop 社区](https://discord.gg/TJeGqKRNM)
 | Agents-Anywhere | 从手机远程控制电脑上的 Coding Agent。 | [GitHub](https://github.com/anywhere-labs/Agents-Anywhere) |
 | DSH-better-sidebar | DeepSeek Harness 侧边栏工作台，集成文件、终端、Git 和子代理。 | [GitHub](https://github.com/omdsh-dev/DSH-better-sidebar) |
 | Awesome DeepSeek Harness | DeepSeek Harness 插件、工具与基础设施精选列表。 | [GitHub](https://github.com/0xsline/awesome-deepseek-harness) · [官网](https://deepseekdocs.com/) |
-| MkSaaS · TanStarter（赞助商） | 面向独立开发者的商业 SaaS 启动模板。MkSaaS 基于 Next.js，TanStarter 基于 TanStack Start 与 Cloudflare，内置 AI、认证、支付和后台等常用能力。 | [MkSaaS](https://mksaas.com) · [TanStarter](https://tanstarter.dev) |
+| MkSaaS · TanStarter | 面向独立开发者的商业 SaaS 启动模板。MkSaaS 基于 Next.js，TanStarter 基于 TanStack Start 与 Cloudflare，内置 AI、认证、支付和后台等常用能力。 | [MkSaaS](https://mksaas.com) · [TanStarter](https://tanstarter.dev) |
 
 <sub>如果希望收录您的项目，欢迎加入微信群并私信 @王博升Benson，或联系 t4wefan@qq.com，或<a href="https://github.com/anywhere-labs/deepseek-harness-desktop/issues">提出 issue</a>。</sub>
 
