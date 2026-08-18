@@ -164,7 +164,7 @@ Release operator 必须先发布两个平台产物，再让版本可被发现。
 
 DSH Desktop 将 UTF-8 日志写入 Electron 用户数据目录：Windows 位于 `%APPDATA%\DSH Desktop\logs`，macOS 位于 `~/Library/Application Support/DSH Desktop/logs`。完整日志使用 `dsh-YYYY-MM-DD.log`，warning 与 error 还会写入 `dsh-YYYY-MM-DD.error.log`。单文件达到 10 MiB 后轮转，启动时删除七天前的文件，整个目录保持在 200 MiB 以下。`dsh-desktop.logLevel` 设置控制详细程度，默认为 `info`。
 
-在 macOS 与 Windows 上，从托盘选择 **导出诊断信息…**，应用会在相邻的 `diagnostics` 目录创建 ZIP，并在系统文件管理器中定位它。导出在 Electron 主线程之外执行，最多包含最近 50 MiB 的自有日志和一个 `system-info.txt`，只保留最新三份 ZIP。创建任何文件前，确认对话框会说明隐私边界。系统会脱敏可识别的凭据，但日志仍可能包含本地路径、工作区 ID、会话 ID、提示词、工具输出或第三方插件消息。分享诊断包前应先检查内容，公开上传时尤其如此。
+在 macOS 与 Windows 上，从托盘选择 **导出诊断信息…**，应用会在相邻的 `diagnostics` 目录创建 ZIP，并在系统文件管理器中定位它。导出在 Electron 主线程之外执行，会在共享的 50 MiB evidence cap 内收集最近的自有日志和本地 Crashpad `.dmp`，并在存在时包含 `crash-evidence/active-run.json` 标记，同时加入 `system-info.txt`，只保留最新三份 ZIP。创建任何文件前，确认对话框会说明隐私边界。系统会脱敏可识别的凭据，但日志仍可能包含本地路径、工作区 ID、会话 ID、提示词、工具输出或第三方插件消息；crash dump 可能包含进程内存片段。分享诊断包前应先检查内容，公开上传时尤其如此。
 
 ## 原生生命周期
 
