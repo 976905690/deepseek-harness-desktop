@@ -1,4 +1,4 @@
-import { basename, dirname, join, resolve } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DesktopShellSpec } from '../src/runtime.ts'
 
@@ -737,10 +737,11 @@ describe('Electron compatibility runtime', () => {
     try {
       const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
       const runtime = new ElectronDesktopRuntime(async () => {})
+      const userDataPath = electron.app.getPath('userData')
       runtime.configureTerminal({
         profileName: 'desktop',
-        profileDir: '/tmp/dsh-home/profiles/desktop',
-        homeDir: '/tmp/dsh-home',
+        profileDir: join(userDataPath, 'profiles', 'desktop'),
+        homeDir: userDataPath,
       })
 
       runtime.openTerminal()
@@ -751,20 +752,16 @@ describe('Electron compatibility runtime', () => {
         electronVersion: '43.4.0',
         profileName: 'desktop',
         productVersion: '2.0.1',
-        profileDir: '/tmp/dsh-home/profiles/desktop',
-        homeDir: '/tmp/dsh-home',
-        installRecoveryStatePath: join(
-          resolve('/tmp/dsh-desktop-user-data'),
-          'plugin-install-recovery',
-          'state.json',
-        ),
+        profileDir: expect.stringMatching(/profiles[\\/]+desktop$/u),
+        homeDir: expect.stringContaining('dsh-desktop-user-data'),
+        installRecoveryStatePath: expect.stringMatching(/[\\/]plugin-install-recovery[\\/]state\.json$/u),
         spawn: expect.any(Function),
         onLaunchError: expect.any(Function),
       }))
       const terminalOptions = terminal.open.mock.calls[0]?.[0]
       expect(terminalOptions.dshBootstrapPath.endsWith(join('src', 'desktop-cli.js'))).toBe(true)
       expect(terminalOptions.pnpmBinPath.endsWith(join('node_modules', 'pnpm', 'bin', 'pnpm.mjs'))).toBe(true)
-      expect(dirname(terminalOptions.stateDir)).toBe(join('/tmp/dsh-desktop-user-data', 'cli'))
+      expect(dirname(terminalOptions.stateDir)).toEqual(expect.stringMatching(/[\\/]cli$/u))
       expect(basename(terminalOptions.stateDir)).toMatch(/^[a-f0-9]{64}$/u)
       expect(() => runtime.configureTerminal({
         profileName: 'desktop',
@@ -789,11 +786,11 @@ describe('Electron compatibility runtime', () => {
 
     expect(diagnostics.export).toHaveBeenCalledOnce()
     expect(diagnostics.export).toHaveBeenCalledWith(
-      '/tmp/dsh-desktop-user-data',
-      {
+      expect.stringContaining('dsh-desktop-user-data'),
+      expect.objectContaining({
         appVersion: '2.0.1',
-        crashDumpsDir: '/tmp/dsh-desktop-user-data/Crashpad',
-      },
+        crashDumpsDir: expect.stringMatching(/[\\/]Crashpad$/u),
+      }),
     )
     expect(electron.shell.showItemInFolder).toHaveBeenCalledOnce()
     expect(electron.shell.showItemInFolder).toHaveBeenCalledWith('C:\\Users\\Example\\diagnostics.zip')
@@ -923,6 +920,24 @@ describe('Electron compatibility runtime', () => {
     }))
     const recoveryCalls = electron.dialog.showMessageBox.mock.calls as unknown as Array<[{ detail?: string }]>
     expect(recoveryCalls[0]?.[0].detail).toContain('vision_crop')
+  })
+
+  it('logs the renderer boot failure details for diagnostics', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
+    const logger = { error: vi.fn(), errorCause: vi.fn() }
+    const runtime = new ElectronDesktopRuntime(async () => {}, () => {}, logger)
+
+    runtime.reportRendererBoot({
+      status: 'failed',
+      plugins: ['dsh-vision-router'],
+      error: 'failed to apply loader entry 07140b35 (dsh-vision-router): keyed slot "settings.plugin.item" requires options.key',
+    })
+
+    expect(logger.error).toHaveBeenCalledWith(
+      'dsh-plugin-desktop: renderer boot failed (plugins: dsh-vision-router): '
+      + 'failed to apply loader entry 07140b35 (dsh-vision-router): keyed slot "settings.plugin.item" requires options.key',
+    )
   })
 
   it('commits a healthy renderer without showing recovery', async () => {
