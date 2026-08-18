@@ -641,6 +641,39 @@ describe('Electron compatibility runtime', () => {
     expect(electron.browserWindows[0]?.destroy).toHaveBeenCalledOnce()
   })
 
+  it('does not block a sandboxed iframe from navigating to an external origin', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
+    const runtime = new ElectronDesktopRuntime(async () => {})
+    const release = runtime.schedule(spec)
+
+    await runtime.mountScheduled()
+
+    const navigate = electron.browserWindows[0]?.webContents.on.mock.calls
+      .find(([event]) => event === 'will-frame-navigate')?.[1]
+    expect(navigate).toEqual(expect.any(Function))
+
+    const iframeEvent = {
+      url: 'https://example.com/plugin',
+      isMainFrame: false,
+      preventDefault: vi.fn(),
+    }
+    navigate(iframeEvent)
+
+    expect(iframeEvent.preventDefault).not.toHaveBeenCalled()
+
+    const mainFrameEvent = {
+      url: 'https://example.com/',
+      isMainFrame: true,
+      preventDefault: vi.fn(),
+    }
+    navigate(mainFrameEvent)
+
+    expect(mainFrameEvent.preventDefault).toHaveBeenCalledOnce()
+
+    await release()
+  })
+
   it('does not mount a registration disposed before Host boot settles', async () => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
     const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')

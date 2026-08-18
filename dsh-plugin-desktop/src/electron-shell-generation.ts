@@ -86,10 +86,26 @@ export class ElectronShellGeneration {
       const step = action === 'in' ? 1 : -1
       window.webContents.setZoomLevel(clampedZoomLevel(window.webContents.getZoomLevel() + step))
     }
-    const navigate = (event: Electron.Event<{ url: string }>): void => {
+    const navigate = (event: Electron.Event<Electron.WebContentsWillFrameNavigateEventParams>): void => {
+      if (!event.isMainFrame) return
       let targetOrigin: string | undefined
       try {
         targetOrigin = new URL(event.url).origin
+      } catch {
+        targetOrigin = undefined
+      }
+      if (targetOrigin !== origin) event.preventDefault()
+    }
+    const redirect = (
+      event: Electron.Event,
+      url: string,
+      _isInPlace: boolean,
+      isMainFrame: boolean,
+    ): void => {
+      if (!isMainFrame) return
+      let targetOrigin: string | undefined
+      try {
+        targetOrigin = new URL(url).origin
       } catch {
         targetOrigin = undefined
       }
@@ -120,7 +136,7 @@ export class ElectronShellGeneration {
     window.on('page-title-updated', preserveBlankTitle)
     window.webContents.on('before-input-event', handleZoomShortcut)
     window.webContents.on('will-frame-navigate', navigate)
-    window.webContents.on('will-redirect', navigate)
+    window.webContents.on('will-redirect', redirect)
     window.webContents.on('render-process-gone', rendererGone)
     window.webContents.on('did-fail-load', loadFailed)
     window.webContents.setWindowOpenHandler(({ url }) => {
@@ -145,7 +161,7 @@ export class ElectronShellGeneration {
       window.off('ready-to-show', show)
       window.webContents.off('before-input-event', handleZoomShortcut)
       window.webContents.off('will-frame-navigate', navigate)
-      window.webContents.off('will-redirect', navigate)
+      window.webContents.off('will-redirect', redirect)
       window.webContents.off('render-process-gone', rendererGone)
       window.webContents.off('did-fail-load', loadFailed)
       tray?.off('click', show)
