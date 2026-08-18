@@ -9,7 +9,8 @@ import {
   Tray,
 } from 'electron'
 import { formatDesktopExitCode } from './desktop-logger.ts'
-import type { DesktopPlatform, DesktopShellSpec } from './runtime.ts'
+import type { ElectronPlatformStrategy } from './electron-platform.ts'
+import type { DesktopShellSpec } from './runtime.ts'
 import { prepareTrayIcon } from './tray-icons.ts'
 import { desktopWindowOptions } from './window-options.ts'
 
@@ -29,7 +30,7 @@ function isZoomShortcut(input: Electron.Input): 'in' | 'out' | 'reset' | undefin
 }
 
 export interface ElectronShellGenerationOptions {
-  readonly platform: DesktopPlatform
+  readonly platform: ElectronPlatformStrategy
   readonly spec: DesktopShellSpec
   readonly preloadPath: string
   readonly isQuitting: () => boolean
@@ -59,12 +60,12 @@ export class ElectronShellGeneration {
     if (icon.isEmpty()) {
       throw new Error(`dsh-plugin-desktop: failed to load application icon ${spec.iconPath}`)
     }
-    if (platform === 'darwin') app.dock?.setIcon(icon)
+    platform.configureApplication(icon)
     const origin = new URL(spec.url).origin
     if (spec.mode === 'advanced') nativeTheme.themeSource = spec.readThemeSource()
-    const window = new BrowserWindow(desktopWindowOptions(spec, icon, platform, this.options.preloadPath))
+    const window = new BrowserWindow(desktopWindowOptions(spec, icon, platform.platform, this.options.preloadPath))
     window.accessibleTitle = spec.windowTitle
-    if (platform === 'win32') window.removeMenu()
+    platform.configureWindow(window)
     this.window = window
 
     const show = (): void => { this.show() }
@@ -152,7 +153,7 @@ export class ElectronShellGeneration {
 
     try {
       await window.loadURL(spec.url)
-      tray = new Tray(prepareTrayIcon(spec.trayIcons, platform))
+      tray = new Tray(prepareTrayIcon(spec.trayIcons, platform.platform))
       this.tray = tray
       tray.setToolTip(spec.productName)
       this.refreshTrayMenu()
@@ -186,9 +187,7 @@ export class ElectronShellGeneration {
   }
 
   refreshThemeMaterial(): void {
-    if (this.options.platform === 'win32' && this.window !== undefined && !this.window.isDestroyed()) {
-      this.window.setBackgroundMaterial('mica')
-    }
+    if (this.window !== undefined && !this.window.isDestroyed()) this.options.platform.refreshThemeMaterial(this.window)
   }
 
   async release(): Promise<void> {

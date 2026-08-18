@@ -331,6 +331,27 @@ describe('Electron compatibility runtime', () => {
     expect(electron.trays[0]?.off).toHaveBeenCalledWith('click', expect.any(Function))
   })
 
+  it('selects the restricted Linux platform adapter once for native capabilities', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
+    electron.app.isPackaged = true
+    const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
+    const runtime = new ElectronDesktopRuntime(async () => {})
+    const release = runtime.schedule(spec)
+
+    await runtime.mountScheduled()
+
+    expect(runtime.platform).toBe('linux')
+    expect(runtime.updates.canDownload).toBe(false)
+    await expect(runtime.pickDirectory()).rejects.toThrow('native workspace picker is unavailable on linux')
+    expect(electron.app.dock.setIcon).not.toHaveBeenCalled()
+    expect(electron.browserWindows[0]?.removeMenu).not.toHaveBeenCalled()
+    expect(electron.menuTemplates[0]).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: 'Switch to Advanced Mode', enabled: false }),
+    ]))
+
+    await release()
+  })
+
   it('opens one parented Windows folder chooser and returns its selected path', async () => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
     electron.dialog.showOpenDialog.mockResolvedValue({ canceled: false, filePaths: ['C:\\Work'] })

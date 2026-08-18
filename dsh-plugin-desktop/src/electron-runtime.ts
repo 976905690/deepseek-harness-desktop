@@ -16,6 +16,7 @@ import { desktopTerminalStateDirectory, openDesktopTerminal } from './desktop-te
 import { desktopInstallRecoveryStatePath } from './install-recovery.ts'
 import { packagedDependencyPath } from './packaged-runtime-path.ts'
 import { ElectronShellGeneration } from './electron-shell-generation.ts'
+import { electronPlatformStrategy, type ElectronPlatformStrategy } from './electron-platform.ts'
 import type {
   DesktopNotification,
   DesktopLocale,
@@ -86,17 +87,8 @@ export type RendererBootFailureReason = 'renderer-failed' | 'renderer-timeout'
 /** Native adapter used by the DSH Desktop launcher and owned by its Cordis shell plugin. */
 export class ElectronDesktopRuntime implements DesktopRuntime {
   readonly platform: DesktopPlatform
-  readonly updates: DesktopUpdateAdapter = {
-    get isPackaged() { return app.isPackaged },
-    get canDownload() { return app.isPackaged && (process.platform === 'darwin' || process.platform === 'win32') },
-    get currentVersion() { return PRODUCT_VERSION },
-    get statePath() { return join(app.getPath('userData'), 'updates', 'state.json') },
-    request: (url, init) => net.fetch(url, init),
-    confirmDownload: version => this.confirmUpdateDownload(version),
-    showManualCheckResult: result => this.showManualUpdateCheckResult(result),
-    downloadAndOpen: (version, signal) => this.downloadAndOpenUpdate(version, signal),
-    notify: notification => { this.showNotification(notification) },
-  }
+  private readonly platformStrategy: ElectronPlatformStrategy
+  readonly updates: DesktopUpdateAdapter
 
   private generation: ElectronShellGeneration | undefined
   private currentLocale: DesktopLocale = 'en'
@@ -118,10 +110,20 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
     private readonly logger: DesktopLogger | undefined = undefined,
     private readonly workspaceVolumeQuery: WindowsVolumeQuery | undefined = undefined,
   ) {
-    if (process.platform !== 'darwin' && process.platform !== 'win32' && process.platform !== 'linux') {
-      throw new Error(`dsh-plugin-desktop: unsupported Electron platform ${process.platform}`)
+    this.platformStrategy = electronPlatformStrategy()
+    this.platform = this.platformStrategy.platform
+    const platformStrategy = this.platformStrategy
+    this.updates = {
+      get isPackaged() { return app.isPackaged },
+      get canDownload() { return app.isPackaged && platformStrategy.updateDownloadPlatform !== undefined },
+      get currentVersion() { return PRODUCT_VERSION },
+      get statePath() { return join(app.getPath('userData'), 'updates', 'state.json') },
+      request: (url, init) => net.fetch(url, init),
+      confirmDownload: version => this.confirmUpdateDownload(version),
+      showManualCheckResult: result => this.showManualUpdateCheckResult(result),
+      downloadAndOpen: (version, signal) => this.downloadAndOpenUpdate(version, signal),
+      notify: notification => { this.showNotification(notification) },
     }
-    this.platform = process.platform
   }
 
   /** Log an Electron-scope error to the sink, falling back to stderr without a logger. */
@@ -202,7 +204,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
     if (this.mountTask === undefined) {
       this.setLocalePreference(spec.readLocalePreference())
       const generation = new ElectronShellGeneration({
-        platform: this.platform,
+        platform: this.platformStrategy,
         spec,
         preloadPath: desktopPreloadPath(),
         isQuitting: () => this.quitting,
@@ -227,7 +229,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
 
   /** @inheritdoc */
   async pickDirectory(): Promise<string | null> {
-    if (this.platform !== 'win32') {
+    if (!this.platformStrategy.canPickDirectory) {
       throw new Error(`dsh-plugin-desktop: native workspace picker is unavailable on ${this.platform}`)
     }
     if (this.directoryPickTask !== undefined) return await this.directoryPickTask
@@ -572,11 +574,12 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
 
   /** Download a confirmed installer and hand it to the native installation flow. */
   private async downloadAndOpenUpdate(version: string, signal: AbortSignal): Promise<void> {
-    if (this.platform !== 'darwin' && this.platform !== 'win32') {
+    const platform = this.platformStrategy.updateDownloadPlatform
+    if (platform === undefined) {
       throw new Error(`dsh-plugin-desktop: updates are unavailable on ${this.platform}`)
     }
     const artifactPath = await downloadDesktopUpdate({
-      platform: this.platform,
+      platform,
       version,
       userDataPath: app.getPath('userData'),
       request: (url, init) => net.fetch(url, init),
@@ -584,7 +587,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
     })
     signal.throwIfAborted()
 
-    if (this.platform === 'darwin') {
+    if (platform === 'darwin') {
       const openError = await shell.openPath(artifactPath)
       if (openError !== '') throw new Error(`dsh-plugin-desktop: failed to open update disk image: ${openError}`)
       signal.throwIfAborted()
@@ -685,7 +688,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
       { type: 'separator' },
       {
         label: modeToggleLabel(spec.mode, this.locale),
-        enabled: this.platform !== 'linux',
+        enabled: this.platformStrategy.canToggleShellMode,
         click: () => {
           void spec.requestModeChange(nextDesktopShellMode(spec.mode)).catch((cause: unknown) => {
             this.logError(`dsh-plugin-desktop: failed to change shell mode: ${cause instanceof Error ? cause.message : String(cause)}`)
