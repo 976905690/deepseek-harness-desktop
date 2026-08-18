@@ -406,6 +406,11 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
     this.rendererBootReported = true
     this.stopRendererBootMonitoring()
     if (report.status === 'failed') this.bootFailureReason ??= 'renderer-failed'
+    if (report.status === 'failed') {
+      const plugins = report.plugins.length === 0 ? 'Unknown client plugin' : report.plugins.join(', ')
+      const error = report.error === undefined ? 'The client Loader did not provide an error message.' : report.error
+      this.logError(`dsh-plugin-desktop: renderer boot failed (plugins: ${plugins}): ${error}`)
+    }
     let handled = false
     try {
       handled = this.onRendererBoot(report) === true
