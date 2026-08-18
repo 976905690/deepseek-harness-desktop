@@ -487,6 +487,9 @@ export function MarketSurface({ initialView = 'installable', readLocale, t, show
   }).at(0), [catalog])
   const partialFailure = catalog?.results.some(result => result.error !== undefined) ?? false
   const currentSource = state === undefined ? undefined : selectedSource(state.sources)
+  const currentSourceHref = currentSource === undefined
+    ? undefined
+    : safeHttpsExternalHref(currentSource.homepage) ?? safeHttpsExternalHref(currentSource.attribution?.url)
   const selectedManualInstall = useMemo(() => {
     if (selected === undefined) return undefined
     const hints = view === 'installable'
@@ -915,7 +918,17 @@ export function MarketSurface({ initialView = 'installable', readLocale, t, show
             <IconSettingsOutline16 size={14} /><span>{t('sources')}</span>
           </Pill>
         </div>
-        <Pill>{currentSource === undefined ? t('noSourceSelected') : `${t('currentSource')}: ${currentSource.name}`}</Pill>
+        <Pill className="dshMarketCurrentSource">
+          {currentSource === undefined
+            ? t('noSourceSelected')
+            : currentSourceHref === undefined
+              ? `${t('currentSource')}: ${currentSource.name}`
+              : (
+                <a href={currentSourceHref} target="_blank" rel="noopener noreferrer">
+                  {t('currentSource')}: {currentSource.name} <IconRightUpOutline16 size={12} />
+                </a>
+              )}
+        </Pill>
       </div>
       <main className="dshMarketMain">
         {view === 'discover' ? (

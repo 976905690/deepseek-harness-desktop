@@ -296,7 +296,10 @@ describe('MarketSettingsTab', () => {
     render(<MarketSettingsTab {...props} />)
 
     const plugin = await screen.findByRole('button', { name: /Fixture Plugin/u })
-    expect(screen.getByText(`${en.currentSource}: ${firstSource.name}`)).toBeTruthy()
+    const currentSourceLink = screen.getByRole('link', { name: `${en.currentSource}: ${firstSource.name}` }) as HTMLAnchorElement
+    expect(currentSourceLink.href).toBe('https://catalog.example/')
+    expect(currentSourceLink.target).toBe('_blank')
+    expect(currentSourceLink.rel).toContain('noopener')
     expect(screen.getByText(`${en.source}: Fixture catalog · Fixture provider`)).toBeTruthy()
     expect(screen.getByText(`${en.scannedAt}: ${catalogWithMetadata.metadata!.scannedAt}`)).toBeTruthy()
     expect(screen.getByText(`${en.cacheExpiresAt}: ${catalogWithMetadata.metadata!.expiresAt}`)).toBeTruthy()

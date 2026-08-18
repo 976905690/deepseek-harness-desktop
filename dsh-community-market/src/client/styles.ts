@@ -64,6 +64,18 @@ const css = `
   gap: 6px;
 }
 
+.dshMarketCurrentSource a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.dshMarketCurrentSource a:hover {
+  text-decoration: underline;
+}
+
 .dshMarketMain,
 .dshMarketContent {
   min-width: 0;
