@@ -3,7 +3,9 @@ import { EventEmitter } from 'node:events'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
+import { Context } from '@deepseek-ai/cordis'
 import type { SettingsScope } from '@deepseek-ai/dsh-settings'
+import { FileSettingsProvider } from '@deepseek-ai/dsh-settings-file'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { stringify as stringifyYaml } from 'yaml'
 import { DSH_1024STORE_ADAPTER_ID, DSH_1024STORE_PROVIDER_ID } from '../src/adapters/dsh-1024store.js'
@@ -17,7 +19,7 @@ import {
   type MarketDesktopPnpm,
   type MarketInstallReceipt,
 } from '../src/install/service.js'
-import { marketRoutes, registerMarketRoutes } from '../src/host/routes.js'
+import { marketRoutes, registerMarketRoutes, registerMarketSettings } from '../src/host/routes.js'
 import { manualInstallHint } from '../src/install/manual.js'
 
 const packageName = 'dsh-plugin-safe'
@@ -433,6 +435,43 @@ describe('market install service', () => {
     profileName = 'other'
     expect(() => service.consumeRestartToken(removed.restartToken)).toThrow(/active desktop profile changed/u)
     expect(settings.receipts()).toEqual([])
+  })
+
+  it('restores an installed receipt through a new service and file-backed settings context', async () => {
+    const profileDir = await createProfile()
+    const settingsPath = join(profileDir, 'settings.yaml')
+    const firstContext = new Context()
+    await firstContext.plugin(FileSettingsProvider, { path: settingsPath, watch: false })
+    const firstService = new MarketInstallService(
+      registerMarketSettings(firstContext),
+      () => ({ name: 'web', dir: profileDir }),
+      runner(profileDir, []),
+      { verify: vi.fn(async () => verification) },
+    )
+    firstService.observeCatalog(snapshot())
+    const preview = await firstService.previewInstall(
+      'source-1',
+      'example/dsh-plugin-safe',
+      new AbortController().signal,
+    )
+    const installed = await firstService.executeInstall(preview.intent, new AbortController().signal)
+    firstService.dispose()
+    await firstContext.fiber.dispose()
+
+    const secondContext = new Context()
+    await secondContext.plugin(FileSettingsProvider, { path: settingsPath, watch: false })
+    const secondService = new MarketInstallService(
+      registerMarketSettings(secondContext),
+      () => ({ name: 'web', dir: profileDir }),
+      runner(profileDir, []),
+      { verify: vi.fn(async () => verification) },
+    )
+    try {
+      await expect(secondService.listReceipts()).resolves.toEqual([installed.receipt])
+    } finally {
+      secondService.dispose()
+      await secondContext.fiber.dispose()
+    }
   })
 
   it('lists structural catalog candidates independently of profile, receipt, and disabled state without registry fan-out', async () => {
