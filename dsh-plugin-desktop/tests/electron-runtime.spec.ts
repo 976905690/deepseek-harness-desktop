@@ -103,6 +103,7 @@ const electron = vi.hoisted(() => {
     readonly destroy = vi.fn()
     readonly loadURL = loadURL
     readonly removeMenu = vi.fn()
+    readonly setBackgroundMaterial = vi.fn()
   }
 
   class Tray {
@@ -1020,6 +1021,31 @@ describe('Electron compatibility runtime', () => {
     expect(electron.nativeTheme.themeSource).toBe('light')
     runtime.setThemeSource('dark')
     expect(electron.nativeTheme.themeSource).toBe('light')
+  })
+
+  it('refreshes the Windows Mica backdrop after a live advanced theme change', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    electron.nativeTheme.themeSource = 'light'
+    const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
+    const runtime = new ElectronDesktopRuntime(async () => {})
+    const release = runtime.schedule({
+      ...spec,
+      mode: 'advanced',
+      readThemeSource: () => 'light',
+    })
+
+    runtime.setThemeSource('dark')
+    expect(electron.nativeTheme.themeSource).toBe('light')
+    await runtime.mountScheduled()
+
+    const window = electron.browserWindows[0]
+    runtime.setThemeSource('dark')
+
+    expect(electron.nativeTheme.themeSource).toBe('dark')
+    expect(window?.setBackgroundMaterial).toHaveBeenCalledOnce()
+    expect(window?.setBackgroundMaterial).toHaveBeenCalledWith('mica')
+
+    await release()
   })
 
   it('restores the preceding native appearance when advanced loading fails', async () => {

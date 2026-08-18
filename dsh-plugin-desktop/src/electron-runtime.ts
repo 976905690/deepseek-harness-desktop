@@ -331,6 +331,10 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
   setThemeSource(source: DesktopThemeSource): void {
     if (this.scheduled?.mode === 'advanced' && this.window !== undefined) {
       nativeTheme.themeSource = source
+      // Windows can retain the preceding DWM Mica palette until the window is
+      // recomposed (for example after minimize/restore). Reapplying the active
+      // material invalidates the backdrop immediately after a live theme change.
+      if (this.platform === 'win32') this.window.setBackgroundMaterial('mica')
     }
   }
 
