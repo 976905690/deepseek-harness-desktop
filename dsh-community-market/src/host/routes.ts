@@ -750,6 +750,7 @@ export function registerMarketRoutes(
         const index = await service.scanCatalog(signal, {
           force,
           ...(locale === null || locale === '' ? {} : { locale }),
+          ...(scope === undefined ? {} : { expectedSourceRecordId: scope.sourceRecordId }),
         })
         signal.throwIfAborted()
         const results = index === undefined ? [] : service.queryCatalog(index, query, scope)
