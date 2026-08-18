@@ -85,6 +85,7 @@ jobs:
 
   # Windows-only logic and unsigned NSIS/portable builds on a real Windows runner:
   # updates, window options, pwsh sandbox, volume diagnostics, and packaging.
+  # The shared gate runs once; both artifacts reuse its build output.
   desktop-windows:
     needs: changes
     if: needs.changes.outputs.product == 'true'
@@ -107,8 +108,14 @@ jobs:
           key: yarn-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('yarn.lock', '.yarnrc.yml') }}
       - run: yarn install --immutable
       - run: yarn check
-      - run: yarn dist:win
-      - run: yarn dist:win-portable
+      - name: Build Windows installer
+        env:
+          DSH_PACKAGE_CHECK_ALREADY_RAN: '1'
+        run: yarn workspace dsh-plugin-desktop dist:win
+      - name: Build Windows portable archive
+        env:
+          DSH_PACKAGE_CHECK_ALREADY_RAN: '1'
+        run: yarn workspace dsh-plugin-desktop dist:win-portable
 
   # macOS-only universal packaging smoke on a real macOS runner: the signed
   # release is built manually on a credentialed machine, so an unsigned DMG
@@ -136,8 +143,11 @@ jobs:
           path: ${{ steps.yarn-cache.outputs.dir }}
           key: yarn-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('yarn.lock', '.yarnrc.yml') }}
       - run: yarn install --immutable
-      - run: yarn workspace dsh-community-market check
-      - run: yarn dist:mac-smoke
+      - run: yarn check
+      - name: Build macOS smoke artifact
+        env:
+          DSH_PACKAGE_CHECK_ALREADY_RAN: '1'
+        run: yarn workspace dsh-plugin-desktop dist:mac-smoke
 
   # Upstream toolchain smoke: the portable-shell scripts must resolve the
   # pinned submodule's own Yarn/pnpm release on Windows.

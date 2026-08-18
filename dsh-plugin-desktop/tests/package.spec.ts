@@ -398,7 +398,7 @@ describe('published package surface', () => {
     expect(manifest.devDependencies?.['@electron/asar']).toBe('3.4.1')
   })
 
-  it('runs the full gate on Windows and packages through root scripts on native runners', () => {
+  it('runs the full gate once before reusing native packaging outputs on Windows', () => {
     const windowsJob = ciWorkflow.slice(
       ciWorkflow.indexOf('  desktop-windows:'),
       ciWorkflow.indexOf('  desktop-macos:'),
@@ -409,12 +409,14 @@ describe('published package surface', () => {
     )
 
     expect(windowsJob).toContain('- run: yarn check')
-    expect(windowsJob).toContain('- run: yarn dist:win')
-    expect(windowsJob).toContain('- run: yarn dist:win-portable')
-    expect(windowsJob).not.toContain('yarn workspace dsh-plugin-desktop dist:win')
-    expect(macosJob).toContain('- run: yarn workspace dsh-community-market check')
-    expect(macosJob).toContain('- run: yarn dist:mac-smoke')
-    expect(macosJob).not.toContain('yarn workspace dsh-plugin-desktop dist:mac-smoke')
+    expect(windowsJob).toContain('run: yarn workspace dsh-plugin-desktop dist:win')
+    expect(windowsJob).toContain('run: yarn workspace dsh-plugin-desktop dist:win-portable')
+    expect(windowsJob).toContain('DSH_PACKAGE_CHECK_ALREADY_RAN: \'1\'')
+    expect(macosJob).not.toContain('- run: yarn workspace dsh-community-market check')
+    expect(macosJob).toContain('- run: yarn check')
+    expect(macosJob).toContain('run: yarn workspace dsh-plugin-desktop dist:mac-smoke')
+    expect(macosJob).toContain('DSH_PACKAGE_CHECK_ALREADY_RAN: \'1\'')
+    expect(macosJob).not.toContain('- run: yarn dist:mac-smoke')
   })
 
   it('skips product packaging only for documentation-only changes', () => {
