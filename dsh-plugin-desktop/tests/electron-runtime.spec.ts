@@ -110,6 +110,7 @@ const electron = vi.hoisted(() => {
     readonly isMinimized = vi.fn(() => false)
     readonly restore = vi.fn()
     readonly show = vi.fn()
+    readonly hide = vi.fn()
     readonly focus = vi.fn()
     readonly on = browserWindowOn
     readonly off = browserWindowOff
@@ -234,7 +235,7 @@ const spec: DesktopShellSpec = {
   requestModeChange: vi.fn(async () => {}),
 }
 
-describe('Electron compatibility runtime', () => {
+describe('Electron desktop runtime', () => {
   beforeEach(() => {
     electron.app.isPackaged = false
     electron.browserWindowOptions.length = 0
@@ -672,6 +673,142 @@ describe('Electron compatibility runtime', () => {
     expect(mainFrameEvent.preventDefault).toHaveBeenCalledOnce()
 
     await release()
+  })
+
+  it('keeps external window links deny-by-default with a narrow protocol allowlist', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
+    const logger = { error: vi.fn(), errorCause: vi.fn() }
+    const runtime = new ElectronDesktopRuntime(async () => {}, undefined, logger)
+    const release = runtime.schedule(spec)
+
+    await runtime.mountScheduled()
+
+    const openHandler = electron.webContents.setWindowOpenHandler.mock.calls[0]?.[0]
+    expect(openHandler).toEqual(expect.any(Function))
+
+    expect(openHandler({ url: 'https://example.com/docs' })).toEqual({ action: 'deny' })
+    expect(openHandler({ url: 'http://example.com/docs' })).toEqual({ action: 'deny' })
+    expect(openHandler({ url: 'mailto:maintainers@example.com' })).toEqual({ action: 'deny' })
+    await Promise.resolve()
+    expect(electron.shell.openExternal).toHaveBeenCalledWith('https://example.com/docs')
+    expect(electron.shell.openExternal).toHaveBeenCalledWith('http://example.com/docs')
+    expect(electron.shell.openExternal).toHaveBeenCalledWith('mailto:maintainers@example.com')
+
+    for (const url of ['file:///etc/passwd', 'javascript:alert(1)', 'data:text/html,unsafe', 'not a URL']) {
+      expect(openHandler({ url })).toEqual({ action: 'deny' })
+    }
+    expect(electron.shell.openExternal).toHaveBeenCalledTimes(3)
+
+    electron.shell.openExternal.mockRejectedValueOnce(new Error('external handler unavailable'))
+    openHandler({ url: 'https://example.com/failure' })
+    await Promise.resolve()
+    expect(logger.error).toHaveBeenCalledWith(
+      'dsh-plugin-desktop: failed to open external link: external handler unavailable',
+    )
+
+    await release()
+  })
+
+  it('protects the main-frame origin across redirects while leaving iframe redirects alone', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
+    const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
+    const runtime = new ElectronDesktopRuntime(async () => {})
+    const release = runtime.schedule(spec)
+
+    await runtime.mountScheduled()
+
+    const redirect = electron.webContents.on.mock.calls
+      .find(([event]) => event === 'will-redirect')?.[1]
+    expect(redirect).toEqual(expect.any(Function))
+
+    const sameOrigin = { preventDefault: vi.fn() }
+    redirect(sameOrigin, 'http://127.0.0.1:43120/next', false, true)
+    expect(sameOrigin.preventDefault).not.toHaveBeenCalled()
+
+    const external = { preventDefault: vi.fn() }
+    redirect(external, 'https://example.com/redirect', false, true)
+    expect(external.preventDefault).toHaveBeenCalledOnce()
+
+    const malformed = { preventDefault: vi.fn() }
+    redirect(malformed, 'not a URL', false, true)
+    expect(malformed.preventDefault).toHaveBeenCalledOnce()
+
+    const iframe = { preventDefault: vi.fn() }
+    redirect(iframe, 'https://example.com/plugin', false, false)
+    expect(iframe.preventDefault).not.toHaveBeenCalled()
+
+    await release()
+  })
+
+  it('shows and hides one native window through ready, activation, tray, and close events', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
+    const runtime = new ElectronDesktopRuntime(async () => {})
+    const release = runtime.schedule(spec)
+
+    await runtime.mountScheduled()
+
+    const window = electron.browserWindows[0]
+    const ready = window?.once.mock.calls.find(([event]) => event === 'ready-to-show')?.[1]
+    const activate = electron.app.on.mock.calls.find(([event]) => event === 'activate')?.[1]
+    const trayClick = electron.trays[0]?.on.mock.calls.find(([event]) => event === 'click')?.[1]
+    const close = electron.browserWindowOn.mock.calls.find(([event]) => event === 'close')?.[1]
+    expect(ready).toEqual(expect.any(Function))
+    expect(activate).toEqual(expect.any(Function))
+    expect(trayClick).toEqual(expect.any(Function))
+    expect(close).toEqual(expect.any(Function))
+
+    window?.isMinimized.mockReturnValueOnce(true)
+    ready()
+    activate()
+    trayClick()
+    expect(window?.restore).toHaveBeenCalledOnce()
+    expect(window?.show).toHaveBeenCalledTimes(3)
+    expect(window?.focus).toHaveBeenCalledTimes(3)
+
+    const closeEvent = { preventDefault: vi.fn() }
+    close(closeEvent)
+    expect(closeEvent.preventDefault).toHaveBeenCalledOnce()
+    expect(window?.hide).toHaveBeenCalledOnce()
+
+    runtime.prepareToQuit()
+    const quittingCloseEvent = { preventDefault: vi.fn() }
+    close(quittingCloseEvent)
+    expect(quittingCloseEvent.preventDefault).not.toHaveBeenCalled()
+    expect(window?.hide).toHaveBeenCalledOnce()
+
+    await release()
+  })
+
+  it('releases the window and tray when post-load startup wiring fails', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
+    const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
+    const runtime = new ElectronDesktopRuntime(async () => {})
+    const release = runtime.schedule(spec)
+    const beforeInteractive = vi.fn(() => {
+      throw new Error('interactive wiring failed')
+    })
+
+    await expect(runtime.mountScheduled(beforeInteractive)).rejects.toThrow('interactive wiring failed')
+    expect(electron.trays[0]?.destroy).toHaveBeenCalledOnce()
+    expect(electron.browserWindows[0]?.destroy).toHaveBeenCalledOnce()
+    expect(electron.app.off).toHaveBeenCalledWith('activate', expect.any(Function))
+    expect(electron.trays[0]?.off).toHaveBeenCalledWith('click', expect.any(Function))
+
+    await expect(release()).rejects.toThrow('interactive wiring failed')
+    expect(electron.trays[0]?.destroy).toHaveBeenCalledOnce()
+    expect(electron.browserWindows[0]?.destroy).toHaveBeenCalledOnce()
+  })
+
+  it('rejects an unsupported Electron platform before creating a runtime', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('aix' as NodeJS.Platform)
+    const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
+
+    expect(() => new ElectronDesktopRuntime(async () => {})).toThrow(
+      'dsh-plugin-desktop: unsupported Electron platform aix',
+    )
+    expect(electron.browserWindowOptions).toHaveLength(0)
   })
 
   it('does not mount a registration disposed before Host boot settles', async () => {
