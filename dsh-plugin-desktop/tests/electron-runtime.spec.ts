@@ -1,4 +1,4 @@
-import { basename, dirname, join } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DesktopShellSpec } from '../src/runtime.ts'
 
@@ -711,7 +711,11 @@ describe('Electron compatibility runtime', () => {
         productVersion: '2.0.1',
         profileDir: '/tmp/dsh-home/profiles/desktop',
         homeDir: '/tmp/dsh-home',
-        installRecoveryStatePath: join('/tmp/dsh-desktop-user-data', 'plugin-install-recovery', 'state.json'),
+        installRecoveryStatePath: join(
+          resolve('/tmp/dsh-desktop-user-data'),
+          'plugin-install-recovery',
+          'state.json',
+        ),
         spawn: expect.any(Function),
         onLaunchError: expect.any(Function),
       }))
