@@ -2,11 +2,11 @@
 
 [中文说明](README.zh.md)
 
-DSH Community Market is the plugin-market shell for [DSH Desktop](../README.en.md). It helps people discover community plugins and, on Desktop, install or remove the small set of npm packages that pass the Market Host's checks.
+DSH Community Market is the open plugin market built into [DSH Desktop](../README.en.md). It helps people discover community plugins and, on Desktop, install, manage, or remove npm packages that pass the Market Host's checks.
 
-> **Current status: private integration-testing MVP.** The package has loadable Host and Client entries, persisted user-owned source records, a constrained HTTPS client, standard, DSH 1024Store, and browse-only dshfind adapters, an official **Plugin market** tab under **Settings > Plugins**, a sidebar launcher, Host-managed install and receipt-backed uninstall, plus fail-closed enable/disable controls for mutable direct bundles. This is not a claim that listed or installable plugin code is safe.
+> **Current status: complete and built into DSH Desktop.** The package provides loadable Host and Client entries, persisted user-owned source records, a constrained HTTPS client, standard sources and reviewed cooperating-source adapters, an official **Plugin market** tab under **Settings > Plugins**, a sidebar launcher, Host-managed install and receipt-backed uninstall, plus fail-closed enable/disable controls for mutable direct bundles. This is not a claim that listed or installable plugin code is safe.
 
-## What we are building
+## Available capabilities
 
 The current interface has four views:
 
@@ -19,9 +19,9 @@ Clicking a plugin card opens the dialog synchronously and asks the Host whether 
 
 ## Catalog sources
 
-The market has no default catalog. People may save several sources, but browse exactly one selected source at a time. They may switch the selection or add a source that implements the published catalog contract. Switching source starts a fresh browsing session: the visible list, search, category selection, and pagination are reset. Every source is isolated behind an adapter, and the market UI sees only the same validated, normalized data model.
+The market remains open to ongoing cooperation with a wide range of plugin data sources. People may save several sources, but browse exactly one selected source at a time. They may switch the selection or add a source that implements the published catalog contract. Switching source starts a fresh browsing session: the visible list, search, category selection, and pagination are reset. Every source is isolated behind an adapter, and the market UI sees only the same validated, normalized data model.
 
-A conforming source publishes a [`catalog-source` manifest](docs/schemas/catalog-source.schema.json), and its `/v1/plugins` endpoint returns the [`catalog-provider-page` schema](docs/schemas/catalog-provider-page.schema.json). A source may provide `media.icon`; Desktop validates and proxies it before display. Sources without an icon remain valid and receive a local fallback. A conforming standard source needs no custom Market code.
+Anyone can provide, integrate, and use a plugin data source. A conforming source only needs to publish a [`catalog-source` manifest](docs/schemas/catalog-source.schema.json) and return data matching the [`catalog-provider-page` schema](docs/schemas/catalog-provider-page.schema.json) from its `/v1/plugins` endpoint, with no custom Market code. An existing API can keep its own format and contact us to join as a cooperating source through a reviewed adapter shipped with Market. A source may provide `media.icon`; Desktop validates and proxies it before display. Sources without an icon remain valid and receive a local fallback.
 
 Before presenting a selected source, the Host builds one complete, validated local index. A standard source is scanned through its declared cursor and page limits; the reviewed 1024Store adapter reads its full registry once and normalizes it in Schema-bounded chunks. The reviewed dshfind adapter walks its REST pages with one `data_version` fixed across the complete scan. Search, multi-category OR filtering, category choices, and pagination then run against that complete local index without refetching the provider for each interaction. Every visible page contains at most 50 items, and the category choices cover all categories in the index rather than only pages already shown. **Installable** is a fail-closed structural subset of the same index; authoritative npm verification begins only when the user previews one candidate.
 
@@ -64,9 +64,9 @@ These checks establish package identity and a narrow compatibility boundary; the
 ## Delivery plan
 
 - **Phase 0 — complete:** package ownership, documentation, trust boundary, and headless checks.
-- **Phase 1 — implemented for integration testing:** source selection, user-added conforming sources, one-source-at-a-time browsing, search, plugin details, and loading/empty/error states.
-- **Phase 2 — implemented for integration testing:** exact stable npm installation into the active profile, configuration-level install recovery, and receipt-backed uninstall through the managed Desktop service.
-- **Later:** updates, broader compatibility evidence, and release review.
+- **Phase 1 — complete and built in:** source selection, user-added conforming sources, one-source-at-a-time browsing, search, plugin details, and loading/empty/error states.
+- **Phase 2 — complete and built in:** exact stable npm installation into the active profile, configuration-level install recovery, and receipt-backed uninstall through the managed Desktop service.
+- **Later:** updates and broader compatibility evidence.
 
 Catalog collection, submission review, accounts, rankings, and hosting remain the responsibility of catalog providers rather than this package.
 

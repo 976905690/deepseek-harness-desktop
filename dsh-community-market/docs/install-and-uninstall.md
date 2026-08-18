@@ -2,7 +2,7 @@
 
 [中文](install-and-uninstall.zh.md)
 
-Status: implemented for private Desktop integration testing; not a plugin security review
+Status: delivered and built into DSH Desktop; this does not constitute a plugin security review
 
 This guide explains what users see and the boundary developers must preserve. The current Market installs only a narrow class of exact npm packages into the active DSH Desktop profile. It does not install from GitHub or run a command supplied by a catalog. For plugins installed elsewhere, it can only persist a Desktop-owned enabled/disabled loading choice; it never claims uninstall ownership.
 
@@ -35,7 +35,7 @@ The **Installable** label means only “this listing is a local structural candi
 
 ## What the Host accepts
 
-The current MVP supports only an npm package when all of these checks succeed. The first structural check is local; the remaining authoritative package checks run during preview for the selected item and are repeated where mutable during execution:
+The built-in managed installation boundary supports only an npm package when all of these checks succeed. The first structural check is local; the remaining authoritative package checks run during preview for the selected item and are repeated where mutable during execution:
 
 - the catalog supplies a normalized npm package name, an exact stable SemVer version, and a canonical repository identity;
 - npm returns the same package name and exact version;
@@ -64,7 +64,7 @@ The next Desktop generation claims the record before profile preparation. Succes
 
 When a Market receipt was already saved for an install that startup recovery rolls back, the Market removes that exact receipt before acknowledging and clearing the recovery record. If receipt persistence fails, the record remains pending and the cleanup is retried. The local diagnostics archive is not uploaded automatically and may contain logs, system information, and crash evidence; treat it as sensitive rather than assuming every artifact can be completely redacted.
 
-The current MVP rejects:
+The built-in managed installer rejects:
 
 - GitHub URLs, Git repositories, release archives, commits, and other repository-based install targets;
 - version ranges, tags such as `latest`, and prerelease versions;
@@ -84,7 +84,7 @@ A GitHub repository link may still appear as inert provenance and may be used to
 4. Desktop runs the managed remove operation. The Host verifies that the package has left the profile before removing the receipt.
 5. Restart DSH Desktop so the running process no longer uses the removed plugin.
 
-Uninstall does not need the provider to remain online and does not refetch the original listing. If a plugin has no Market receipt, belongs to another profile, or was changed after installation, this MVP refuses to remove it. That conservative behavior avoids claiming ownership of packages managed elsewhere.
+Uninstall does not need the provider to remain online and does not refetch the original listing. If a plugin has no Market receipt, belongs to another profile, or was changed after installation, the built-in Market refuses to remove it. That conservative behavior avoids claiming ownership of packages managed elsewhere.
 
 ## Disable or enable a plugin
 

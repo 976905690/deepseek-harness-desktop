@@ -2,7 +2,7 @@
 
 [English](install-and-uninstall.md)
 
-状态：已实现并用于 private Desktop 集成测试；不代表插件已经通过安全审核
+状态：已完成并内置于 DSH Desktop；不代表插件已经通过安全审核
 
 本文同时说明用户会看到什么，以及开发者必须保持哪些边界。当前 Market 只会把一小类精确 npm package 安装到 DSH Desktop 的当前 profile；它不会从 GitHub 安装，也不会运行目录提供的命令。对于通过其他工具安装的插件，它只能保存 Desktop 自己拥有的启用/禁用加载选择，绝不会取得卸载所有权。
 
@@ -35,7 +35,7 @@
 
 ## Host 接受什么
 
-当前 MVP 只在以下检查全部通过时支持 npm package。第一项结构检查在本地完成；其余权威 package 检查在用户选择条目后的 preview 阶段执行，并在执行阶段按可变性再次检查：
+内置受管安装边界只在以下检查全部通过时支持 npm package。第一项结构检查在本地完成；其余权威 package 检查在用户选择条目后的 preview 阶段执行，并在执行阶段按可变性再次检查：
 
 - 目录给出标准化 npm package 名、精确稳定的 SemVer 版本和规范仓库身份；
 - npm 返回相同的 package 名和精确版本；
@@ -64,7 +64,7 @@ Add 成功后，Desktop 会封存白名单文件的结果 hash，并保留一条
 
 如果 Market receipt 已经保存，但该安装随后被启动恢复回滚，Market 会先移除这条精确 receipt，再确认并清除恢复记录。Receipt 持久化失败时，记录会继续保持 pending，之后重试清理。本地诊断归档不会自动上传，其中可能包含日志、系统信息和 crash 证据；应把它当作敏感数据处理，不能假设每一类 artifact 都能彻底脱敏。
 
-当前 MVP 会拒绝：
+内置受管安装器会拒绝：
 
 - GitHub URL、Git repository、release archive、commit，以及其他基于仓库的安装目标；
 - 版本范围、`latest` 等 tag 和 prerelease 版本；
@@ -84,7 +84,7 @@ GitHub 仓库链接仍可作为不可执行的来源信息显示，也可以用�
 4. Desktop 执行受管 remove 操作。Host 确认 package 已离开 profile 后，才移除 receipt。
 5. 重启 DSH Desktop，让当前运行的进程不再使用已移除插件。
 
-卸载不需要 provider 保持在线，也不会重新请求原目录条目。没有 Market receipt、属于其他 profile，或安装后已被修改的插件，当前 MVP 都会拒绝移除。这种保守行为可以避免 Market 错误接管由其他工具维护的 package。
+卸载不需要 provider 保持在线，也不会重新请求原目录条目。没有 Market receipt、属于其他 profile，或安装后已被修改的插件，内置 Market 都会拒绝移除。这种保守行为可以避免 Market 错误接管由其他工具维护的 package。
 
 ## 禁用或启用插件
 

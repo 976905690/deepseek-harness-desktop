@@ -2,9 +2,9 @@
 
 [中文](market-shell.zh.md)
 
-Status: Host/Client market plus limited npm install, receipt-backed uninstall, and direct-bundle enable/disable implemented for private integration testing
+Status: delivered and built into DSH Desktop, including the Host/Client market, limited npm installation, receipt-backed uninstall, and direct-bundle enable/disable
 
-This document defines the first implementation boundary for `dsh-community-market`. It is deliberately narrower than a complete marketplace. The package owns an in-product shell and adapters; it does not own the community catalog, package registry, or DSH profile format.
+This document defines the delivered implementation boundary for `dsh-community-market`. It is deliberately narrower than a complete marketplace. The package owns an in-product shell and adapters; it does not own the community catalog, package registry, or DSH profile format.
 
 ## Product goals
 
@@ -28,7 +28,7 @@ This document defines the first implementation boundary for `dsh-community-marke
 - Editing inactive profiles or migrating plugins between profiles.
 - Backing up or actively rolling back `node_modules`, protecting raw `pnpm`/`npm` commands, or recovering commands run in an external system terminal.
 
-## Proposed boundary
+## Implemented boundary
 
 ```mermaid
 flowchart LR
@@ -56,6 +56,8 @@ The Host supports two source paths:
 1. A user-added source implements the published HTTPS JSON contract and is handled by the standard adapter.
 2. A partner with a different API is integrated through a reviewed adapter shipped with the Market code.
 
+DSH Community Market openly cooperates with a wide range of plugin data sources. Anyone may publish a plugin catalog that implements the public standard contract, and any user may add and use such a source. A provider that uses a different API may propose a reviewed built-in adapter, while conforming standard sources can connect directly through the public contract.
+
 A remote manifest can describe data, but cannot supply adapter code, credentials, commands, enablement, or priority. Every adapter converts its private response into the same normalized page before the renderer receives it. Source-specific fields must never become UI assumptions.
 
 The standard adapter serializes only fields declared in the source manifest's `query.supported` list. In particular, it omits `category` for a source that does not advertise category support; unsupported fields are not emulated or broadcast to that source.
@@ -64,7 +66,7 @@ The standard adapter serializes only fields declared in the source manifest's `q
 
 [dshfind](https://dshfind.com) is another optional cooperating source with a reviewed built-in adapter. It is not selected by default, preferred, recommended, or used as a fallback. Its listings, scores, grades, `official`/featured labels, risk labels, and installation probes remain provider claims rather than Anywhere Labs trust decisions.
 
-The normative draft for the implementation team is the [catalog provider contract](catalog-provider-contract.md), with machine-readable schemas for the source manifest, query, untrusted provider page, and Host-normalized response. Remote fields are display data, not executable instructions. Text is rendered as text, never as raw HTML.
+The published normative contract is the [catalog provider contract](catalog-provider-contract.md), with machine-readable schemas for the source manifest, query, untrusted provider page, and Host-normalized response. Remote fields are display data, not executable instructions. Text is rendered as text, never as raw HTML.
 
 ## Complete local index and cache
 
@@ -108,7 +110,7 @@ Clicking a card is an explicit request to inspect that item. The dialog opens sy
 - the short-lived confirmation expiry; and
 - a warning that plugins run locally with the user's permissions and that this verification is not a code audit.
 
-Catalog `install` fields, documentation snippets, provider commands, and arbitrary strings are discarded as execution authority and are never executed or displayed as a Host manual hint. When a normalized item carries an exact stable npm identity, the Host may separately reconstruct a bounded display-only command. That text may differ from repository documentation, is explicitly marked as not fully verified, and is never sent to a package manager or Desktop action. The dshfind adapter specifically discards `install.cmd` and never parses or forwards it. The current managed MVP rejects GitHub and other repository install targets, ranges, tags, prereleases, deprecated versions, a target manifest containing `preinstall`, `install`, `postinstall`, or `prepare`, packages incompatible with the bundled DSH `0.1.0-rc.7`/Cordis/Node.js runtime, repository mismatches, and packages without official npm SHA-512/tarball and valid DSH bundle evidence.
+Catalog `install` fields, documentation snippets, provider commands, and arbitrary strings are discarded as execution authority and are never executed or displayed as a Host manual hint. When a normalized item carries an exact stable npm identity, the Host may separately reconstruct a bounded display-only command. That text may differ from repository documentation, is explicitly marked as not fully verified, and is never sent to a package manager or Desktop action. The dshfind adapter specifically discards `install.cmd` and never parses or forwards it. The built-in managed installer rejects GitHub and other repository install targets, ranges, tags, prereleases, deprecated versions, a target manifest containing `preinstall`, `install`, `postinstall`, or `prepare`, packages incompatible with the bundled DSH `0.1.0-rc.7`/Cordis/Node.js runtime, repository mismatches, and packages without official npm SHA-512/tarball and valid DSH bundle evidence.
 
 Preview performs the full npm registry, canonical-repository, deprecation, lifecycle-script, runtime, integrity, tarball, DSH bundle, and active-profile checks for that one package. The resulting one-shot opaque preview binds the verified facts. Immediately before the confirmed mutation, execution re-fetches or rechecks mutable registry, candidate, and profile evidence and refuses the operation if the candidate, active profile, tarball, integrity, or bundle path changed. For managed operations the renderer submits only opaque identities, never a package-manager spec or command.
 
@@ -135,7 +137,7 @@ The diagnostics archive remains local and may contain logs, system information, 
 
 The **Installed** view is built from the active profile's direct-bundle inventory and valid local receipts. It does not depend on the selected source, so a Market-installed plugin remains removable after its source is disabled, deleted, or offline.
 
-Uninstall preview accepts only a `receiptId`. The Host confirms that the receipt still exists and the active profile still contains the exact package version and DSH bundle recorded by that receipt. Execution accepts only the resulting one-shot opaque preview, invokes the managed `remove` operation, verifies removal, and then deletes the receipt. A package installed elsewhere, a receipt in another profile, or a package changed after installation is not removed by this MVP. After success the same **Restart now** / **Restart later** choice is shown.
+Uninstall preview accepts only a `receiptId`. The Host confirms that the receipt still exists and the active profile still contains the exact package version and DSH bundle recorded by that receipt. Execution accepts only the resulting one-shot opaque preview, invokes the managed `remove` operation, verifies removal, and then deletes the receipt. The built-in Market does not remove a package installed elsewhere, a receipt in another profile, or a package changed after installation. After success the same **Restart now** / **Restart later** choice is shown.
 
 Mutable direct bundles also expose generation-scoped opaque capabilities for enable/disable. A disabled Market-managed bundle keeps its receipt-backed Uninstall action and may be enabled separately. The Host and Desktop revalidate exact bundle status, mutability, profile generation, and receipt ownership at preview and execution; the renderer never submits a package name or filesystem target.
 
@@ -170,15 +172,15 @@ Install receipts are stored locally and include their owning profile; only recei
 
 Raw response bodies, filesystem paths, tokens, environment variables, and command strings are never included in user-facing errors or telemetry.
 
-## Delivery phases
+## Delivery status and next steps
 
-### Phase 0: documentation scaffold
+### Phase 0: package and trust foundation — delivered
 
-- Own the npm name and monorepo package boundary.
-- Record catalog attribution, trust rules, and integration decisions.
-- Keep the package private and non-loadable.
+- The npm name and monorepo package boundary are established.
+- Catalog attribution, trust rules, and integration decisions are recorded.
+- The Host/Client package is delivered as a built-in DSH Desktop implementation.
 
-### Phase 1: catalog market shell — implemented for integration testing
+### Phase 1: catalog market shell — delivered and built in
 
 - Host and Client plugin entries.
 - User-owned source selection, standard sources, reviewed partner adapters, and strict normalization.
@@ -186,7 +188,7 @@ Raw response bodies, filesystem paths, tokens, environment variables, and comman
 - Search, categories, details, and resilient state handling.
 - Headless unit tests and Loader smoke.
 
-### Phase 2: confirmed active-profile operations — implemented for integration testing
+### Phase 2: confirmed active-profile operations — delivered and built in
 
 - Desktop capability detection and unavailable state.
 - Exact stable npm target verification and two-step user intent.
@@ -195,13 +197,13 @@ Raw response bodies, filesystem paths, tokens, environment variables, and comman
 - Receipt-backed uninstall independent of the catalog source, plus opaque enable/disable for mutable direct bundles.
 - Restart guidance after a successful profile change.
 
-### Later work
+### Post-delivery enhancements
 
 - Updates and release hardening.
 - Stronger verification signals based on independently specified evidence.
 
 ## Attribution and independence
 
-The design is informed by community catalog projects including [imsai-sh/awesome-deepseek-harness-plugins](https://github.com/imsai-sh/awesome-deepseek-harness-plugins), also presented as DSH 1024Store. DSH 1024Store is a current cooperating provider, and it also publishes the separate `dsh-1024store` plugin. DSH Community Market is not a fork, repackaging, or official client of that plugin. Its application code is MIT licensed and its catalog metadata is CC0-1.0. This scaffold copies neither its code nor its artwork and bundles no catalog snapshot.
+The design is informed by community catalog projects including [imsai-sh/awesome-deepseek-harness-plugins](https://github.com/imsai-sh/awesome-deepseek-harness-plugins), also presented as DSH 1024Store. DSH 1024Store is a current cooperating provider, and it also publishes the separate `dsh-1024store` plugin. DSH Community Market is not a fork, repackaging, or official client of that plugin. Its application code is MIT licensed and its catalog metadata is CC0-1.0. The Market copies neither its code nor its artwork and bundles no catalog snapshot.
 
 DSH Community Market is an independent Anywhere Labs project. Catalog inclusion does not imply endorsement by Anywhere Labs, DSH 1024Store, DeepSeek, or a plugin author.

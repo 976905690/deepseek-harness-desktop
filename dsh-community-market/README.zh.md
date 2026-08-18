@@ -2,11 +2,11 @@
 
 [English](README.md)
 
-DSH Community Market 是 [DSH Desktop](../README.md) 的插件市场壳，用于发现社区插件；在 Desktop 中，还可以安装或移除少量通过 Market Host 检查的 npm package。
+DSH Community Market 是 [DSH Desktop](../README.md) 内置的开放插件市场，用于发现社区插件；在 Desktop 中，还可以安装、管理或移除通过 Market Host 检查的 npm package。
 
-> **当前状态：private 集成测试 MVP。** Package 已有可加载的 Host/Client 入口、用户拥有的来源持久化、受限 HTTPS client、标准、DSH 1024Store 与仅浏览的 dshfind adapter，并在**设置 > 插件**中提供官方的**插件市场**标签页和侧边栏入口；同时已有 Host 受管安装、基于 receipt 的卸载，以及对可变 direct bundle 的 fail-closed 启用/禁用功能。这不表示被收录或显示为可安装的插件代码是安全的。
+> **当前状态：已完成并内置于 DSH Desktop。** Package 提供可加载的 Host/Client 入口、用户拥有的来源持久化、受限 HTTPS client、标准来源与受审合作来源 adapter，并在**设置 > 插件**中提供官方的**插件市场**标签页和侧边栏入口；同时支持 Host 受管安装、基于 receipt 的卸载，以及对可变 direct bundle 的 fail-closed 启用/禁用。这不表示被收录或显示为可安装的插件代码是安全的。
 
-## 我们要做什么
+## 已有能力
 
 当前界面分为四个视图：
 
@@ -19,9 +19,9 @@ DSH Community Market 是 [DSH Desktop](../README.md) 的插件市场壳，用于
 
 ## 目录来源
 
-市场不设默认目录。用户可以保存多个来源，但同一时间只浏览一个已选择来源，也可以切换选择或添加符合公开目录合同的来源。切换来源会开始新的浏览会话，并重置当前列表、搜索、分类选择和分页。每个来源都在适配器之后独立运行，市场界面只能看到同一套经过校验和标准化的数据。
+市场以开放方式与各种插件数据源合作。用户可以保存多个来源，但同一时间只浏览一个已选择来源，也可以切换选择或添加符合公开目录合同的来源。切换来源会开始新的浏览会话，并重置当前列表、搜索、分类选择和分页。每个来源都在适配器之后独立运行，市场界面只能看到同一套经过校验和标准化的数据。
 
-符合规范的数据源需要发布一份 [`catalog-source` manifest](docs/schemas/catalog-source.schema.json)，其 `/v1/plugins` 接口返回符合 [`catalog-provider-page` Schema](docs/schemas/catalog-provider-page.schema.json) 的数据。来源可以提供 `media.icon`，Desktop 会先校验并代理图片再显示；没有图标的来源仍然合法，界面会使用本地 fallback。符合标准的数据源不需要为 Market 编写自定义代码。
+任何人都可以提供、接入和使用插件数据源。符合规范的数据源只需发布一份 [`catalog-source` manifest](docs/schemas/catalog-source.schema.json)，并由其 `/v1/plugins` 接口返回符合 [`catalog-provider-page` Schema](docs/schemas/catalog-provider-page.schema.json) 的数据，无需为 Market 编写自定义代码。已有 API 无需更换自己的格式，也可以联系我们，通过随 Market 发布的受审 adapter 作为合作数据源接入。来源可以提供 `media.icon`，Desktop 会先校验并代理图片再显示；没有图标的来源仍然合法，界面会使用本地 fallback。
 
 展示已选来源前，Host 会先建立一份完整、经过校验的本地索引。标准来源按照声明的 cursor 与 page limit 扫描；经过审核的 1024Store adapter 只读取一次完整 registry，再按 Schema 上限分块标准化；经过审核的 dshfind adapter 则遍历 REST 分页，并在整次扫描中固定同一个 `data_version`。之后的搜索、多分类 OR 筛选、分类选项和分页都在这份完整本地索引上进行，不会因为每次交互重新请求 provider。每个可见页面最多展示 50 条，分类选项覆盖索引中的全部分类，而不只是已经显示的页面。**可安装**是同一索引上 fail-closed 的结构子集；只有用户预览某个候选时，才开始权威 npm 复核。
 
@@ -64,9 +64,9 @@ dshfind 当前会返回由提供方维护的安装结论和命令文本，但没
 ## 交付计划
 
 - **Phase 0 — 已完成：** 确认 package 归属，写清产品与信任边界，建立 headless 检查。
-- **Phase 1 — 已实现并进入集成测试：** 来源选择、用户添加符合规范的来源、一次一个来源的浏览、搜索、插件详情，以及加载、空白和错误状态。
-- **Phase 2 — 已实现并进入集成测试：** 通过 Desktop 受管服务，把精确稳定 npm package 安装到当前 profile，提供配置级安装恢复，并支持基于 receipt 的卸载。
-- **后续：** 更新、更广泛的兼容证据，以及发布评审。
+- **Phase 1 — 已完成并内置：** 来源选择、用户添加符合规范的来源、一次一个来源的浏览、搜索、插件详情，以及加载、空白和错误状态。
+- **Phase 2 — 已完成并内置：** 通过 Desktop 受管服务，把精确稳定 npm package 安装到当前 profile，提供配置级安装恢复，并支持基于 receipt 的卸载。
+- **后续：** 更新与更广泛的兼容证据。
 
 目录采集、投稿审核、账号、排行榜和托管仍由目录 provider 负责，不属于这个 package。
 
