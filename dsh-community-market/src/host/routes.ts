@@ -25,9 +25,8 @@ import {
 import {
   DSH_1024STORE_ADAPTER_ID,
   DSH_1024STORE_HOSTNAME,
-  DSH_1024STORE_KEY,
-  DSH_1024STORE_PROVIDER_ID,
 } from '../adapters/dsh-1024store.js'
+import { DSHFIND_ADAPTER_ID, DSHFIND_HOSTNAME } from '../adapters/dshfind.js'
 import { assertStandardSourceTrustRoot } from '../adapters/standard-http.js'
 import { BUILT_IN_PROVIDERS, DefaultCatalogService, type CatalogFetchScope, type CatalogFullIndex } from '../catalog/service.js'
 import { SettingsCatalogSourceStore, type MarketSettingsDocument } from '../catalog/source-store.js'
@@ -85,6 +84,14 @@ const dsh1024StoreHttpClient = createCachedCatalogHttpClient(
   createRestrictedHttpClient({
     syntheticProxyHostnames: [DSH_1024STORE_HOSTNAME],
     maxBodyBytes: MAX_DSH_1024STORE_BODY_BYTES,
+  }),
+)
+
+const dshfindHttpClient = createCachedCatalogHttpClient(
+  createRestrictedHttpClient({
+    // This exact hostname is compiled into the reviewed adapter. User-added
+    // source hostnames must never inherit this local-proxy exception.
+    syntheticProxyHostnames: [DSHFIND_HOSTNAME],
   }),
 )
 
@@ -266,7 +273,12 @@ function mutationAllowed(req: IncomingMessage, expectedPort: number): boolean {
 function asMutation(value: unknown): MarketSourceMutation {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new Error('invalid mutation')
   const mutation = value as Record<string, unknown>
-  if (mutation.action === 'add-builtin' && mutation.key === DSH_1024STORE_KEY) return { action: 'add-builtin', key: DSH_1024STORE_KEY }
+  if (
+    mutation.action === 'add-builtin'
+    && typeof mutation.key === 'string'
+    && mutation.key.length > 0
+    && mutation.key.length <= 64
+  ) return { action: 'add-builtin', key: mutation.key }
   if (mutation.action === 'add-standard' && typeof mutation.manifestUrl === 'string') return { action: 'add-standard', manifestUrl: mutation.manifestUrl }
   if (mutation.action === 'select' && typeof mutation.sourceRecordId === 'string') {
     return { action: 'select', sourceRecordId: mutation.sourceRecordId }
@@ -499,13 +511,15 @@ async function mutateSources(
   const unavailableSourceRecordIds = new Set<string>()
   const nextOrder = records.reduce((maximum, record) => Math.max(maximum, record.order), -1) + 1
   if (mutation.action === 'add-builtin') {
+    const provider = BUILT_IN_PROVIDERS.find(candidate => candidate.key === mutation.key)
+    if (provider === undefined) throw new Error('built-in source unavailable')
     if (records.some(record => record.builtInProviderKey === mutation.key)) throw new Error('source already added')
     records.push({
       sourceRecordId: randomUUID(),
       registrationKind: 'built-in',
-      adapterId: DSH_1024STORE_ADAPTER_ID,
-      providerId: DSH_1024STORE_PROVIDER_ID,
-      builtInProviderKey: mutation.key,
+      adapterId: provider.adapterId,
+      providerId: provider.providerId,
+      builtInProviderKey: provider.key,
       enabled: false,
       order: nextOrder,
     })
@@ -657,7 +671,10 @@ export function registerMarketRoutes(
     }),
   })
   const service = new DefaultCatalogService(store, restrictedHttpClient, {
-    adapterHttpClients: new Map([[DSH_1024STORE_ADAPTER_ID, dsh1024StoreHttpClient]]),
+    adapterHttpClients: new Map([
+      [DSH_1024STORE_ADAPTER_ID, dsh1024StoreHttpClient],
+      [DSHFIND_ADAPTER_ID, dshfindHttpClient],
+    ]),
     media,
     observeSnapshot: snapshot => installProvider?.get()?.observeCatalog(snapshot),
   })

@@ -2,7 +2,7 @@
 
 [中文](catalog-provider-contract.zh.md)
 
-Status: **Draft / implementation handoff**. Generated types, validation, source persistence, constrained network access, standard and DSH 1024Store adapters, and loadable Host/Client entries are implemented for integration testing. This remains a private draft without a compatibility guarantee.
+Status: **Draft / implementation handoff**. Generated types, validation, source persistence, constrained network access, standard, DSH 1024Store, and browse-only dshfind adapters, and loadable Host/Client entries are implemented for integration testing. This remains a private draft without a compatibility guarantee.
 
 ## Decision summary
 
@@ -10,6 +10,7 @@ Status: **Draft / implementation handoff**. Generated types, validation, source 
 - Users may save several source registrations, but explicitly select exactly one source for the current browsing session.
 - A user may add any source that implements this contract. Adding a source does not install a plugin and does not grant that source execution access.
 - DSH 1024Store is one of the catalog providers currently cooperating with this project. A reviewed built-in adapter is included; it does not select or fall back to 1024Store automatically.
+- dshfind is another optional cooperating provider. Its reviewed adapter is browse-only and is neither selected by default nor used as a preferred, recommended, or fallback source.
 - A source being bundled as a choice or supported by an adapter does not mean that Anywhere Labs has recommended, audited, or endorsed the source or the plugins it lists.
 - Every provider is converted into one normalized model before data reaches the market UI or installation boundary.
 
@@ -223,6 +224,18 @@ The canonical item identity is the pair `{ sourceRecordId, itemId }`. Two regist
 - reports the selected source as unavailable when the provider fails or returns invalid data, without falling back to another saved source.
 
 This relationship makes 1024Store a supported source choice. It does **not** make it the default, preferred, official, recommended, audited, or fallback source. The adapter does not auto-select it, and an empty or failed selection never triggers a hidden request to it. Its catalog remains an independent project, and catalog inclusion is not a security review of any listed plugin.
+
+## dshfind cooperation
+
+[dshfind](https://dshfind.com) is an optional cooperating source with a reviewed built-in adapter for its public REST API. The adapter uses only the compiled-in `https://api.dshfind.com` origin and public anonymous requests. It requests page 1 with `per_page=100`, records the returned `data_version`, and sends that exact value on every later page. A `409 stale_data`, inconsistent version/total, invalid page, or incomplete traversal rejects the complete scan; no partial index is published. Search, category filtering, category enumeration, sorting, and 50-item UI pagination are then performed against the complete local index without sending those interactions back to dshfind.
+
+dshfind documents an anonymous quota of 30 requests per minute with a burst of 10, while its current catalog requires more than 30 pages at 100 items per page. The adapter therefore uses a fixed sequential delay below the published sustained rate and makes the slower first synchronization visible as source loading rather than parallelizing around the provider limit. A rate-limit response rejects the whole scan and the ordinary source Retry action may start it again. A completed local index remains subject to the ordinary bounded cache; explicit refresh starts a new consistent full scan.
+
+The dshfind response may contain `install.cmd`, `install.kind`, `install.pkg_name`, `install.npm_published`, and `install.probed_at`, but it does not currently provide an exact stable npm version or equivalent `repository_backlink` evidence. These are untrusted provider claims, not execution authority. The adapter discards `install.cmd` before normalization, never displays or executes it, never parses a package/version from it, and does not emit `package` or `latestVersion` for dshfind. Consequently every dshfind item is browse-only and excluded from **Installable** and Host-reconstructed manual hints.
+
+The adapter may normalize bounded plain-text identity, description, tags/category, update time, and a canonical credential-free `https://github.com/owner/repository` link. The current API exposes no plugin icon or README field. Any owner-avatar fallback must be labelled `publisher-avatar` and resolved through the Host media boundary; the adapter does not fetch or render remote README content. dshfind scores, grades, `official`/featured labels, risk labels, and installation conclusions remain provider-owned operational claims and never become an Anywhere Labs security review, recommendation, or verification signal.
+
+This cooperation makes dshfind visible as an optional partner choice only. It does **not** make it default, preferred, official, recommended, audited, or a fallback, and source failure never causes a hidden switch to another provider.
 
 ## Installation boundary
 

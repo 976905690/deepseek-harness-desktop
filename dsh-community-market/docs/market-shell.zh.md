@@ -62,11 +62,13 @@ Host 支持两条来源路径：
 
 [DSH 1024Store](https://github.com/imsai-sh/awesome-deepseek-harness-plugins) 是目前与项目合作的提供方之一，市场已包含针对其公开 API、经过审查的内置适配器。它不是默认、优先或兜底来源，合作关系也不表示其收录内容经过我们审核或推荐。它的接口和 schema 继续归该独立项目所有。
 
+[dshfind](https://dshfind.com) 是另一个通过经审查内置 adapter 接入的可选合作来源。它不会被默认选择、优先排序、推荐或用作兜底。它的目录收录、分数、等级、`official`/精选标记、风险标记和安装探测仍是 provider claim，不是 Anywhere Labs 作出的信任判断。
+
 面向实现团队的规范是[目录提供方合同](catalog-provider-contract.zh.md)，其中包含来源 manifest、query、不可信 provider page 和 Host 标准化响应的机器可读 Schema。远程字段只是展示数据，不是可执行指令；文本只能按文本渲染，不能作为原始 HTML。
 
 ## 完整本地索引与 cache
 
-Host 会先针对已选来源和当前 locale 完成一次全量标准化扫描，再提供目录交互。标准来源按照声明的 cursor 和有效 page limit 扫描到结束；经过审核的 1024Store adapter 则只执行一次完整 registry GET，标准化每个合法条目，并按每块最多 100 条的 Schema 上限输出。10,000 条 Host 上限、来源身份、取消、provenance 和同源检查覆盖整次扫描。
+Host 会先针对已选来源和当前 locale 完成一次全量标准化扫描，再提供目录交互。标准来源按照声明的 cursor 和有效 page limit 扫描到结束；经过审核的 1024Store adapter 则只执行一次完整 registry GET，标准化每个合法条目，并按每块最多 100 条的 Schema 上限输出。dshfind adapter 会遍历每页最多 100 条的 REST 数据，并在所有后续分页中固定首页的 `data_version`。由于其公布的匿名配额低于当前首次同步所需的 page 数，首次扫描会主动节流，可能明显更慢；版本过期或限流失败时不会发布部分索引。10,000 条 Host 上限、来源身份、取消、provenance 和同源检查覆盖整次扫描。
 
 搜索、排序、多分类 OR 筛选、分类枚举和分页只在这份完整本地索引上运行。UI 每页最多展示 50 条匹配结果；**加载更多**推进 Host 拥有的本地 cursor，不会再次向 provider 发出带筛选的请求。分类列表是索引中存在的完整分类集合。**可安装**是同一索引上 fail-closed 的结构子集，不是第二个 provider feed，也不是逐包请求 registry 得出的结果。
 
@@ -77,7 +79,7 @@ Host 会先针对已选来源和当前 locale 完成一次全量标准化扫描�
 Market 界面包含四个视图：
 
 - **发现**对当前已选来源完整本地索引中的全部标准化条目进行分页。点击卡片会立即打开统一操作弹窗；Host 会让合格条目进入受管 preview，否则弹窗保持为详情。
-- **可安装**在本地以 fail-closed 方式生成。条目必须具有经过审核的 provider 验证与 `repository_backlink`、精确稳定的 npm 目标和规范仓库，同时排除被阻止的 package，以及当前 profile 或 Market receipt 中已经存在的 package。这里的卡片使用同一个弹窗。结构候选身份不等于 npm 复核、代码审核或推荐。
+- **可安装**在本地以 fail-closed 方式生成。条目必须具有经过审核的 provider 验证与 `repository_backlink`、精确稳定的 npm 目标和规范仓库，同时排除被阻止的 package，以及当前 profile 或 Market receipt 中已经存在的 package。这里的卡片使用同一个弹窗。结构候选身份不等于 npm 复核、代码审核或推荐。由于 dshfind 当前没有提供精确稳定的 npm 版本，它的所有条目都只在**发现**中浏览。
 - **已安装**会核对当前 profile 的 Host 清单与合法 Market receipt，绝不会根据目录猜测安装状态。
 - **来源**管理已保存来源和唯一的当前选择。
 
@@ -106,7 +108,7 @@ Market 界面包含四个视图：
 - 短时确认的过期时间；以及
 - 插件会以用户权限作为本地代码运行、而且该复核不等于代码审计的提示。
 
-目录中的 `install` 字段、文档命令、provider 命令和任意字符串都会失去执行授权，并且绝不会被执行。当标准化条目具有精确稳定的 npm 身份时，Host 可以另行重建一条有界、只用于展示的命令。该文本可能与仓库文档中的命令不同，会明确标为未完成全部验证，而且绝不会发送给 package manager 或 Desktop action。当前受管 MVP 会拒绝 GitHub 与其他仓库安装目标、range、tag、prerelease、deprecated 版本、目标 manifest 中包含 `preinstall`、`install`、`postinstall` 或 `prepare` 的 package、与内置 DSH `0.1.0-rc.7`/Cordis/Node.js runtime 不兼容的 package、仓库身份不匹配的 package，以及缺少官方 npm SHA-512/tarball 或有效 DSH bundle 证据的 package。
+目录中的 `install` 字段、文档命令、provider 命令和任意字符串都会失去执行授权，绝不会被执行，也不会作为 Host 手动提示展示。当标准化条目具有精确稳定的 npm 身份时，Host 可以另行重建一条有界、只用于展示的命令。该文本可能与仓库文档中的命令不同，会明确标为未完成全部验证，而且绝不会发送给 package manager 或 Desktop action。dshfind adapter 会明确丢弃 `install.cmd`，绝不解析或转发它。当前受管 MVP 会拒绝 GitHub 与其他仓库安装目标、range、tag、prerelease、deprecated 版本、目标 manifest 中包含 `preinstall`、`install`、`postinstall` 或 `prepare` 的 package、与内置 DSH `0.1.0-rc.7`/Cordis/Node.js runtime 不兼容的 package、仓库身份不匹配的 package，以及缺少官方 npm SHA-512/tarball 或有效 DSH bundle 证据的 package。
 
 Preview 会针对这一个 package 完整检查 npm registry、规范仓库、deprecated 状态、lifecycle script、runtime、integrity、tarball、DSH bundle 和当前 profile，并用一次性不透明 preview 绑定已验证事实。用户确认后、真正修改前，执行阶段会立即重新获取或检查可变的 registry、候选和 profile 证据；候选、当前 profile、tarball、integrity 或 bundle 路径发生变化时会拒绝执行。受管操作中，renderer 只提交不透明身份，绝不会提交 package-manager spec 或命令。
 

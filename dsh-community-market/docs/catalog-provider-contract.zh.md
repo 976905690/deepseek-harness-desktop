@@ -2,7 +2,7 @@
 
 [English](catalog-provider-contract.md)
 
-状态：**Draft / 实现交接稿**。生成类型、校验、来源持久化、受限网络访问、标准与 DSH 1024Store adapter，以及可加载 Host/Client 入口已实现并进入集成测试。它仍是 private draft，不提供兼容性承诺。
+状态：**Draft / 实现交接稿**。生成类型、校验、来源持久化、受限网络访问、标准、DSH 1024Store 与仅浏览的 dshfind adapter，以及可加载 Host/Client 入口已实现并进入集成测试。它仍是 private draft，不提供兼容性承诺。
 
 ## 决策摘要
 
@@ -10,6 +10,7 @@
 - 用户可以保存多个来源注册，但当前浏览会话必须明确且最多只选择一个来源。
 - 用户可以添加任何符合本契约的来源。添加来源不会安装插件，也不会给该来源任何执行能力。
 - DSH 1024Store 是当前与本项目合作的目录提供方之一。市场已包含经过审核的内置 adapter；这个 adapter 不会自动选择 1024Store，也不会在当前来源失败时用它兜底。
+- dshfind 是另一个可选合作提供方。它经过审查的 adapter 当前仅用于浏览，不会被默认选择、优先排序、推荐或用作兜底。
 - 某个来源出现在内置选项中或受到 adapter 支持，不代表 Anywhere Labs 推荐、审核或背书该来源及其收录的插件。
 - 所有 provider 必须先转换成同一个标准化模型，数据才能到达市场界面或安装边界。
 
@@ -223,6 +224,18 @@ Provider cursor 只属于一个已选来源和一个有效 wire query。Host 绝
 - Provider 不可用或数据非法时，把当前已选来源报告为不可用，绝不退回另一个已保存来源。
 
 这一合作关系使 1024Store 成为一个受到支持的来源选项，但**不会**使它成为默认、优先、官方、推荐、已审核或兜底来源。Adapter 不会自动选择它；没有选择或当前来源失败也不会触发对它的隐藏请求。它的目录仍属于独立项目，收录某个插件不等于完成了该插件的安全审核。
+
+## 与 dshfind 的合作
+
+[dshfind](https://dshfind.com) 是一个可选合作来源，Market 为其公开 REST API 提供经过审查的内置 adapter。Adapter 只使用编译期固定的 `https://api.dshfind.com` origin 和公开匿名请求。它以 `per_page=100` 请求首页，记录返回的 `data_version`，并在所有后续分页中携带完全相同的值。遇到 `409 stale_data`、版本/总数不一致、非法分页或遍历不完整时，整次扫描失败，不能发布部分索引。搜索、分类筛选、分类枚举、排序和每页 50 条的 UI 分页随后都在完整本地索引上运行，不会把这些交互继续发给 dshfind。
+
+dshfind 文档说明匿名配额为每分钟 30 次、突发 10 次，而当前目录以每页 100 条读取时需要超过 30 个 page。因此 adapter 会使用低于已公布持续速率的固定串行间隔，并把较慢的首次同步表现为来源加载状态，不能通过并发绕过 provider 限制。限流 response 会使整轮扫描失败，用户可以通过普通来源“重试”重新开始。完成的本地索引仍遵循普通有界 cache；明确刷新会启动一轮新的、一致的完整扫描。
+
+dshfind response 可能包含 `install.cmd`、`install.kind`、`install.pkg_name`、`install.npm_published` 与 `install.probed_at`，但当前没有提供精确稳定 npm 版本或同等 `repository_backlink` 证据。这些是不可信 provider claim，不是执行权限。Adapter 会在标准化前丢弃 `install.cmd`，不展示、不执行，也不从中解析 package/版本，并且不会为 dshfind 输出 `package` 或 `latestVersion`。因此所有 dshfind 条目都只能浏览，不能进入**可安装**或 Host 重建的手动提示。
+
+Adapter 可以标准化有界纯文本身份、描述、标签/分类、更新时间，以及规范、无凭据的 `https://github.com/owner/repository` 链接。当前 API 没有插件图标或 README 字段。任何 owner 头像 fallback 都必须标记为 `publisher-avatar` 并通过 Host 媒体边界解析；adapter 不获取或渲染远程 README 内容。dshfind 的分数、等级、`official`/精选标记、风险标记和安装结论仍是 provider 自有运营声明，绝不会成为 Anywhere Labs 的安全审核、推荐或验证信号。
+
+这一合作只会让 dshfind 作为可选合作来源显示；它**不会**成为默认、优先、官方、推荐、已审核或兜底来源，来源失败也不会触发对其他 provider 的隐藏切换。
 
 ## 安装边界
 
