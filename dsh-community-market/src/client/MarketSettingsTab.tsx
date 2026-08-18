@@ -239,6 +239,7 @@ export function MarketSurface({ initialView = 'installable', readLocale, t, show
   const installableRequest = useRef<AbortController>()
   const installationsRequest = useRef<AbortController>()
   const operationRequest = useRef<AbortController>()
+  const operationBundleId = useRef<string>()
   const desktopActionRequest = useRef<AbortController>()
   const viewRef = useRef<MarketView>(initialView)
 
@@ -602,6 +603,7 @@ export function MarketSurface({ initialView = 'installable', readLocale, t, show
     if (operationRequest.current !== undefined) return
     const request = new AbortController()
     operationRequest.current = request
+    operationBundleId.current = undefined
     setOperationPending(true)
     setOperationError(undefined)
     setDesktopActionError(undefined)
@@ -611,6 +613,9 @@ export function MarketSurface({ initialView = 'installable', readLocale, t, show
       if (request.signal.aborted || operationRequest.current !== request) return
       if (preview.action !== requestValue.action) throw new Error('operation preview action mismatch')
       setInstallationsUnavailable(false)
+      if (requestValue.action === 'disable' || requestValue.action === 'enable') {
+        operationBundleId.current = requestValue.bundleId
+      }
       setOperationPreview(preview)
     } catch (cause) {
       if (request.signal.aborted || operationRequest.current !== request) return
@@ -654,6 +659,7 @@ export function MarketSurface({ initialView = 'installable', readLocale, t, show
     desktopActionRequest.current = undefined
     setOperationPending(false)
     setDesktopActionPending(false)
+    operationBundleId.current = undefined
     setSelected(undefined)
     setOperationPreview(undefined)
     setOperationError(undefined)
@@ -663,6 +669,7 @@ export function MarketSurface({ initialView = 'installable', readLocale, t, show
   const executePreview = async () => {
     const preview = operationPreview
     if (preview === undefined || operationRequest.current !== undefined) return
+    const targetBundleId = operationBundleId.current
     const request = new AbortController()
     operationRequest.current = request
     setOperationPending(true)
@@ -679,21 +686,39 @@ export function MarketSurface({ initialView = 'installable', readLocale, t, show
             || installation.receipt.receiptId !== result.receiptId)
         }
         if (result.action === 'disable') {
-          return current.map(installation => installation.kind === 'external'
+          return current.map(installation => {
+            if (installation.kind === 'external'
               && installation.action === 'disable'
-              && installation.packageName === result.packageName
-            ? {
+              && installation.bundleId === targetBundleId
+              && installation.packageName === result.packageName) {
+              return {
                 kind: 'external' as const,
                 status: 'disabled' as const,
                 action: 'enable' as const,
                 bundleId: installation.bundleId,
                 packageName: installation.packageName,
               }
-            : installation)
+            }
+            if (targetBundleId !== undefined
+              && installation.kind === 'managed'
+              && installation.status === 'active'
+              && installation.disableBundleId === targetBundleId
+              && installation.receipt.packageName === result.packageName) {
+              return {
+                kind: 'managed' as const,
+                status: 'disabled' as const,
+                action: 'uninstall' as const,
+                enableBundleId: targetBundleId,
+                receipt: installation.receipt,
+              }
+            }
+            return installation
+          })
         }
         return current.map(installation => {
           if (installation.kind === 'external'
             && installation.action === 'enable'
+            && installation.bundleId === targetBundleId
             && installation.packageName === result.packageName) {
             return {
               kind: 'external' as const,
@@ -703,13 +728,16 @@ export function MarketSurface({ initialView = 'installable', readLocale, t, show
               packageName: installation.packageName,
             }
           }
-          if (installation.kind === 'managed'
+          if (targetBundleId !== undefined
+            && installation.kind === 'managed'
             && installation.status === 'disabled'
+            && installation.enableBundleId === targetBundleId
             && installation.receipt.packageName === result.packageName) {
             return {
               kind: 'managed' as const,
               status: 'active' as const,
               action: 'uninstall' as const,
+              disableBundleId: targetBundleId,
               receipt: installation.receipt,
             }
           }
@@ -717,6 +745,7 @@ export function MarketSurface({ initialView = 'installable', readLocale, t, show
         })
       })
       setInstallationsLoaded(true)
+      operationBundleId.current = undefined
       setOperationPreview(undefined)
       setSelected(undefined)
       setOperationSuccess({ preview, restartToken: result.restartToken })
@@ -910,6 +939,7 @@ export function MarketSurface({ initialView = 'installable', readLocale, t, show
           error={operationError}
           onCancel={() => {
             if (operationPending) return
+            operationBundleId.current = undefined
             setOperationPreview(undefined)
             setOperationError(undefined)
           }}
@@ -930,11 +960,13 @@ export function MarketSurface({ initialView = 'installable', readLocale, t, show
       )}
       <Modal
         open={addOpen}
+        className="dshMarketModal dshMarketSourceModal"
+        contentClassName="dshMarketModalContent"
         onClose={() => { if (!mutationPending) setAddOpen(false) }}
         title={t('addStandard')}
         closeLabel={t('cancel')}
         description={t('sourceNotice')}
-        footer={<>
+        footer={<div className="dshMarketModalActions">
           <Button variant="ghost" disabled={mutationPending} onClick={() => setAddOpen(false)}>{t('cancel')}</Button>
           <Button
             variant="primary"
@@ -948,7 +980,7 @@ export function MarketSurface({ initialView = 'installable', readLocale, t, show
               })
             }}
           >{t('confirmAdd')}</Button>
-        </>}
+        </div>}
       >
         <div className="dshMarketModalField">
           <label htmlFor="dsh-market-manifest">{t('standardSource')}</label>
@@ -1301,7 +1333,19 @@ function InstalledView(props: {
                 </div>
               </div>
               <div className="dshMarketReceiptActions">
-                {installation.kind === 'managed' && installation.enableBundleId !== undefined && <Button
+                {installation.kind === 'managed'
+                  && installation.status === 'active'
+                  && installation.disableBundleId !== undefined && <Button
+                  variant="outline"
+                  size="sm"
+                  aria-label={`${props.t('disable')}: ${displayName}`}
+                  disabled={props.operationPending}
+                  icon={<IconPauseOutline16 />}
+                  onClick={() => props.onDisable(installation.disableBundleId!)}
+                >{props.t('disable')}</Button>}
+                {installation.kind === 'managed'
+                  && installation.status === 'disabled'
+                  && installation.enableBundleId !== undefined && <Button
                   variant="outline"
                   size="sm"
                   aria-label={`${props.t('enable')}: ${displayName}`}
@@ -1343,6 +1387,26 @@ function InstalledView(props: {
   )
 }
 
+function sourceDisplayLabel(source: MarketSourceView): string {
+  const attribution = source.attribution?.name
+  return attribution === undefined || attribution === source.name
+    ? source.name
+    : `${source.name} · ${attribution}`
+}
+
+function safeHttpsExternalHref(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined
+  try {
+    const url = new URL(value)
+    if (url.protocol !== 'https:' || url.username || url.password || url.hash || (url.port && url.port !== '443')) {
+      return undefined
+    }
+    return url.href
+  } catch {
+    return undefined
+  }
+}
+
 function PluginCard({ value, actionLabel, disabled = false, onClick, t }: {
   value: VisibleItem
   actionLabel?: string | undefined
@@ -1351,10 +1415,7 @@ function PluginCard({ value, actionLabel, disabled = false, onClick, t }: {
   t: MarketSettingsTabProps['t']
 }) {
   const publisher = value.item.publisher?.name ?? value.source.name
-  const attribution = value.source.attribution?.name
-  const sourceLabel = attribution === undefined || attribution === value.source.name
-    ? value.source.name
-    : `${value.source.name} · ${attribution}`
+  const sourceLabel = sourceDisplayLabel(value.source)
   return (
     <button
       type="button"
@@ -1382,23 +1443,39 @@ function PluginCard({ value, actionLabel, disabled = false, onClick, t }: {
 function SourceAttribution({ attribution }: {
   attribution: NonNullable<MarketSourceView['attribution']>
 }) {
-  const href = (() => {
-    try {
-      const url = new URL(attribution.url)
-      if (url.protocol !== 'https:' || url.username || url.password || url.hash || (url.port && url.port !== '443')) {
-        return undefined
-      }
-      return url.href
-    } catch {
-      return undefined
-    }
-  })()
+  const href = safeHttpsExternalHref(attribution.url)
   return (
     <div className="dshMarketSourceAttribution">
       {href === undefined
         ? <span>{attribution.name}</span>
         : <a href={href} target="_blank" rel="noopener noreferrer">{attribution.name}</a>}
       {attribution.notice !== undefined && <span>{attribution.notice}</span>}
+    </div>
+  )
+}
+
+function ItemSourceRow({ source, t }: {
+  source: MarketSourceView
+  t: MarketSettingsTabProps['t']
+}) {
+  const label = sourceDisplayLabel(source)
+  const href = safeHttpsExternalHref(source.homepage)
+    ?? safeHttpsExternalHref(source.attribution?.url)
+  return (
+    <div className="dshMarketItemSourceRow">
+      <span>{t('source')}:</span>
+      {href === undefined
+        ? <span>{label}</span>
+        : (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`${t('source')}: ${label}`}
+          >
+            {label} <IconRightUpOutline16 size={12} />
+          </a>
+        )}
     </div>
   )
 }
@@ -1626,13 +1703,13 @@ function OperationConfirmModal({ preview, pending, error, onCancel, onConfirm, t
   return (
     <Modal
       open
-      className="dshMarketConfirmModal"
-      contentClassName="dshMarketWideModalContent"
+      className="dshMarketModal dshMarketConfirmModal"
+      contentClassName="dshMarketModalContent"
       onClose={onCancel}
       closeLabel={t('cancel')}
       title={title}
       description={description}
-      footer={<>
+      footer={<div className="dshMarketModalActions">
         <Button variant="ghost" disabled={pending} onClick={onCancel}>{t('cancel')}</Button>
         <Button
           variant="primary"
@@ -1644,7 +1721,7 @@ function OperationConfirmModal({ preview, pending, error, onCancel, onConfirm, t
               : enabling ? <IconPlayOutline16 /> : <IconPauseOutline16 />}
           onClick={onConfirm}
         >{confirmLabel}</Button>
-      </>}
+      </div>}
     >
       <div className="dshMarketOperationReview">
         <OperationFacts operation={preview} t={t} />
@@ -1689,11 +1766,13 @@ function OperationSuccessModal({ operation, canRestart, pending, error, onClose,
   return (
     <Modal
       open
+      className="dshMarketModal dshMarketStatusModal"
+      contentClassName="dshMarketModalContent"
       onClose={() => { if (!pending) onClose() }}
       closeLabel={t('close')}
       title={title}
       description={t('restartRequiredTitle')}
-      footer={<>
+      footer={<div className="dshMarketModalActions">
         <Button variant="ghost" disabled={pending} onClick={onClose}>{t('restartLater')}</Button>
         <Button
           variant="primary"
@@ -1701,7 +1780,7 @@ function OperationSuccessModal({ operation, canRestart, pending, error, onClose,
           icon={<IconRefreshOutline16 />}
           onClick={onRestart}
         >{pending ? t('restarting') : t('restartNow')}</Button>
-      </>}
+      </div>}
     >
       <div className="dshMarketOperationReview">
         <OperationFacts operation={operation.preview} showExpiry={false} t={t} />
@@ -1744,10 +1823,6 @@ function ItemActionModal({
   onOpenTerminal: () => void
   t: MarketSettingsTabProps['t']
 }) {
-  const attribution = value.source.attribution?.name
-  const sourceLabel = attribution === undefined || attribution === value.source.name
-    ? value.source.name
-    : `${value.source.name} · ${attribution}`
   const checking = preview === undefined && pending && operationError === undefined
   const footer = preview !== undefined ? <>
     <Button variant="ghost" disabled={pending} onClick={onClose}>{t('cancel')}</Button>
@@ -1777,75 +1852,78 @@ function ItemActionModal({
   return (
     <Modal
       open
-      className={preview === undefined ? 'dshMarketWideModal' : 'dshMarketConfirmModal'}
-      contentClassName="dshMarketWideModalContent"
+      className="dshMarketModal dshMarketWideModal"
+      contentClassName="dshMarketModalContent"
       onClose={onClose}
       title={preview === undefined ? value.item.displayName : t('confirmInstallTitle')}
       closeLabel={t('close')}
-      description={preview === undefined ? `${t('source')}: ${sourceLabel}` : t('confirmInstallBody')}
-      footer={footer}
+      {...(preview === undefined ? {} : { description: t('confirmInstallBody') })}
+      footer={<div className="dshMarketModalActions">{footer}</div>}
     >
-      {preview !== undefined ? (
-        <div className="dshMarketOperationReview">
-          <OperationFacts operation={preview} t={t} />
-          <div className="dshMarketOperationWarning"><StateDot state="warning" size={12} /><span>{t('operationWarning')}</span></div>
-          <div className="dshMarketOperationWarning">
-            <StateDot state="warning" size={12} />
-            <span>
-              {t('operationRiskBeforeContact')}
-              <a href={DSH_DESKTOP_ISSUES_URL} target="_blank" rel="noopener noreferrer">{t('contactUs')}</a>
-              {t('operationRiskAfterContact')}
-            </span>
+      <>
+        <ItemSourceRow source={value.source} t={t} />
+        {preview !== undefined ? (
+          <div className="dshMarketOperationReview">
+            <OperationFacts operation={preview} t={t} />
+            <div className="dshMarketOperationWarning"><StateDot state="warning" size={12} /><span>{t('operationWarning')}</span></div>
+            <div className="dshMarketOperationWarning">
+              <StateDot state="warning" size={12} />
+              <span>
+                {t('operationRiskBeforeContact')}
+                <a href={DSH_DESKTOP_ISSUES_URL} target="_blank" rel="noopener noreferrer">{t('contactUs')}</a>
+                {t('operationRiskAfterContact')}
+              </span>
+            </div>
+            <div className="dshMarketOperationWarning"><StateDot state="warning" size={12} /><span>{t('restartAfterOperation')}</span></div>
+            {pending && <div className="dshMarketOperationProgress" role="status"><StateDot state="ongoing" size={12} />{t('installing')}</div>}
+            {operationError !== undefined && <div className="dshMarketError" role="alert">{operationError}</div>}
           </div>
-          <div className="dshMarketOperationWarning"><StateDot state="warning" size={12} /><span>{t('restartAfterOperation')}</span></div>
-          {pending && <div className="dshMarketOperationProgress" role="status"><StateDot state="ongoing" size={12} />{t('installing')}</div>}
-          {operationError !== undefined && <div className="dshMarketError" role="alert">{operationError}</div>}
-        </div>
-      ) : (
-        <div className="dshMarketDetails">
-          <div className="dshMarketDetailsIntro">
-            <PluginIcon item={value.item} large />
-            <p>{value.item.description ?? value.item.summary}</p>
+        ) : (
+          <div className="dshMarketDetails">
+            <div className="dshMarketDetailsIntro">
+              <PluginIcon item={value.item} large />
+              <p>{value.item.description ?? value.item.summary}</p>
+            </div>
+            {checking && (
+              <div className="dshMarketOperationProgress" role="status">
+                <StateDot state="ongoing" size={12} />{t('checkingInstallMethod')}
+              </div>
+            )}
+            {!checking && operationError !== undefined && (
+              <div className="dshMarketBanner" role="alert">
+                <StateDot state="warning" />
+                <span>{operationError}</span>
+                <a href={verificationHelpHref} target="_blank" rel="noopener noreferrer">
+                  {t('verificationDetails')} <IconRightUpOutline16 size={12} />
+                </a>
+              </div>
+            )}
+            {!checking && manualInstall !== undefined ? (
+              <div className="dshMarketManualInstall">
+                <div><h3>{t('manualInstallTitle')}</h3><p>{t('manualInstallBody')}</p></div>
+                <div className="dshMarketCommand">
+                  <span>{t('installCommand')}</span>
+                  <code>{manualInstall.displayCommand}</code>
+                </div>
+                <div className="dshMarketOperationWarning"><StateDot state="warning" size={12} /><span>{t('manualNotVerified')}</span></div>
+                {manualInstall.mutable && (
+                  <div className="dshMarketOperationWarning"><StateDot state="warning" size={12} /><span>{t('mutableGithubWarning')}</span></div>
+                )}
+                <div className="dshMarketOperationWarning"><StateDot state="warning" size={12} /><span>{t('operationWarning')}</span></div>
+                <div className="dshMarketOperationWarning">
+                  <StateDot state="warning" size={12} />
+                  <span>
+                    {t('operationRiskBeforeContact')}
+                    <a href={DSH_DESKTOP_ISSUES_URL} target="_blank" rel="noopener noreferrer">{t('contactUs')}</a>
+                    {t('operationRiskAfterContact')}
+                  </span>
+                </div>
+              </div>
+            ) : !checking ? <div>{t('readOnly')}</div> : null}
+            {desktopActionError !== undefined && <div className="dshMarketError" role="alert">{desktopActionError}</div>}
           </div>
-          {checking && (
-            <div className="dshMarketOperationProgress" role="status">
-              <StateDot state="ongoing" size={12} />{t('checkingInstallMethod')}
-            </div>
-          )}
-          {!checking && operationError !== undefined && (
-            <div className="dshMarketBanner" role="alert">
-              <StateDot state="warning" />
-              <span>{operationError}</span>
-              <a href={verificationHelpHref} target="_blank" rel="noopener noreferrer">
-                {t('verificationDetails')} <IconRightUpOutline16 size={12} />
-              </a>
-            </div>
-          )}
-          {!checking && manualInstall !== undefined ? (
-            <div className="dshMarketManualInstall">
-              <div><h3>{t('manualInstallTitle')}</h3><p>{t('manualInstallBody')}</p></div>
-              <div className="dshMarketCommand">
-                <span>{t('installCommand')}</span>
-                <code>{manualInstall.displayCommand}</code>
-              </div>
-              <div className="dshMarketOperationWarning"><StateDot state="warning" size={12} /><span>{t('manualNotVerified')}</span></div>
-              {manualInstall.mutable && (
-                <div className="dshMarketOperationWarning"><StateDot state="warning" size={12} /><span>{t('mutableGithubWarning')}</span></div>
-              )}
-              <div className="dshMarketOperationWarning"><StateDot state="warning" size={12} /><span>{t('operationWarning')}</span></div>
-              <div className="dshMarketOperationWarning">
-                <StateDot state="warning" size={12} />
-                <span>
-                  {t('operationRiskBeforeContact')}
-                  <a href={DSH_DESKTOP_ISSUES_URL} target="_blank" rel="noopener noreferrer">{t('contactUs')}</a>
-                  {t('operationRiskAfterContact')}
-                </span>
-              </div>
-            </div>
-          ) : !checking ? <div>{t('readOnly')}</div> : null}
-          {desktopActionError !== undefined && <div className="dshMarketError" role="alert">{desktopActionError}</div>}
-        </div>
-      )}
+        )}
+      </>
     </Modal>
   )
 }

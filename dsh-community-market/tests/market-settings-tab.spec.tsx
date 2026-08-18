@@ -51,6 +51,13 @@ const props = { initialView: 'discover', t, readLocale: () => 'en' } as MarketSe
 const desktopActions = { openTerminal: true, requestRestart: true } as const
 const emptyState: MarketStateResponse = { sources: [], builtIns: [], desktopActions }
 
+function expectMarketModal(dialog: HTMLElement, sizeClass: string): void {
+  expect(dialog.classList.contains('dshMarketModal')).toBe(true)
+  expect(dialog.classList.contains(sizeClass)).toBe(true)
+  expect(dialog.querySelector('.dshMarketModalContent')).not.toBeNull()
+  expect(dialog.querySelector('.dshMarketModalActions')).not.toBeNull()
+}
+
 const firstSource: MarketSourceView = {
   sourceRecordId: '018f1f77-a5c4-7b73-a9ae-0242ac120002',
   registrationKind: 'built-in',
@@ -319,7 +326,10 @@ describe('MarketSettingsTab', () => {
     expect(screen.getByRole('dialog')).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Fixture Plugin' })).toBeTruthy()
     expect(screen.getByText('Fixture Plugin details')).toBeTruthy()
-    expect(screen.getAllByText(`${en.source}: Fixture catalog · Fixture provider`)).toHaveLength(2)
+    expect(screen.getByText(`${en.source}: Fixture catalog · Fixture provider`)).toBeTruthy()
+    expect(within(screen.getByRole('dialog')).getByRole('link', {
+      name: `${en.source}: Fixture catalog · Fixture provider`,
+    })).toBeTruthy()
   })
 
   it('keeps the official plugin glyph when a same-origin icon cannot be loaded', async () => {
@@ -360,7 +370,10 @@ describe('MarketSettingsTab', () => {
     fireEvent.click(card)
 
     expect(await screen.findByText('dsh plugin add github:example/manual-github-plugin')).toBeTruthy()
-    expect(screen.getByRole('dialog', { name: item.displayName }).classList.contains('dshMarketWideModal')).toBe(true)
+    const dialog = screen.getByRole('dialog', { name: item.displayName })
+    expectMarketModal(dialog, 'dshMarketWideModal')
+    const sourceLink = within(dialog).getByRole('link', { name: `${en.source}: Fixture catalog · Fixture provider` }) as HTMLAnchorElement
+    expect(sourceLink.href).toBe('https://catalog.example/')
     expect(screen.getAllByRole('dialog')).toHaveLength(1)
     expect(screen.getByText(en.manualNotVerified)).toBeTruthy()
     expect(screen.getByText(en.mutableGithubWarning)).toBeTruthy()
@@ -448,17 +461,18 @@ describe('MarketSettingsTab', () => {
   })
 
   it('previews an exact package and profile before install, executes only its preview id, and prompts for restart', async () => {
-    const item = makeInstallableItem(firstSource)
-    const installCatalog = catalogForSource(firstSource, [item])
+    const linkedSource = { ...firstSource, homepage: 'https://fixture-home.example/catalog' }
+    const item = makeInstallableItem(linkedSource)
+    const installCatalog = catalogForSource(linkedSource, [item])
     const receipt = makeReceipt({
       packageName: item.package!.name,
       version: item.latestVersion!,
       itemId: item.id,
       displayName: item.displayName,
     })
-    vi.mocked(readMarketState).mockResolvedValue(enabledState)
+    vi.mocked(readMarketState).mockResolvedValue({ ...enabledState, sources: [linkedSource] })
     vi.mocked(readMarketCatalog).mockResolvedValue(installCatalog)
-    vi.mocked(readMarketInstallable).mockResolvedValue(installableResponse([item]))
+    vi.mocked(readMarketInstallable).mockResolvedValue(installableResponse([item], linkedSource))
     const preview = {
       action: 'install',
       profileName: 'web',
@@ -481,7 +495,14 @@ describe('MarketSettingsTab', () => {
     await screen.findByRole('button', { name: /Installable Plugin/u })
     fireEvent.click(screen.getByRole('button', { name: en.installable }))
     fireEvent.click(await screen.findByRole('button', { name: `${en.install}: ${item.displayName}` }))
-    expect(screen.getByRole('dialog', { name: item.displayName })).toBeTruthy()
+    const detailsDialog = screen.getByRole('dialog', { name: item.displayName })
+    expectMarketModal(detailsDialog, 'dshMarketWideModal')
+    expect(detailsDialog.classList.contains('dshMarketConfirmModal')).toBe(false)
+    const detailsSource = within(detailsDialog).getByRole('link', { name: `${en.source}: Fixture catalog · Fixture provider` }) as HTMLAnchorElement
+    expect(detailsSource.href).toBe('https://fixture-home.example/catalog')
+    expect(detailsSource.target).toBe('_blank')
+    expect(detailsSource.rel).toContain('noopener')
+    expect(detailsSource.rel).toContain('noreferrer')
     expect(screen.getByText(en.checkingInstallMethod)).toBeTruthy()
     expect(screen.getAllByRole('dialog')).toHaveLength(1)
     await waitFor(() => {
@@ -492,7 +513,12 @@ describe('MarketSettingsTab', () => {
       }, expect.any(AbortSignal))
     })
     await act(async () => { resolvePreview?.(preview) })
-    expect((await screen.findByRole('dialog', { name: en.confirmInstallTitle })).classList.contains('dshMarketConfirmModal')).toBe(true)
+    const previewDialog = await screen.findByRole('dialog', { name: en.confirmInstallTitle })
+    expect(previewDialog).toBe(detailsDialog)
+    expectMarketModal(previewDialog, 'dshMarketWideModal')
+    expect(previewDialog.classList.contains('dshMarketConfirmModal')).toBe(false)
+    const previewSource = within(previewDialog).getByRole('link', { name: `${en.source}: Fixture catalog · Fixture provider` }) as HTMLAnchorElement
+    expect(previewSource.href).toBe('https://fixture-home.example/catalog')
     expect(screen.getAllByRole('dialog')).toHaveLength(1)
     expect(screen.getByText(receipt.packageName)).toBeTruthy()
     expect(screen.getByText(receipt.version)).toBeTruthy()
@@ -511,7 +537,7 @@ describe('MarketSettingsTab', () => {
     await waitFor(() => {
       expect(executeMarketOperation).toHaveBeenCalledWith('opaque-install-preview', expect.any(AbortSignal))
     })
-    expect(await screen.findByRole('dialog', { name: en.installComplete })).toBeTruthy()
+    expectMarketModal(await screen.findByRole('dialog', { name: en.installComplete }), 'dshMarketStatusModal')
     expect(screen.getByText(en.restartRequiredBody)).toBeTruthy()
     expect(screen.getByRole('button', { name: en.restartLater })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: en.restartNow }))
@@ -524,6 +550,27 @@ describe('MarketSettingsTab', () => {
       expect(readMarketState).toHaveBeenCalledTimes(1)
       expect(readMarketCatalog).toHaveBeenCalledTimes(1)
     })
+  })
+
+  it('renders an unsafe item source as plain text without an external link', async () => {
+    const unsafeSource: MarketSourceView = {
+      ...firstSource,
+      homepage: 'http://unsafe.example/catalog',
+      attribution: {
+        name: 'Unsafe provider claim',
+        url: 'https://user@example.com/catalog',
+      },
+    }
+    const item = makeItem(unsafeSource, 'unsafe-source-plugin', 'Unsafe Source Plugin')
+    vi.mocked(readMarketState).mockResolvedValue({ ...enabledState, sources: [unsafeSource] })
+    vi.mocked(readMarketCatalog).mockResolvedValue(catalogForSource(unsafeSource, [item]))
+    vi.mocked(previewMarketOperation).mockRejectedValue(new Error('managed install unavailable'))
+    render(<MarketSettingsTab {...props} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Unsafe Source Plugin/u }))
+    const dialog = await screen.findByRole('dialog', { name: item.displayName })
+    expect(within(dialog).getByText('Fixture catalog · Unsafe provider claim')).toBeTruthy()
+    expect(within(dialog).queryByRole('link', { name: `${en.source}: Fixture catalog · Unsafe provider claim` })).toBeNull()
   })
 
   it('links failed install verification to the standard-plugin requirements', async () => {
@@ -581,14 +628,14 @@ describe('MarketSettingsTab', () => {
         expect.any(AbortSignal),
       )
     })
-    expect((await screen.findByRole('dialog', { name: en.confirmUninstallTitle })).classList.contains('dshMarketConfirmModal')).toBe(true)
+    expectMarketModal(await screen.findByRole('dialog', { name: en.confirmUninstallTitle }), 'dshMarketConfirmModal')
     expect(screen.getByText(receipt.version)).toBeTruthy()
     expect(screen.getByText(receipt.profileName)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: en.confirmUninstall }))
     await waitFor(() => {
       expect(executeMarketOperation).toHaveBeenCalledWith('opaque-uninstall-preview', expect.any(AbortSignal))
     })
-    expect(await screen.findByRole('dialog', { name: en.uninstallComplete })).toBeTruthy()
+    expectMarketModal(await screen.findByRole('dialog', { name: en.uninstallComplete }), 'dshMarketStatusModal')
     expect(screen.getByText(en.restartRequiredBody)).toBeTruthy()
     expect(readMarketCatalog).not.toHaveBeenCalled()
   })
@@ -639,14 +686,14 @@ describe('MarketSettingsTab', () => {
         expect.any(AbortSignal),
       )
     })
-    expect(await screen.findByRole('dialog', { name: en.confirmDisableTitle })).toBeTruthy()
+    expectMarketModal(await screen.findByRole('dialog', { name: en.confirmDisableTitle }), 'dshMarketConfirmModal')
     expect(screen.getByText(en.disableWarning)).toBeTruthy()
     expect(screen.getByText(en.disableRecoveryWarning)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: en.confirmDisable }))
     await waitFor(() => {
       expect(executeMarketOperation).toHaveBeenCalledWith('opaque-disable-preview', expect.any(AbortSignal))
     })
-    expect(await screen.findByRole('dialog', { name: en.disableComplete })).toBeTruthy()
+    expectMarketModal(await screen.findByRole('dialog', { name: en.disableComplete }), 'dshMarketStatusModal')
     expect(screen.getByText(en.restartRequiredBody)).toBeTruthy()
   })
 
@@ -685,24 +732,31 @@ describe('MarketSettingsTab', () => {
       )
     })
     const confirmation = await screen.findByRole('dialog', { name: en.confirmEnableTitle })
-    expect(confirmation.classList.contains('dshMarketConfirmModal')).toBe(true)
+    expectMarketModal(confirmation, 'dshMarketConfirmModal')
     expect(screen.getByText(en.enableWarning)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: en.confirmEnable }))
     await waitFor(() => {
       expect(executeMarketOperation).toHaveBeenCalledWith('opaque-enable-preview', expect.any(AbortSignal))
     })
-    expect(await screen.findByRole('dialog', { name: en.enableComplete })).toBeTruthy()
+    expectMarketModal(await screen.findByRole('dialog', { name: en.enableComplete }), 'dshMarketStatusModal')
     expect(screen.getByText(en.restartRequiredBody)).toBeTruthy()
   })
 
-  it('offers enable for disabled mutable bundles while keeping managed uninstall and immutable bundles read-only', async () => {
-    const receipt = makeReceipt({ displayName: 'Disabled managed plugin' })
-    const managedBundleId = 'opaque-managed-bundle-id'
+  it('offers disable and uninstall for active managed bundles, enable and uninstall for disabled managed bundles, and keeps immutable bundles read-only', async () => {
+    const activeReceipt = makeReceipt({
+      receiptId: '018f1f77-a5c4-7b73-a9ae-0242ac120097',
+      packageName: 'dsh-plugin-active-managed',
+      displayName: 'Active managed plugin',
+    })
+    const disabledReceipt = makeReceipt({ displayName: 'Disabled managed plugin' })
+    const activeManagedBundleId = 'opaque-active-managed-bundle-id'
+    const disabledManagedBundleId = 'opaque-disabled-managed-bundle-id'
     const externalBundleId = 'opaque-external-bundle-id'
     vi.mocked(readMarketState).mockResolvedValue(emptyState)
     vi.mocked(readMarketInstallations).mockResolvedValue({
       installations: [
-        { kind: 'managed', status: 'disabled', action: 'uninstall', enableBundleId: managedBundleId, receipt },
+        { kind: 'managed', status: 'active', action: 'uninstall', disableBundleId: activeManagedBundleId, receipt: activeReceipt },
+        { kind: 'managed', status: 'disabled', action: 'uninstall', enableBundleId: disabledManagedBundleId, receipt: disabledReceipt },
         {
           kind: 'external',
           status: 'disabled',
@@ -717,13 +771,86 @@ describe('MarketSettingsTab', () => {
 
     await screen.findByRole('heading', { name: en.emptyTitle })
     fireEvent.click(screen.getByRole('button', { name: en.installed }))
-    expect(await screen.findByRole('button', { name: `${en.uninstall}: ${receipt.displayName}` })).toBeTruthy()
-    expect(screen.getByRole('button', { name: `${en.enable}: ${receipt.displayName}` })).toBeTruthy()
+    expect(await screen.findByRole('button', { name: `${en.disable}: ${activeReceipt.displayName}` })).toBeTruthy()
+    expect(screen.getByRole('button', { name: `${en.uninstall}: ${activeReceipt.displayName}` })).toBeTruthy()
+    expect(screen.getByRole('button', { name: `${en.enable}: ${disabledReceipt.displayName}` })).toBeTruthy()
+    expect(screen.getByRole('button', { name: `${en.uninstall}: ${disabledReceipt.displayName}` })).toBeTruthy()
     expect(screen.getByRole('button', { name: `${en.enable}: dsh-plugin-disabled-external` })).toBeTruthy()
     expect(screen.getAllByText(en.disabledPlugin).length).toBeGreaterThanOrEqual(2)
     expect(screen.getByText(en.immutablePlugin)).toBeTruthy()
-    expect(screen.queryByRole('button', { name: new RegExp(`^${en.disable}:`, 'u') })).toBeNull()
+    expect(screen.queryByRole('button', { name: `${en.disable}: ${disabledReceipt.displayName}` })).toBeNull()
+    expect(screen.queryByRole('button', { name: `${en.enable}: ${activeReceipt.displayName}` })).toBeNull()
     expect(screen.queryByRole('button', { name: `${en.enable}: dsh-plugin-desktop` })).toBeNull()
+  })
+
+  it('keeps a managed receipt while locally transitioning its exact bundle between active and disabled', async () => {
+    const receipt = makeReceipt({ displayName: 'Mutable managed plugin' })
+    const bundleId = 'opaque-mutable-managed-bundle-id'
+    vi.mocked(readMarketState).mockResolvedValue(emptyState)
+    vi.mocked(readMarketInstallations)
+      .mockResolvedValueOnce({
+        installations: [{ kind: 'managed', status: 'active', action: 'uninstall', disableBundleId: bundleId, receipt }],
+      })
+      .mockReturnValue(new Promise(() => {}))
+    vi.mocked(previewMarketOperation)
+      .mockResolvedValueOnce({
+        action: 'disable',
+        profileName: receipt.profileName,
+        packageName: receipt.packageName,
+        displayName: receipt.displayName,
+        expiresAt: '2026-08-18T00:05:00.000Z',
+        previewId: 'opaque-managed-disable-preview',
+      })
+      .mockResolvedValueOnce({
+        action: 'enable',
+        profileName: receipt.profileName,
+        packageName: receipt.packageName,
+        displayName: receipt.displayName,
+        expiresAt: '2026-08-18T00:05:00.000Z',
+        previewId: 'opaque-managed-enable-preview',
+      })
+    vi.mocked(executeMarketOperation)
+      .mockResolvedValueOnce({
+        action: 'disable',
+        packageName: receipt.packageName,
+        restartToken: 'opaque-managed-disable-restart',
+      })
+      .mockResolvedValueOnce({
+        action: 'enable',
+        packageName: receipt.packageName,
+        restartToken: 'opaque-managed-enable-restart',
+      })
+    render(<MarketSettingsTab {...props} />)
+
+    await screen.findByRole('heading', { name: en.emptyTitle })
+    fireEvent.click(screen.getByRole('button', { name: en.installed }))
+    fireEvent.click(await screen.findByRole('button', { name: `${en.disable}: ${receipt.displayName}` }))
+    await waitFor(() => {
+      expect(previewMarketOperation).toHaveBeenNthCalledWith(
+        1,
+        { action: 'disable', bundleId },
+        expect.any(AbortSignal),
+      )
+    })
+    fireEvent.click(await screen.findByRole('button', { name: en.confirmDisable }))
+    await screen.findByRole('dialog', { name: en.disableComplete })
+    fireEvent.click(screen.getByRole('button', { name: en.restartLater }))
+    expect(await screen.findByRole('button', { name: `${en.enable}: ${receipt.displayName}` })).toBeTruthy()
+    expect(screen.getByRole('button', { name: `${en.uninstall}: ${receipt.displayName}` })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: `${en.enable}: ${receipt.displayName}` }))
+    await waitFor(() => {
+      expect(previewMarketOperation).toHaveBeenNthCalledWith(
+        2,
+        { action: 'enable', bundleId },
+        expect.any(AbortSignal),
+      )
+    })
+    fireEvent.click(await screen.findByRole('button', { name: en.confirmEnable }))
+    await screen.findByRole('dialog', { name: en.enableComplete })
+    fireEvent.click(screen.getByRole('button', { name: en.restartLater }))
+    expect(await screen.findByRole('button', { name: `${en.disable}: ${receipt.displayName}` })).toBeTruthy()
+    expect(screen.getByRole('button', { name: `${en.uninstall}: ${receipt.displayName}` })).toBeTruthy()
   })
 
   it('explains that package operations require Desktop when the optional Host capability returns 503', async () => {

@@ -447,7 +447,15 @@ function reconcileInstallations(
       ? receiptsByPackage.get(bundle.packageName)
       : undefined
     if (receipt !== undefined) {
-      return bundle.status === 'disabled' && bundle.mutable
+      return bundle.mutable && bundle.status === 'active'
+        ? [{
+            kind: 'managed',
+            status: 'active',
+            action: 'uninstall',
+            disableBundleId: bundle.bundleId,
+            receipt,
+          }]
+        : bundle.mutable && bundle.status === 'disabled'
         ? [{
             kind: 'managed',
             status: 'disabled',
@@ -634,9 +642,15 @@ export function registerMarketRoutes(
     expiresAt: number,
     bundleId: string,
     packageName: string,
+    receiptId?: string,
   ) => {
     purgeDesktopTokens()
-    disablePreviews.set(previewId, { expiresAt, bundleId, packageName })
+    disablePreviews.set(previewId, {
+      expiresAt,
+      bundleId,
+      packageName,
+      ...(receiptId === undefined ? {} : { receiptId }),
+    })
     while (disablePreviews.size > 256) {
       const oldest = disablePreviews.keys().next().value as string | undefined
       if (oldest === undefined) break
@@ -967,13 +981,7 @@ export function registerMarketRoutes(
             const managedReceipt = matchingReceipts.length === 1 && packageBundleCount === 1
               ? matchingReceipts[0]
               : undefined
-            if (request.action === 'disable' && matchingReceipts.length > 0) {
-              throw new MarketInstallError(
-                'conflict',
-                'Market-managed plugins must be uninstalled rather than disabled.',
-              )
-            }
-            if (request.action === 'enable' && matchingReceipts.length > 0 && managedReceipt === undefined) {
+            if (matchingReceipts.length > 0 && managedReceipt === undefined) {
               throw new MarketInstallError('conflict', 'The selected plugin bundle ownership is ambiguous.')
             }
             let preview: MarketDesktopPluginDisablePreview | MarketDesktopPluginEnablePreview
@@ -1011,6 +1019,7 @@ export function registerMarketRoutes(
                 expiresAt,
                 request.bundleId,
                 preview.packageName,
+                managedReceipt?.receiptId,
               )
             } else {
               rememberEnablePreview(
@@ -1075,7 +1084,8 @@ export function registerMarketRoutes(
             if (desktopPlugins === undefined || install === undefined) {
               throw new MarketInstallError('not-available', 'Desktop plugin management is unavailable.')
             }
-            const currentTarget = desktopPlugins.list()
+            const currentInventory = desktopPlugins.list()
+            const currentTarget = currentInventory
               .find(bundle => bundle.bundleId === desktopPreview.bundleId)
             const expectedStatus = action === 'disable' ? 'active' : 'disabled'
             if (
@@ -1093,8 +1103,17 @@ export function registerMarketRoutes(
             }
             const matchingReceipts = (await install.listVerifiedReceipts(generationController.signal))
               .filter(receipt => receipt.packageName === desktopPreview.packageName)
-            if (action === 'disable' && matchingReceipts.length > 0) {
-              throw new MarketInstallError('conflict', 'Market-managed plugins must be uninstalled rather than disabled.')
+            if (action === 'disable') {
+              const packageBundleCount = currentInventory
+                .filter(bundle => bundle.packageName === desktopPreview.packageName).length
+              const ownershipUnchanged = desktopPreview.receiptId === undefined
+                ? matchingReceipts.length === 0
+                : packageBundleCount === 1
+                  && matchingReceipts.length === 1
+                  && matchingReceipts[0]?.receiptId === desktopPreview.receiptId
+              if (!ownershipUnchanged) {
+                throw new MarketInstallError('conflict', 'The selected plugin ownership changed before it could be disabled.')
+              }
             }
             if (action === 'enable') {
               const receiptUnchanged = desktopPreview.receiptId === undefined

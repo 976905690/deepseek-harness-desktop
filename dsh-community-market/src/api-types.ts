@@ -107,6 +107,8 @@ export type MarketInstallationView =
       readonly kind: 'managed'
       readonly status: 'active' | 'disabled'
       readonly action: 'uninstall'
+      /** An active mutable bundle can be disabled without surrendering uninstall ownership. */
+      readonly disableBundleId?: string
       /** A disabled mutable bundle can be enabled without surrendering uninstall ownership. */
       readonly enableBundleId?: string
       readonly receipt: MarketInstallReceipt

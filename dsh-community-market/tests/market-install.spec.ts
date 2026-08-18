@@ -1274,6 +1274,35 @@ describe('market install Host routes', () => {
     })).resolves.toMatchObject({ status: 200, body: { action: 'enable' } })
     await expect(request(marketRoutes.operationExecute, 'POST', { previewId: 'enable_opaque_preview' }))
       .resolves.toMatchObject({ status: 200, body: { action: 'enable' } })
+
+    await expect(request(marketRoutes.installations, 'GET')).resolves.toMatchObject({
+      status: 200,
+      body: {
+        installations: [{
+          kind: 'managed',
+          status: 'active',
+          action: 'uninstall',
+          disableBundleId: bundle.bundleId,
+          receipt: { receiptId: receiptRace.receiptId },
+        }],
+      },
+    })
+
+    await expect(request(marketRoutes.operationPreview, 'POST', {
+      action: 'disable',
+      bundleId: bundle.bundleId,
+    })).resolves.toMatchObject({ status: 200, body: { action: 'disable' } })
+    listVerifiedReceipts.mockResolvedValue([{ ...receiptRace, receiptId: 'receipt-race-0002' }])
+    await expect(request(marketRoutes.operationExecute, 'POST', { previewId: 'disable_opaque_preview' }))
+      .resolves.toMatchObject({ status: 409, body: { code: 'conflict' } })
+
+    listVerifiedReceipts.mockResolvedValue([receiptRace])
+    await expect(request(marketRoutes.operationPreview, 'POST', {
+      action: 'disable',
+      bundleId: bundle.bundleId,
+    })).resolves.toMatchObject({ status: 200, body: { action: 'disable' } })
+    await expect(request(marketRoutes.operationExecute, 'POST', { previewId: 'disable_opaque_preview' }))
+      .resolves.toMatchObject({ status: 200, body: { action: 'disable' } })
     expect(install.listInstallable).not.toHaveBeenCalled()
     dispose()
   })
