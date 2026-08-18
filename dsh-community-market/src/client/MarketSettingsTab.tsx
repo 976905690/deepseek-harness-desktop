@@ -311,24 +311,45 @@ export function MarketSurface({ initialView = 'installable', readLocale, t, show
     readRequest.current = request
     setLoading(true)
     setError(undefined)
+    let catalogApplied = false
+    const applyCatalog = (next: MarketCatalogResponse): MarketCatalogResponse | undefined => {
+      const retained = retainEnabledCatalog(next, nextState.sources)
+      const result = retained?.results[0]
+      if (retained === undefined || result?.snapshot === undefined) return undefined
+      rememberCategories(retained)
+      setAppliedQuery(effectiveQuery)
+      setSelectedCategories([...categories])
+      setCatalog(retained)
+      catalogApplied = true
+      return retained
+    }
     try {
       const next = forceRefresh
         ? await readMarketCatalog(selected.sourceRecordId, effectiveQuery, readLocale(), categories, request.signal, true)
         : await readMarketCatalog(selected.sourceRecordId, effectiveQuery, readLocale(), categories, request.signal)
       if (!request.signal.aborted && readRequest.current === request) {
-        const retained = retainEnabledCatalog(next, nextState.sources)
-        const result = retained?.results[0]
-        if (retained === undefined || result?.snapshot === undefined) {
+        const retained = applyCatalog(next)
+        if (retained === undefined) {
           setError(t('catalogError'))
           return
         }
-        rememberCategories(retained)
-        setAppliedQuery(effectiveQuery)
-        setSelectedCategories([...categories])
-        setCatalog(retained)
+        if (!forceRefresh
+          && effectiveQuery === ''
+          && categories.length === 0
+          && retained.results[0]?.stale === true) {
+          const refreshed = await readMarketCatalog(
+            selected.sourceRecordId,
+            effectiveQuery,
+            readLocale(),
+            categories,
+            request.signal,
+            true,
+          )
+          if (!request.signal.aborted && readRequest.current === request) applyCatalog(refreshed)
+        }
       }
     } catch {
-      if (!request.signal.aborted && readRequest.current === request) setError(t('catalogError'))
+      if (!request.signal.aborted && readRequest.current === request && !catalogApplied) setError(t('catalogError'))
     } finally {
       if (readRequest.current === request) {
         readRequest.current = undefined
