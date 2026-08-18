@@ -27,6 +27,7 @@ function viewModel(
     diagnostics: { status: 'saving' },
     busy: false,
     restartReady: false,
+    configurationAvailable: false,
     ...overrides,
   }
 }
@@ -109,6 +110,17 @@ describe('Desktop startup recovery document', () => {
     expect(html).not.toContain('dsh-recovery://preview-rollback')
     expect(html).not.toContain('dsh-recovery://preview-retry')
     expect(html).not.toContain('dsh-recovery://confirm-')
+    expect(html).not.toContain('dsh-recovery://open-profile-patch')
+  })
+
+  it('offers only fixed profile configuration targets when main provides them', () => {
+    const html = renderDesktopStartupRecoveryHtml(viewModel({ configurationAvailable: true }))
+
+    expect(html).toContain('手动编辑配置')
+    expect(html).toContain('dsh-recovery://open-profile-patch')
+    expect(html).toContain('dsh-recovery://open-profile-manifest')
+    expect(html).toContain('dsh-recovery://open-profile-directory')
+    expect(html).not.toContain('/Users/')
   })
 
   it('offers both rollback and one retry for a recovery-pending install', () => {
@@ -228,6 +240,9 @@ describe('Desktop startup recovery action parser', () => {
       'home',
       'export-diagnostics',
       'show-diagnostics',
+      'open-profile-patch',
+      'open-profile-manifest',
+      'open-profile-directory',
       'restart',
       'quit',
     ]) {

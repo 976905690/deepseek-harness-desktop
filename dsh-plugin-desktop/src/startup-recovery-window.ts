@@ -50,10 +50,18 @@ interface RecoveryDiagnosticsState {
 
 export interface DesktopStartupRecoveryWindowOptions {
   readonly controller?: DesktopStartupRecoveryController
+  /** Fixed active-profile paths selected by the main process. */
+  readonly configurationPaths?: DesktopStartupRecoveryConfigurationPaths
   readonly locale: DesktopLocale
   readonly failureStage: DesktopStartupFailureStage
   readonly failureDetail: string
   readonly exportDiagnostics: () => Promise<string>
+}
+
+export interface DesktopStartupRecoveryConfigurationPaths {
+  readonly profilePatch: string
+  readonly profileManifest: string
+  readonly profileDirectory: string
 }
 
 export interface DesktopStartupRecoveryScreenApi {
@@ -132,6 +140,7 @@ export interface DesktopStartupRecoveryViewModel {
   readonly notice?: RecoveryNotice
   readonly busy: boolean
   readonly restartReady: boolean
+  readonly configurationAvailable: boolean
 }
 
 interface RecoveryCopy {
@@ -176,6 +185,11 @@ interface RecoveryCopy {
   readonly retrySuccess: string
   readonly manualRequired: string
   readonly diagnosticsRequired: string
+  readonly manualConfiguration: string
+  readonly manualConfigurationBody: string
+  readonly openProfilePatch: string
+  readonly openProfileManifest: string
+  readonly openProfileDirectory: string
 }
 
 const COPY: Record<DesktopLocale, RecoveryCopy> = {
@@ -231,6 +245,11 @@ const COPY: Record<DesktopLocale, RecoveryCopy> = {
     retrySuccess: 'One startup retry was authorized. Restart Desktop to continue.',
     manualRequired: 'The protected files changed outside the known install transaction. Desktop did not overwrite them.',
     diagnosticsRequired: 'Diagnostics were not saved, so configuration recovery was not started.',
+    manualConfiguration: 'Edit configuration manually',
+    manualConfigurationBody: 'Use the system editor for patch overrides or the plugin manifest for duplicate bundle entries. This recovery page cannot choose an arbitrary path.',
+    openProfilePatch: 'Edit configuration patch',
+    openProfileManifest: 'Edit plugin manifest',
+    openProfileDirectory: 'Open configuration folder',
   },
   zh: {
     title: 'DSH Desktop 恢复',
@@ -284,6 +303,11 @@ const COPY: Record<DesktopLocale, RecoveryCopy> = {
     retrySuccess: '已授权一次启动重试。请重新启动 Desktop。',
     manualRequired: '受保护文件出现了安装事务之外的改动。为避免覆盖你的修改，Desktop 没有恢复这些文件。',
     diagnosticsRequired: '诊断信息尚未保存，因此没有开始恢复配置。',
+    manualConfiguration: '手动编辑配置',
+    manualConfigurationBody: '配置覆盖错误请编辑补丁文件；插件重复加载请编辑插件加载清单。恢复页面不能选择任意路径。',
+    openProfilePatch: '编辑配置补丁',
+    openProfileManifest: '编辑插件加载清单',
+    openProfileDirectory: '打开配置目录',
   },
 }
 
@@ -345,12 +369,15 @@ export function renderDesktopStartupRecoveryHtml(model: DesktopStartupRecoveryVi
   const diagnosticAction = model.diagnostics.status === 'saved'
     ? button(copy.showDiagnostics, 'show-diagnostics')
     : button(copy.saveDiagnostics, 'export-diagnostics')
+  const configurationHtml = model.configurationAvailable
+    ? `<section class="card"><h2>${escapeHtml(copy.manualConfiguration)}</h2><p>${escapeHtml(copy.manualConfigurationBody)}</p><div class="actions">${button(copy.openProfilePatch, 'open-profile-patch')}${button(copy.openProfileManifest, 'open-profile-manifest')}${button(copy.openProfileDirectory, 'open-profile-directory')}</div></section>`
+    : ''
   const restart = model.restartReady || pending === undefined
     ? button(copy.restart, 'restart', undefined, model.restartReady)
     : ''
   const body = confirmation.length > 0
     ? confirmation
-    : `${pendingHtml}${bundlesHtml}<section class="card"><h2>${escapeHtml(copy.diagnostics)}</h2><p>${escapeHtml(diagnosticsText)}</p>${model.diagnostics.filename === undefined ? '' : `<p><code>${escapeHtml(model.diagnostics.filename)}</code></p>`}<p class="muted">${escapeHtml(copy.privacy)}</p><div class="actions">${diagnosticAction}</div></section>`
+    : `${pendingHtml}${bundlesHtml}${configurationHtml}<section class="card"><h2>${escapeHtml(copy.diagnostics)}</h2><p>${escapeHtml(diagnosticsText)}</p>${model.diagnostics.filename === undefined ? '' : `<p><code>${escapeHtml(model.diagnostics.filename)}</code></p>`}<p class="muted">${escapeHtml(copy.privacy)}</p><div class="actions">${diagnosticAction}</div></section>`
   return `<!doctype html>
 <html lang="${model.locale === 'zh' ? 'zh-CN' : 'en'}">
 <head>
@@ -397,6 +424,9 @@ export function parseDesktopStartupRecoveryAction(
     'confirm-retry',
     'export-diagnostics',
     'show-diagnostics',
+    'open-profile-patch',
+    'open-profile-manifest',
+    'open-profile-directory',
     'restart',
     'quit',
   ])
@@ -549,6 +579,12 @@ export class DesktopStartupRecoveryWindow {
         await this.diagnosticTask.catch(() => {})
       } else if (action.action === 'show-diagnostics' && this.diagnosticPath !== undefined) {
         shell.showItemInFolder(this.diagnosticPath)
+      } else if (action.action === 'open-profile-patch') {
+        await this.openConfigurationPath('profilePatch')
+      } else if (action.action === 'open-profile-manifest') {
+        await this.openConfigurationPath('profileManifest')
+      } else if (action.action === 'open-profile-directory') {
+        await this.openConfigurationPath('profileDirectory')
       } else if (action.action === 'restart') {
         this.finish('restart')
         return
@@ -628,6 +664,7 @@ export class DesktopStartupRecoveryWindow {
       ...(this.notice === undefined ? {} : { notice: this.notice }),
       busy: this.busy,
       restartReady: this.restartReady,
+      configurationAvailable: this.options.configurationPaths !== undefined,
     })
     await window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
   }
@@ -647,6 +684,15 @@ export class DesktopStartupRecoveryWindow {
       throw new Error('Desktop plugin recovery actions are unavailable for this startup stage.')
     }
     return this.options.controller
+  }
+
+  private async openConfigurationPath(
+    kind: keyof DesktopStartupRecoveryConfigurationPaths,
+  ): Promise<void> {
+    const path = this.options.configurationPaths?.[kind]
+    if (path === undefined) throw new Error('Desktop profile configuration is unavailable for this startup stage.')
+    const error = await shell.openPath(path)
+    if (error.length > 0) throw new Error(error)
   }
 }
 
