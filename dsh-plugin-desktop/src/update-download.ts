@@ -1,8 +1,8 @@
 /** Headless, confirmation-gated downloads for DSH Desktop installers. */
 
 import { randomUUID } from 'node:crypto'
-import { chmod, lstat, mkdir, open, rename, unlink } from 'node:fs/promises'
-import { isAbsolute, join, resolve } from 'node:path'
+import { lstat, open, rename, unlink } from 'node:fs/promises'
+import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path'
 import { parseSemVer } from './update-checker.ts'
 
 /** Desktop platforms with a fixed installer download endpoint. */
@@ -34,10 +34,10 @@ export type UpdateArtifactRequest = (url: string, init: RequestInit) => Promise<
 export interface DownloadDesktopUpdateOptions {
   /** Host platform selecting the fixed endpoint and installer validation. */
   readonly platform: DesktopDownloadPlatform
-  /** Stable release version used as one private directory segment. */
+  /** Stable release version used to validate the selected installer. */
   readonly version: string
-  /** Absolute Electron user-data directory that owns update artifacts. */
-  readonly userDataPath: string
+  /** Absolute installer path selected by the user. */
+  readonly destinationPath: string
   /** Request implementation, normally backed by Electron `net.fetch`. */
   readonly request: UpdateArtifactRequest
   /** Optional cancellation signal owned by the update coordinator. */
@@ -69,7 +69,6 @@ export class UpdateDownloadError extends Error {
   }
 }
 
-const PRIVATE_DIRECTORY_MODE = 0o700
 const PRIVATE_FILE_MODE = 0o600
 const DECIMAL_BYTES = /^(0|[1-9][0-9]*)$/u
 const DMG_TRAILER_BYTES = 512
@@ -79,22 +78,21 @@ const PE_OFFSET_POSITION = 0x3c
 const PE_MAGIC = Buffer.from([0x50, 0x45, 0x00, 0x00])
 
 interface DownloadPaths {
-  readonly directory: string
   readonly completed: string
   readonly temporary: string
 }
 
 /**
  * Download one installer after its caller has obtained user confirmation.
- * @param options - Fixed platform, release version, private storage, request, and cancellation inputs.
+ * @param options - Fixed platform, release version, selected destination, request, and cancellation inputs.
  * @returns Absolute path to the completely written and validated installer.
  * @throws {UpdateDownloadError} For invalid inputs, transport failures, rejected responses, cancellation, and invalid installers.
  */
 export async function downloadDesktopUpdate(options: DownloadDesktopUpdateOptions): Promise<string> {
   const platform = validatedPlatform(options.platform)
-  const version = validatedVersion(options.version)
-  const userDataPath = validatedUserDataPath(options.userDataPath)
-  const paths = await prepareDownloadPaths(userDataPath, platform, version)
+  validatedVersion(options.version)
+  const destinationPath = validatedArtifactPath(options.destinationPath, platform)
+  const paths = await prepareDownloadPaths(destinationPath)
   throwIfAborted(options.signal)
 
   let response: Response
@@ -128,6 +126,7 @@ export async function downloadDesktopUpdate(options: DownloadDesktopUpdateOption
     throwIfAborted(options.signal)
     await validateArtifact(paths.temporary, platform)
     throwIfAborted(options.signal)
+    await unlinkIfPresent(paths.completed)
     await rename(paths.temporary, paths.completed)
     return paths.completed
   } catch (cause) {
@@ -141,6 +140,15 @@ export async function downloadDesktopUpdate(options: DownloadDesktopUpdateOption
       throw new AggregateError([failure, cleanupCause], 'Failed to download and clean up the update installer.')
     }
   }
+}
+
+/** Fixed default filename shown by the native destination picker. */
+export function desktopUpdateFilename(platform: DesktopDownloadPlatform, version: string): string {
+  validatedPlatform(platform)
+  validatedVersion(version)
+  const extension = platform === 'darwin' ? 'dmg' : 'exe'
+  const platformName = platform === 'darwin' ? 'mac' : 'windows'
+  return `DSH-Desktop-${version}-${platformName}.${extension}`
 }
 
 function validatedPlatform(platform: DesktopDownloadPlatform): DesktopDownloadPlatform {
@@ -158,57 +166,36 @@ function validatedVersion(version: string): string {
   return version
 }
 
-function validatedUserDataPath(userDataPath: string): string {
-  if (userDataPath.length === 0 || /[\0\r\n]/u.test(userDataPath) || !isAbsolute(userDataPath)) {
-    throw new UpdateDownloadError('invalid-options', 'The update user-data path must be an absolute path.')
-  }
-  return resolve(userDataPath)
-}
-
 async function prepareDownloadPaths(
-  userDataPath: string,
-  platform: DesktopDownloadPlatform,
-  version: string,
+  destinationPath: string,
 ): Promise<DownloadPaths> {
-  const userDataStat = await lstat(userDataPath)
-  if (!userDataStat.isDirectory() || userDataStat.isSymbolicLink()) {
-    throw new UpdateDownloadError('invalid-options', 'The update user-data path must be a real directory.')
+  const directory = dirname(destinationPath)
+  const directoryStat = await lstat(directory)
+  if (!directoryStat.isDirectory() || directoryStat.isSymbolicLink()) {
+    throw new UpdateDownloadError('invalid-options', 'The update destination directory must be a real directory.')
   }
-
-  const updatesDirectory = join(userDataPath, 'updates')
-  const directory = join(updatesDirectory, version)
-  if (resolve(directory) !== directory) {
-    throw new UpdateDownloadError('invalid-options', 'The update destination escaped the user-data directory.')
-  }
-  await preparePrivateDirectory(updatesDirectory)
-  await preparePrivateDirectory(directory)
-
-  const extension = platform === 'darwin' ? 'dmg' : 'exe'
-  const platformName = platform === 'darwin' ? 'mac' : 'windows'
-  const filename = `DSH-Desktop-${version}-${platformName}.${extension}`
-  const completed = join(directory, filename)
-  const completedStat = await lstatOptional(completed)
+  const completedStat = await lstatOptional(destinationPath)
   if (completedStat !== undefined) {
     if (!completedStat.isFile() || completedStat.isSymbolicLink()) {
       throw new UpdateDownloadError('invalid-options', 'The completed update path is not a regular file.')
     }
-    await unlink(completed)
   }
 
   return {
-    directory,
-    completed,
-    temporary: join(directory, `.${filename}.${process.pid}.${randomUUID()}.partial`),
+    completed: destinationPath,
+    temporary: join(directory, `.${basename(destinationPath)}.${process.pid}.${randomUUID()}.partial`),
   }
 }
 
-async function preparePrivateDirectory(directory: string): Promise<void> {
-  await mkdir(directory, { recursive: true, mode: PRIVATE_DIRECTORY_MODE })
-  const stat = await lstat(directory)
-  if (!stat.isDirectory() || stat.isSymbolicLink()) {
-    throw new UpdateDownloadError('invalid-options', 'An update destination component is not a real directory.')
+function validatedArtifactPath(path: string, platform: DesktopDownloadPlatform): string {
+  if (path.length === 0 || /[\0\r\n]/u.test(path) || !isAbsolute(path)) {
+    throw new UpdateDownloadError('invalid-options', 'The update destination path must be absolute.')
   }
-  await chmod(directory, PRIVATE_DIRECTORY_MODE)
+  const expectedExtension = platform === 'darwin' ? '.dmg' : '.exe'
+  if (extname(path).toLowerCase() !== expectedExtension) {
+    throw new UpdateDownloadError('invalid-options', `The update destination must use ${expectedExtension}.`)
+  }
+  return resolve(path)
 }
 
 async function lstatOptional(filename: string): Promise<Awaited<ReturnType<typeof lstat>> | undefined> {

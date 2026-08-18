@@ -38,7 +38,10 @@ import {
   desktopLocaleFromLanguageTag,
   desktopTrayLabel,
 } from './tray-locale.ts'
-import { downloadDesktopUpdate } from './update-download.ts'
+import {
+  desktopUpdateFilename,
+  downloadDesktopUpdate,
+} from './update-download.ts'
 import type { UpdateCheckResult } from './update-checker.ts'
 import {
   evaluateWindowsWorkspaceVolume,
@@ -578,10 +581,13 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
     if (platform === undefined) {
       throw new Error(`dsh-plugin-desktop: updates are unavailable on ${this.platform}`)
     }
+    const destinationPath = await this.chooseUpdateDestination(version)
+    if (destinationPath === undefined) return
+    signal.throwIfAborted()
     const artifactPath = await downloadDesktopUpdate({
       platform,
       version,
-      userDataPath: app.getPath('userData'),
+      destinationPath,
       request: (url, init) => net.fetch(url, init),
       signal,
     })
@@ -621,6 +627,26 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
     await this.launchWindowsUpdateInstaller(artifactPath)
     this.quitting = true
     spec.requestQuit(0)
+  }
+
+  private async chooseUpdateDestination(version: string): Promise<string | undefined> {
+    if (this.platform !== 'darwin' && this.platform !== 'win32') return undefined
+    const zh = this.currentLocale === 'zh'
+    const filename = desktopUpdateFilename(this.platform, version)
+    const extension = this.platform === 'darwin' ? 'dmg' : 'exe'
+    const result = await dialog.showSaveDialog({
+      title: zh ? '保存更新安装包' : 'Save Update Installer',
+      defaultPath: join(app.getPath('downloads'), filename),
+      buttonLabel: zh ? '保存并下载' : 'Save and Download',
+      filters: [{
+        name: this.platform === 'darwin'
+          ? zh ? '磁盘映像' : 'Disk Image'
+          : zh ? 'Windows 安装程序' : 'Windows Installer',
+        extensions: [extension],
+      }],
+      properties: ['createDirectory', 'showOverwriteConfirmation', 'dontAddToRecent'],
+    })
+    return result.canceled ? undefined : result.filePath
   }
 
   /** Start the downloaded NSIS installer before releasing the current process. */
