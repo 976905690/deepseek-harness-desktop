@@ -473,6 +473,7 @@ describe('MarketSettingsTab', () => {
     vi.mocked(readMarketState).mockResolvedValue({ ...enabledState, sources: [linkedSource] })
     vi.mocked(readMarketCatalog).mockResolvedValue(installCatalog)
     vi.mocked(readMarketInstallable).mockResolvedValue(installableResponse([item], linkedSource))
+    vi.mocked(readMarketInstallations).mockResolvedValue({ installations: [] })
     const preview = {
       action: 'install',
       profileName: 'web',
@@ -503,7 +504,7 @@ describe('MarketSettingsTab', () => {
     expect(detailsSource.target).toBe('_blank')
     expect(detailsSource.rel).toContain('noopener')
     expect(detailsSource.rel).toContain('noreferrer')
-    expect(screen.getByText(en.checkingInstallMethod)).toBeTruthy()
+    expect(await screen.findByText(en.checkingInstallMethod)).toBeTruthy()
     expect(screen.getAllByRole('dialog')).toHaveLength(1)
     await waitFor(() => {
       expect(previewMarketOperation).toHaveBeenCalledWith({
@@ -546,7 +547,7 @@ describe('MarketSettingsTab', () => {
     })
     await waitFor(() => {
       expect(readMarketInstallable).toHaveBeenCalledTimes(2)
-      expect(readMarketInstallations).not.toHaveBeenCalled()
+      expect(readMarketInstallations).toHaveBeenCalledOnce()
       expect(readMarketState).toHaveBeenCalledTimes(1)
       expect(readMarketCatalog).toHaveBeenCalledTimes(1)
     })
@@ -578,6 +579,7 @@ describe('MarketSettingsTab', () => {
     vi.mocked(readMarketState).mockResolvedValue(enabledState)
     vi.mocked(readMarketCatalog).mockResolvedValue(catalogForSource(firstSource, [item]))
     vi.mocked(readMarketInstallable).mockResolvedValue(installableResponse([item]))
+    vi.mocked(readMarketInstallations).mockResolvedValue({ installations: [] })
     vi.mocked(previewMarketOperation).mockRejectedValue(new Error('not a standard plugin'))
     render(<MarketSettingsTab {...props} />)
 
@@ -592,6 +594,59 @@ describe('MarketSettingsTab', () => {
     )
     expect(details.target).toBe('_blank')
     expect(details.rel).toContain('noopener')
+  })
+
+  it('opens an exact managed catalog item with local controls without issuing an install preview', async () => {
+    const item = makeInstallableItem(firstSource)
+    const receipt = makeReceipt({
+      packageName: item.package!.name,
+      itemId: item.id,
+      displayName: item.displayName,
+    })
+    const bundleId = 'opaque-managed-catalog-bundle'
+    let resolveInventory: ((value: {
+      installations: readonly [{
+        kind: 'managed'
+        status: 'active'
+        action: 'uninstall'
+        disableBundleId: string
+        receipt: MarketInstallReceipt
+      }]
+    }) => void) | undefined
+    vi.mocked(readMarketState).mockResolvedValue(enabledState)
+    vi.mocked(readMarketCatalog).mockResolvedValue(catalogForSource(firstSource, [item]))
+    vi.mocked(readMarketInstallations).mockReturnValue(new Promise(resolve => { resolveInventory = resolve }))
+    vi.mocked(previewMarketOperation).mockResolvedValue({
+      action: 'disable',
+      profileName: receipt.profileName,
+      packageName: receipt.packageName,
+      displayName: receipt.displayName,
+      expiresAt: '2026-08-18T00:05:00.000Z',
+      previewId: 'opaque-managed-catalog-disable-preview',
+    })
+    render(<MarketSettingsTab {...props} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Installable Plugin/u }))
+    const dialog = screen.getByRole('dialog', { name: item.displayName })
+    expectMarketModal(dialog, 'dshMarketWideModal')
+    expect(within(dialog).getByText(en.loadingInstallations)).toBeTruthy()
+    expect(previewMarketOperation).not.toHaveBeenCalled()
+
+    await act(async () => {
+      resolveInventory?.({
+        installations: [{ kind: 'managed', status: 'active', action: 'uninstall', disableBundleId: bundleId, receipt }],
+      })
+    })
+    expect(within(dialog).getByText(en.managedPlugin)).toBeTruthy()
+    expect(within(dialog).getByRole('button', { name: `${en.disable}: ${item.displayName}` })).toBeTruthy()
+    expect(within(dialog).getByRole('button', { name: `${en.uninstall}: ${item.displayName}` })).toBeTruthy()
+    expect(previewMarketOperation).not.toHaveBeenCalled()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: `${en.disable}: ${item.displayName}` }))
+    await waitFor(() => expect(previewMarketOperation).toHaveBeenCalledWith(
+      { action: 'disable', bundleId },
+      expect.any(AbortSignal),
+    ))
   })
 
   it('uninstalls only from the current profile receipt and executes the Host preview id', async () => {
