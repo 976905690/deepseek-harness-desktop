@@ -246,19 +246,31 @@ describe('published package surface', () => {
     expect(clearVerified).toBeGreaterThan(profileHealthy)
   })
 
-  it('captures diagnostics before both startup recovery restore paths', () => {
+  it('routes protected and ordinary startup failures through the native recovery window', () => {
     const main = readFileSync(new URL('src/main.ts', packageRoot), 'utf8')
-    const diagnostics = [...main.matchAll(/await saveInstallRecoveryDiagnostics\(electronLogger\)/gu)]
+    const windows = [...main.matchAll(/await openStartupRecoveryWindow\(/gu)]
       .map(match => match.index)
-    const restores = [...main.matchAll(/await installRecovery\.restore\(/gu)]
-      .map(match => match.index)
+    const prompt = main.indexOf("if (recoveryClaim.action === 'prompt')")
+    const prepare = main.indexOf('const prepared = prepareDesktopProfile(')
+    const recordFailure = main.indexOf('await installRecovery.recordFailure(')
+    const quiesce = main.indexOf('const recoveryActionsSafe = await quiesceHostForRecovery()')
 
-    expect(diagnostics).toHaveLength(2)
-    expect(restores).toHaveLength(2)
-    expect(diagnostics[0]).toBeLessThan(restores[0]!)
-    expect(diagnostics[1]).toBeLessThan(restores[1]!)
-    expect(main).toContain("await installRecovery.markManualRecoveryRequired(transaction.transactionId, 'recovery-failed')")
-    expect(main).toContain('if (!installRecoveryRelaunch && retryLastKnownGood)')
+    expect(windows).toHaveLength(2)
+    expect(windows[0]).toBeGreaterThan(prompt)
+    expect(windows[0]).toBeLessThan(prepare)
+    expect(quiesce).toBeGreaterThan(prepare)
+    expect(recordFailure).toBeGreaterThan(quiesce)
+    expect(windows[1]).toBeGreaterThan(recordFailure)
+    expect(main).not.toContain('await installRecovery.restore(')
+    expect(main).toContain('failureStage: startupStage')
+    expect(main).toContain("startupStage = 'profile-composition'")
+    expect(main).toContain("startupStage = 'host-boot'")
+    expect(main).toContain("startupStage = 'renderer-startup'")
+    expect(main).toContain("return report.status === 'failed'")
+    expect(main).not.toContain("return report.status === 'failed' && verifyingInstall !== undefined")
+    expect(main).toContain('void run().catch(async (cause: unknown) => { await handleFatalLauncherFailure(cause) })')
+    expect(main).toContain('await installRecovery.markRollbackNotified(')
+    expect(main).toContain("if (!installRecoveryRelaunch && failureRoute === 'last-known-good')")
   })
 
   it('uses the upstream child-environment scrub around login-shell recovery', () => {

@@ -355,7 +355,7 @@ describe('desktop direct bundle management', () => {
     await harness.dispose()
   })
 
-  it('cannot use disabled state to bypass a malformed bundle patch during profile loading', async () => {
+  it('filters a disabled bundle before reading its malformed patch during profile loading', async () => {
     const root = temporaryRoot()
     const options = bootstrap(root)
     const packageDir = installBundle(options.homeDir, 'third-party-plugin')
@@ -372,7 +372,7 @@ describe('desktop direct bundle management', () => {
       'darwin',
       'desktop',
       options.statePath,
-    )).toThrow('must be a top-level YAML array')
+    )).not.toThrow()
     await harness.dispose()
   })
 })

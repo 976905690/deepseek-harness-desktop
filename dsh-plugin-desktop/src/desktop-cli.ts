@@ -131,7 +131,9 @@ async function loadWithInstallRecovery(
       : code === undefined || code === null
         ? process.exitCode ?? 0
         : Number(code)
-    throw new CapturedDesktopCliExit(Number.isSafeInteger(normalized) ? normalized : 1)
+    throw new CapturedDesktopCliExit(
+      typeof normalized === 'number' && Number.isSafeInteger(normalized) ? normalized : 1,
+    )
   }) as typeof process.exit
   try {
     await load(DSH_ENTRY_URL)

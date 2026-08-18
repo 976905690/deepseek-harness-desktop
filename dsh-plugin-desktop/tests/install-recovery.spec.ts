@@ -266,8 +266,9 @@ describe('Desktop plugin install recovery WAL', () => {
     const untouchedPrepared = await begin(untouched)
     const untouchedRestart = store(untouched, 'generation-0002')
     await expect(untouchedRestart.claim()).resolves.toMatchObject({
-      action: 'restore',
+      action: 'prompt',
       reason: 'interrupted-install',
+      transaction: { phase: 'recovery-pending' },
     })
     await expect(untouchedRestart.restore(untouchedPrepared.transactionId, 'interrupted-install')).resolves.toMatchObject({
       status: 'restored',
@@ -278,8 +279,9 @@ describe('Desktop plugin install recovery WAL', () => {
     writeFileSync(join(changed.profileDir, 'package.json'), POSTINSTALL['package.json'], { mode: 0o640 })
     const changedRestart = store(changed, 'generation-0002')
     await expect(changedRestart.claim()).resolves.toMatchObject({
-      action: 'restore',
+      action: 'prompt',
       reason: 'interrupted-install',
+      transaction: { phase: 'recovery-pending' },
     })
     await expect(changedRestart.restore(changedPrepared.transactionId, 'interrupted-install')).resolves.toMatchObject({
       status: 'manual-recovery-required',
@@ -303,6 +305,101 @@ describe('Desktop plugin install recovery WAL', () => {
     })
     await origin.clear(prepared.transactionId)
     expect(existsSync(target.statePath)).toBe(false)
+  })
+
+  it('persists failed verification and consumes at most one retry in the next generation', async () => {
+    const target = fixture()
+    const origin = store(target)
+    const prepared = await origin.begin({
+      packageName: 'plugin-a',
+      packageVersion: '1.0.0',
+      receiptId: 'receipt-0001',
+    })
+    writePostinstall(target)
+    await origin.seal(prepared.transactionId)
+
+    const failed = store(target, 'generation-0002')
+    await expect(failed.claim()).resolves.toMatchObject({ action: 'verify' })
+    await expect(failed.recordFailure(prepared.transactionId, 'renderer-failed')).resolves.toMatchObject({
+      phase: 'recovery-pending',
+      failureReason: 'renderer-failed',
+    })
+    await expect(failed.claim()).resolves.toMatchObject({
+      action: 'prompt',
+      reason: 'startup-unconfirmed',
+    })
+    await expect(failed.requestRetry(prepared.transactionId)).resolves.toMatchObject({
+      phase: 'retry-requested',
+      verifyingGeneration: 'generation-0002',
+    })
+    await expect(failed.claim()).resolves.toMatchObject({
+      action: 'deferred',
+      reason: 'origin-generation',
+    })
+
+    const retry = store(target, 'generation-0003')
+    await expect(retry.claim()).resolves.toMatchObject({
+      action: 'verify',
+      transaction: { phase: 'verifying', verifyingGeneration: 'generation-0003' },
+    })
+    await retry.recordFailure(prepared.transactionId, 'renderer-timeout')
+    await expect(retry.markHealthy(prepared.transactionId)).rejects.toThrow('not verifying')
+    await expect(retry.claim()).resolves.toMatchObject({
+      action: 'prompt',
+      transaction: { phase: 'recovery-pending', failureReason: 'renderer-timeout' },
+    })
+  })
+
+  it('never downgrades verified or rolled-back terminal transactions to manual recovery', async () => {
+    const verifiedTarget = fixture()
+    const verifiedOrigin = store(verifiedTarget)
+    const verifiedPrepared = await verifiedOrigin.begin({
+      packageName: 'plugin-a',
+      packageVersion: '1.0.0',
+      receiptId: 'receipt-0001',
+    })
+    writePostinstall(verifiedTarget)
+    await verifiedOrigin.seal(verifiedPrepared.transactionId)
+    const verifiedRestart = store(verifiedTarget, 'generation-0002')
+    await verifiedRestart.claim()
+    await verifiedRestart.markHealthy(verifiedPrepared.transactionId)
+    await expect(verifiedRestart.markManualRecoveryRequired(
+      verifiedPrepared.transactionId,
+      'recovery-failed',
+    )).rejects.toThrow('terminal')
+
+    const rolledBackTarget = fixture()
+    const rolledBackPrepared = await begin(rolledBackTarget)
+    const rolledBackRestart = store(rolledBackTarget, 'generation-0002')
+    await rolledBackRestart.claim()
+    await rolledBackRestart.restore(rolledBackPrepared.transactionId, 'interrupted-install')
+    await expect(rolledBackRestart.markManualRecoveryRequired(
+      rolledBackPrepared.transactionId,
+      'recovery-failed',
+    )).rejects.toThrow('terminal')
+  })
+
+  it('persists the post-rollback user notice independently from receipt cleanup', async () => {
+    const target = fixture()
+    const prepared = await begin(target)
+    const restarted = store(target, 'generation-0002')
+
+    await restarted.claim()
+    const restored = await restarted.restore(prepared.transactionId, 'interrupted-install')
+    expect(restored).toMatchObject({ status: 'restored', transaction: { phase: 'rolled-back' } })
+    expect('rollbackNotifiedAt' in restored.transaction).toBe(false)
+
+    const notified = await restarted.markRollbackNotified(prepared.transactionId)
+    expect(notified).toMatchObject({
+      phase: 'rolled-back',
+      rollbackNotifiedAt: '2027-01-15T08:00:00.000Z',
+    })
+    await expect(restarted.markRollbackNotified(prepared.transactionId)).resolves.toEqual(notified)
+    await expect(restarted.claim()).resolves.toMatchObject({
+      action: 'terminal',
+      transaction: { rollbackNotifiedAt: notified.rollbackNotifiedAt },
+    })
+    expect(existsSync(target.statePath)).toBe(true)
   })
 })
 
@@ -354,10 +451,11 @@ describe('Desktop plugin install recovery filesystem boundaries', () => {
 
     const restarted = store(target, 'generation-0002')
     await restarted.claim()
+    await restarted.recordFailure(prepared.transactionId, 'startup-failed')
     await expect(restarted.restore(prepared.transactionId, 'startup-failed')).rejects.toThrow(
       'backup for package.json is invalid',
     )
     expectProfile(target, POSTINSTALL)
-    expect((await restarted.read())?.phase).toBe('verifying')
+    expect((await restarted.read())?.phase).toBe('recovery-pending')
   })
 })

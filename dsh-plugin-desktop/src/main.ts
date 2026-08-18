@@ -1,6 +1,6 @@
 /** DSH Desktop executable: minimal Electron bootstrap around the Host Cordis root. */
 
-import { app, crashReporter } from 'electron'
+import { app, crashReporter, dialog } from 'electron'
 import type { Context } from '@deepseek-ai/cordis'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
@@ -50,12 +50,19 @@ import {
   listDesktopProfiles,
   markDesktopProfileFailed,
   markDesktopProfileHealthy,
+  readDesktopProfileState,
   selectDesktopProfile,
   type DesktopProfileStartup,
 } from './profile-manager.ts'
 import { DesktopProfileService } from './profile-service.ts'
 import { DesktopActionsService } from './desktop-actions.ts'
 import { DesktopPluginsService } from './desktop-plugins.ts'
+import { DesktopStartupRecoveryController } from './startup-recovery-controller.ts'
+import {
+  DesktopStartupRecoveryWindow,
+  type DesktopStartupFailureStage,
+} from './startup-recovery-window.ts'
+import { routeDesktopStartupFailure } from './startup-failure-routing.ts'
 import {
   desktopInstallAnchor,
   prepareDesktopProfile,
@@ -74,6 +81,7 @@ import {
   type WindowsVolumeConcern,
 } from './windows-volume-diagnostics.ts'
 import type { RendererBootReport } from './renderer-boot-contract.ts'
+import { desktopLocaleFromLanguageTag } from './tray-locale.ts'
 
 const BIN_NAME = 'dsh-plugin-desktop'
 const PRODUCT_NAME = 'DSH Desktop'
@@ -88,25 +96,49 @@ class RendererStartupFailure extends Error {
   }
 }
 
-/** Save local-only evidence before a recovery mutates the active profile. */
-async function saveInstallRecoveryDiagnostics(logger: DesktopLogger): Promise<void> {
-  try {
-    const path = await exportDesktopDiagnostics(app.getPath('userData'), {
-      appVersion: desktopProductVersion(),
-      crashDumpsDir: app.getPath('crashDumps'),
-    })
-    logger.error(`${BIN_NAME}: saved plugin install recovery diagnostics to ${path}`)
-  } catch (cause) {
-    logger.error(`${BIN_NAME}: failed to save plugin install recovery diagnostics: ${cause instanceof Error ? cause.message : String(cause)}`)
-  }
-}
-
 /** Report profile recovery without changing startup or rollback outcomes. */
 function notifyProfileRecovery(runtime: ElectronDesktopRuntime, logger: DesktopLogger, body: string): void {
   try {
     runtime.updates.notify({ title: 'Unable to Open Profile', body })
   } catch (cause) {
     logger.error(`${BIN_NAME}: failed to show profile recovery notification: ${cause instanceof Error ? cause.message : String(cause)}`)
+  }
+}
+
+/** Explain a completed cross-restart install rollback after Desktop is healthy again. */
+async function showInstallRollbackNotice(
+  transaction: DesktopInstallRecoveryTransaction,
+  locale: 'en' | 'zh',
+  logger: DesktopLogger,
+): Promise<boolean> {
+  const copy = locale === 'zh'
+    ? {
+        title: '插件安装已回滚',
+        message: `DSH Desktop 已恢复安装 ${transaction.packageName} 前的配置。`,
+        detail: '上一次启动未能通过健康验证。DSH Desktop 已在本地保存诊断信息，并恢复 package.json、pnpm-lock.yaml 和 pnpm-workspace.yaml；诊断信息不会自动上传。',
+        confirm: '知道了',
+      }
+    : {
+        title: 'Plugin installation rolled back',
+        message: `DSH Desktop restored the configuration from before ${transaction.packageName} was installed.`,
+        detail: 'The previous startup did not pass its health check. DSH Desktop saved diagnostics locally and restored package.json, pnpm-lock.yaml, and pnpm-workspace.yaml. Diagnostics are not uploaded automatically.',
+        confirm: 'OK',
+      }
+  try {
+    await dialog.showMessageBox({
+      type: 'info',
+      title: copy.title,
+      message: copy.message,
+      detail: copy.detail,
+      buttons: [copy.confirm],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true,
+    })
+    return true
+  } catch (cause) {
+    logger.error(`${BIN_NAME}: failed to show install rollback notice: ${cause instanceof Error ? cause.message : String(cause)}`)
+    return false
   }
 }
 
@@ -161,6 +193,7 @@ async function start(): Promise<void> {
   }
 
   let current: Context | undefined
+  let hostDisposeTask: Promise<boolean> | undefined
   let profileStartup: DesktopProfileStartup | undefined
   let profileStatePath: string | undefined
   let shutdown: DesktopShutdown | undefined
@@ -173,14 +206,18 @@ async function start(): Promise<void> {
   let runtime!: ElectronDesktopRuntime
   let logSink: LogFileSink | undefined
   let installRecovery: DesktopInstallRecoveryStore | undefined
+  let startupRecoveryController: DesktopStartupRecoveryController | undefined
+  let startupRecoveryWindow: DesktopStartupRecoveryWindow | undefined
   let verifyingInstall: DesktopInstallRecoveryTransaction | undefined
   let verifiedInstallToClear: DesktopInstallRecoveryTransaction | undefined
+  let rolledBackInstallToNotify: DesktopInstallRecoveryTransaction | undefined
   let rendererBootSettled = false
   let resolveRendererBoot!: (report: RendererBootReport) => void
   const rendererBoot = new Promise<RendererBootReport>((resolve) => {
     resolveRendererBoot = resolve
   })
   const generationId = randomUUID()
+  let startupStage: DesktopStartupFailureStage = 'electron-ready'
   try {
     logSink = new LogFileSink(join(app.getPath('userData'), 'logs'), {
       maxFileBytes: 10 * 1024 * 1024,
@@ -256,13 +293,20 @@ async function start(): Promise<void> {
       rendererBootSettled = true
       resolveRendererBoot(report)
     }
-    return report.status === 'failed' && verifyingInstall !== undefined
+    // Main owns every pre-health failure branch. Returning true prevents the
+    // legacy Renderer recovery dialog from racing the native startup window.
+    return report.status === 'failed'
   }, electronLogger)
   const finalExit = (code: number): void => { nativeExit.finish(code) }
   shutdown = createDesktopShutdown(
     async () => {
       try {
-        await current?.fiber.dispose()
+        if (hostDisposeTask !== undefined) {
+          const stopped = await hostDisposeTask
+          if (!stopped) await current?.fiber.dispose()
+        } else {
+          await current?.fiber.dispose()
+        }
       } finally {
         disposeDshRuntime?.()
         disposePnpmRuntime?.()
@@ -278,41 +322,96 @@ async function start(): Promise<void> {
   )
   removeShutdownRequests = installShutdownRequests(process, app, requestQuit)
 
-  app.on('second-instance', () => { runtime.show() })
-  await app.whenReady()
-  if (process.platform === 'win32') app.setAppUserModelId('ai.deepseek.dsh.desktop')
-  if (app.isPackaged && process.cwd() === '/') process.chdir(app.getPath('home'))
-  const shellEnvironmentResolution = await resolveDesktopShellEnvironment({
-    environment: process.env,
-    home: app.getPath('home'),
-    isPackaged: app.isPackaged,
-    platform: process.platform,
-  })
-  for (const [name, value] of Object.entries(shellEnvironmentResolution.updates)) process.env[name] = value
-  const homeDir = resolveDshHome()
-  const windowsVolumeConcerns = diagnoseWindowsVolumes(process.platform, [
-    { label: 'application install', path: process.execPath },
-    { label: 'desktop user data', path: app.getPath('userData') },
-    { label: 'DSH home', path: homeDir },
-  ])
-  warnWindowsVolumeConcerns(electronLogger, windowsVolumeConcerns)
-
-  const failLoudProcess: FailLoudProcess = {
-    on: (event, handler) => process.on(event, handler),
-    off: (event, handler) => process.off(event, handler),
-    stderr: electronLogger,
-    exit: finalExit,
-  }
-  installFailLoud(BIN_NAME, failLoudProcess, async () => {
+  const openStartupRecoveryWindow = async (
+    failureDetail: string,
+    controller: DesktopStartupRecoveryController | undefined,
+  ): Promise<'restart' | 'quit' | 'unavailable'> => {
+    if (!app.isReady()) return 'unavailable'
     try {
-      await current?.fiber.dispose()
+      startupRecoveryWindow = new DesktopStartupRecoveryWindow({
+        ...(controller === undefined ? {} : { controller }),
+        locale: desktopLocaleFromLanguageTag(app.getLocale()),
+        failureStage: startupStage,
+        failureDetail: maskSecrets(failureDetail),
+        exportDiagnostics: async () => await exportDesktopDiagnostics(app.getPath('userData'), {
+          appVersion: desktopProductVersion(),
+          crashDumpsDir: app.getPath('crashDumps'),
+        }),
+      })
+      return await startupRecoveryWindow.run()
+    } catch (cause) {
+      electronLogger.error(
+        `${BIN_NAME}: failed to open startup recovery window: ${cause instanceof Error ? cause.message : String(cause)}`,
+      )
+      return 'unavailable'
     } finally {
-      disposeDshRuntime?.()
-      disposePnpmRuntime?.()
+      startupRecoveryWindow = undefined
     }
-  })
+  }
 
+  const quiesceHostForRecovery = async (): Promise<boolean> => {
+    const host = current
+    if (host === undefined) return true
+    hostDisposeTask ??= Promise.resolve().then(async () => {
+      await host.fiber.dispose()
+      current = undefined
+      return true
+    }).catch((cause: unknown) => {
+      electronLogger.error(
+        `${BIN_NAME}: failed to stop the plugin Host before recovery: ${cause instanceof Error ? cause.message : String(cause)}`,
+      )
+      return false
+    })
+    let timeout: ReturnType<typeof setTimeout> | undefined
+    const timedOut = new Promise<false>(resolve => {
+      timeout = setTimeout(() => { resolve(false) }, 5_000)
+    })
+    const result = await Promise.race([hostDisposeTask, timedOut])
+    if (timeout !== undefined) clearTimeout(timeout)
+    if (!result) electronLogger.error(`${BIN_NAME}: plugin Host did not stop in time; mutating recovery actions are unavailable`)
+    return result
+  }
+
+  app.on('second-instance', () => {
+    if (startupRecoveryWindow !== undefined) startupRecoveryWindow.show()
+    else runtime.show()
+  })
   try {
+    await app.whenReady()
+    startupStage = 'shell-environment'
+    if (process.platform === 'win32') app.setAppUserModelId('ai.deepseek.dsh.desktop')
+    if (app.isPackaged && process.cwd() === '/') process.chdir(app.getPath('home'))
+    const shellEnvironmentResolution = await resolveDesktopShellEnvironment({
+      environment: process.env,
+      home: app.getPath('home'),
+      isPackaged: app.isPackaged,
+      platform: process.platform,
+    })
+    for (const [name, value] of Object.entries(shellEnvironmentResolution.updates)) process.env[name] = value
+    const homeDir = resolveDshHome()
+    const windowsVolumeConcerns = diagnoseWindowsVolumes(process.platform, [
+      { label: 'application install', path: process.execPath },
+      { label: 'desktop user data', path: app.getPath('userData') },
+      { label: 'DSH home', path: homeDir },
+    ])
+    warnWindowsVolumeConcerns(electronLogger, windowsVolumeConcerns)
+
+    const failLoudProcess: FailLoudProcess = {
+      on: (event, handler) => process.on(event, handler),
+      off: (event, handler) => process.off(event, handler),
+      stderr: electronLogger,
+      exit: finalExit,
+    }
+    installFailLoud(BIN_NAME, failLoudProcess, async () => {
+      try {
+        await current?.fiber.dispose()
+      } finally {
+        disposeDshRuntime?.()
+        disposePnpmRuntime?.()
+      }
+    })
+
+    startupStage = 'runtime-bootstrap'
     const installRecoveryStatePath = desktopInstallRecoveryStatePath(app.getPath('userData'))
     const environment = loadLayeredEnv(BIN_NAME, process.cwd())
     const electronVersion = process.versions.electron
@@ -332,6 +431,7 @@ async function start(): Promise<void> {
     disposePnpmRuntime = releasePnpmRuntime
     const selectionStatePath = join(app.getPath('userData'), 'profile-selection', 'state.json')
     const pluginManagementStatePath = join(app.getPath('userData'), 'plugin-management', 'state.json')
+    startupStage = 'profile-selection'
     profileStatePath = selectionStatePath
     profileStartup = beginDesktopProfileStartup(selectionStatePath, homeDir)
     const activeProfileName = profileStartup.profileName
@@ -341,24 +441,34 @@ async function start(): Promise<void> {
       profileDir: resolveProfileDir(activeProfileName, homeDir),
       generationId,
     })
+    startupRecoveryController = new DesktopStartupRecoveryController({
+      pluginState: {
+        profileName: activeProfileName,
+        homeDir,
+        statePath: pluginManagementStatePath,
+      },
+      generationId,
+      currentGeneration: () => ({
+        profileName: readDesktopProfileState(selectionStatePath).active,
+        generationId,
+      }),
+      installRecovery,
+    })
+    startupStage = 'install-recovery'
     const recoveryClaim = await installRecovery.claim()
-    if (recoveryClaim.action === 'restore') {
+    if (recoveryClaim.action === 'prompt') {
       electronLogger.error(
-        `${BIN_NAME}: recovering unconfirmed plugin install ${recoveryClaim.transaction.packageName} (${recoveryClaim.transaction.transactionId}) after ${recoveryClaim.reason}`,
+        `${BIN_NAME}: protected plugin install ${recoveryClaim.transaction.packageName} (${recoveryClaim.transaction.transactionId}) requires a recovery choice after ${recoveryClaim.reason}`,
       )
-      await saveInstallRecoveryDiagnostics(electronLogger)
-      const restored = await installRecovery.restore(
-        recoveryClaim.transaction.transactionId,
-        recoveryClaim.reason,
+      const recoveryResult = await openStartupRecoveryWindow(
+        `Protected plugin installation ${recoveryClaim.transaction.packageName}@${recoveryClaim.transaction.packageVersion} requires a recovery choice after ${recoveryClaim.reason}.`,
+        startupRecoveryController,
       )
-      if (restored.status === 'manual-recovery-required') {
-        throw new Error(
-          `${BIN_NAME}: plugin install recovery requires manual repair for ${restored.mismatchedFiles.join(', ') || 'the active profile'}`,
-        )
-      }
-      electronLogger.error(
-        `${BIN_NAME}: restored plugin install ${recoveryClaim.transaction.packageName} after ${recoveryClaim.reason}`,
-      )
+      startupRecoveryController.dispose()
+      startupRecoveryController = undefined
+      if (recoveryResult === 'restart') nativeExit.requestRelaunch()
+      await shutdown.request(recoveryResult === 'restart' ? 0 : 1)
+      return
     } else if (recoveryClaim.action === 'verify') {
       verifyingInstall = recoveryClaim.transaction
     } else if (
@@ -371,11 +481,18 @@ async function start(): Promise<void> {
       && recoveryClaim.transaction.phase === 'verified'
     ) {
       verifiedInstallToClear = recoveryClaim.transaction
+    } else if (
+      recoveryClaim.action === 'terminal'
+      && recoveryClaim.transaction.phase === 'rolled-back'
+      && recoveryClaim.transaction.rollbackNotifiedAt === undefined
+    ) {
+      rolledBackInstallToNotify = recoveryClaim.transaction
     } else if (recoveryClaim.action === 'deferred') {
       electronLogger.error(
         `${BIN_NAME}: deferred plugin install recovery (${recoveryClaim.reason}) for ${recoveryClaim.transaction.packageName}`,
       )
     }
+    startupStage = 'profile-composition'
     const prepared = prepareDesktopProfile(
       process.env.DSH_TELEMETRY_DISABLED,
       homeDir,
@@ -383,6 +500,7 @@ async function start(): Promise<void> {
       activeProfileName,
       pluginManagementStatePath,
     )
+    startupStage = 'runtime-bootstrap'
     const dshBootstrapPath = fileURLToPath(new URL('./desktop-cli.js', import.meta.url))
     const dshRuntime = process.platform === 'win32'
       ? installDesktopDshRuntime({
@@ -412,6 +530,7 @@ async function start(): Promise<void> {
       installRecoveryStatePath,
       generationId,
     }
+    startupStage = 'host-boot'
     const releasePackageResolver = installProfilePackageResolver(prepared.bareModuleBaseUrl)
     const ctx = await boot(
       BIN_NAME,
@@ -480,10 +599,12 @@ async function start(): Promise<void> {
       profileDir: prepared.profile.dir,
       homeDir: prepared.homeDir,
     })
+    startupStage = 'renderer-startup'
     runtime.beginRendererBootMonitoring()
     await runtime.mountScheduled()
     const rendererReport = await rendererBoot
     if (rendererReport.status === 'healthy') {
+      startupStage = 'health-commit'
       if (verifyingInstall !== undefined) {
         if (installRecovery === undefined) {
           throw new Error(`${BIN_NAME}: plugin install recovery store is unavailable`)
@@ -503,14 +624,33 @@ async function start(): Promise<void> {
           )
         }
       }
+      if (rolledBackInstallToNotify !== undefined) {
+        const notified = await showInstallRollbackNotice(
+          rolledBackInstallToNotify,
+          desktopLocaleFromLanguageTag(app.getLocale()),
+          electronLogger,
+        )
+        if (notified && installRecovery !== undefined) {
+          try {
+            await installRecovery.markRollbackNotified(rolledBackInstallToNotify.transactionId)
+            rolledBackInstallToNotify = undefined
+          } catch (cause) {
+            electronLogger.error(
+              `${BIN_NAME}: failed to persist install rollback notice: ${cause instanceof Error ? cause.message : String(cause)}`,
+            )
+          }
+        }
+      }
     } else if (verifyingInstall !== undefined) {
       throw new RendererStartupFailure(
         runtime.rendererBootFailureReason ?? 'renderer-failed',
         rendererReport,
       )
     } else {
-      markDesktopProfileFailed(selectionStatePath, activeProfileName)
-      return
+      throw new RendererStartupFailure(
+        runtime.rendererBootFailureReason ?? 'renderer-failed',
+        rendererReport,
+      )
     }
     notifySkippedOptionalEntries(runtime, electronLogger, prepared.skippedOptionalEntries)
     notifyWindowsVolumeConcerns(runtime, electronLogger, windowsVolumeConcerns)
@@ -526,47 +666,44 @@ async function start(): Promise<void> {
     electronLogger.errorCause(cause)
     let exitCode = 1
     let installRecoveryRelaunch = false
-    if (verifyingInstall !== undefined && installRecovery !== undefined) {
+    const failureRoute = routeDesktopStartupFailure({
+      appReady: app.isReady(),
+      stage: startupStage,
+      verifyingProtectedInstall: verifyingInstall !== undefined,
+      ...(profileStartup === undefined
+        ? {}
+        : {
+            profile: {
+              active: profileStartup.profileName,
+              lastKnownGood: profileStartup.state.lastKnownGood,
+            },
+          }),
+    })
+    const recoveryActionsSafe = await quiesceHostForRecovery()
+    if (failureRoute === 'protected-install-recovery'
+      && verifyingInstall !== undefined
+      && installRecovery !== undefined) {
       const transaction = verifyingInstall
       const failureReason: DesktopInstallRecoveryFailureReason = cause instanceof RendererStartupFailure
         ? cause.reason
         : runtime.rendererBootFailureReason ?? 'startup-failed'
       electronLogger.error(
-        `${BIN_NAME}: recovering plugin install ${transaction.packageName} (${transaction.transactionId}) after ${failureReason}`,
+        `${BIN_NAME}: plugin install ${transaction.packageName} (${transaction.transactionId}) requires recovery after ${failureReason}`,
       )
-      await saveInstallRecoveryDiagnostics(electronLogger)
       try {
-        const restored = await installRecovery.restore(transaction.transactionId, failureReason)
-        if (restored.status === 'restored' || restored.status === 'already-restored') {
-          installRecoveryRelaunch = true
-          nativeExit.requestRelaunch()
-          exitCode = 0
-          electronLogger.error(
-            `${BIN_NAME}: restored plugin install ${transaction.packageName} after ${failureReason}; relaunching once`,
-          )
-        } else {
-          electronLogger.error(
-            `${BIN_NAME}: plugin install recovery requires manual repair for ${restored.mismatchedFiles.join(', ') || 'the active profile'}`,
-          )
-        }
+        await installRecovery.recordFailure(transaction.transactionId, failureReason)
       } catch (recoveryCause) {
         electronLogger.error(
-          `${BIN_NAME}: failed to restore plugin install ${transaction.packageName}: ${recoveryCause instanceof Error ? recoveryCause.message : String(recoveryCause)}`,
+          `${BIN_NAME}: failed to persist plugin recovery choice state for ${transaction.packageName}: ${recoveryCause instanceof Error ? recoveryCause.message : String(recoveryCause)}`,
         )
-        try {
-          await installRecovery.markManualRecoveryRequired(transaction.transactionId, 'recovery-failed')
-        } catch (stateCause) {
-          electronLogger.error(
-            `${BIN_NAME}: failed to persist manual plugin recovery state: ${stateCause instanceof Error ? stateCause.message : String(stateCause)}`,
-          )
-        }
       }
     }
     if (profileStartup !== undefined && profileStatePath !== undefined) {
-      const retryLastKnownGood = profileStartup.profileName !== profileStartup.state.lastKnownGood
       try {
-        markDesktopProfileFailed(profileStatePath, profileStartup.profileName)
-        if (!installRecoveryRelaunch && retryLastKnownGood) {
+        if (failureRoute !== 'protected-install-recovery') {
+          markDesktopProfileFailed(profileStatePath, profileStartup.profileName)
+        }
+        if (!installRecoveryRelaunch && failureRoute === 'last-known-good') {
           nativeExit.requestRelaunch()
           exitCode = 0
           notifyProfileRecovery(
@@ -579,6 +716,20 @@ async function start(): Promise<void> {
         electronLogger.error(`dsh-plugin-desktop: failed to roll back desktop profile state: ${stateCause instanceof Error ? stateCause.message : String(stateCause)}`)
       }
     }
+    if (exitCode !== 0
+      && (failureRoute === 'protected-install-recovery' || failureRoute === 'startup-recovery')) {
+      const detail = cause instanceof Error ? cause.message : String(cause)
+      const recoveryResult = await openStartupRecoveryWindow(
+        detail,
+        recoveryActionsSafe ? startupRecoveryController : undefined,
+      )
+      if (recoveryResult === 'restart') {
+        installRecoveryRelaunch = true
+        nativeExit.requestRelaunch()
+        exitCode = 0
+      }
+    }
+    startupRecoveryController?.dispose()
     await shutdown.request(exitCode)
   }
 }
@@ -611,4 +762,37 @@ async function run(): Promise<void> {
   await start()
 }
 
-void run()
+/** Last-resort branch for launcher failures that happen before start's owned coordinator exists. */
+async function handleFatalLauncherFailure(cause: unknown): Promise<void> {
+  const detail = maskSecrets(cause instanceof Error ? cause.stack ?? cause.message : String(cause))
+  process.stderr.write(`${BIN_NAME}: fatal launcher failure: ${detail}\n`)
+  if (!app.isReady()) {
+    app.exit(1)
+    return
+  }
+  try {
+    const recoveryWindow = new DesktopStartupRecoveryWindow({
+      locale: desktopLocaleFromLanguageTag(app.getLocale()),
+      failureStage: 'electron-ready',
+      failureDetail: detail,
+      exportDiagnostics: async () => await exportDesktopDiagnostics(app.getPath('userData'), {
+        appVersion: desktopProductVersion(),
+        crashDumpsDir: app.getPath('crashDumps'),
+      }),
+    })
+    const result = await recoveryWindow.run()
+    if (result === 'restart') {
+      app.relaunch()
+      app.exit(0)
+    } else {
+      app.exit(1)
+    }
+  } catch (windowCause) {
+    process.stderr.write(
+      `${BIN_NAME}: fatal recovery window failure: ${maskSecrets(windowCause instanceof Error ? windowCause.stack ?? windowCause.message : String(windowCause))}\n`,
+    )
+    app.exit(1)
+  }
+}
+
+void run().catch(async (cause: unknown) => { await handleFatalLauncherFailure(cause) })

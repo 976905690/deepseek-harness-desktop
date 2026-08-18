@@ -52,6 +52,8 @@ export type DesktopInstallRecoveryPhase =
   | 'prepared'
   | 'awaiting-restart'
   | 'verifying'
+  | 'recovery-pending'
+  | 'retry-requested'
   | 'verified'
   | 'rolled-back'
   | 'manual-recovery-required'
@@ -103,6 +105,8 @@ export interface DesktopInstallRecoveryTransaction {
   readonly verificationStartedAt?: string
   readonly verifiedAt?: string
   readonly restoredAt?: string
+  /** Set only after the healthy post-rollback generation showed its native summary. */
+  readonly rollbackNotifiedAt?: string
   readonly failureReason?: DesktopInstallRecoveryFailureReason
   readonly mismatchedFiles?: readonly DesktopInstallRecoveryFilename[]
 }
@@ -133,7 +137,7 @@ export type DesktopInstallRecoveryClaim =
     }
   | { readonly action: 'verify'; readonly transaction: DesktopInstallRecoveryTransaction }
   | {
-      readonly action: 'restore'
+      readonly action: 'prompt'
       readonly reason: 'interrupted-install' | 'startup-unconfirmed'
       readonly transaction: DesktopInstallRecoveryTransaction
     }
@@ -244,6 +248,8 @@ function parseTransaction(value: unknown): DesktopInstallRecoveryTransaction {
     'prepared',
     'awaiting-restart',
     'verifying',
+    'recovery-pending',
+    'retry-requested',
     'verified',
     'rolled-back',
     'manual-recovery-required',
@@ -272,7 +278,13 @@ function parseTransaction(value: unknown): DesktopInstallRecoveryTransaction {
     throw new Error('state fields are invalid')
   }
   assertDesktopProfileName(state.profileName)
-  const optionalDates = ['sealedAt', 'verificationStartedAt', 'verifiedAt', 'restoredAt'] as const
+  const optionalDates = [
+    'sealedAt',
+    'verificationStartedAt',
+    'verifiedAt',
+    'restoredAt',
+    'rollbackNotifiedAt',
+  ] as const
   for (const key of optionalDates) {
     const date = state[key]
     if (date !== undefined && (typeof date !== 'string' || Number.isNaN(Date.parse(date)))) {
@@ -492,7 +504,7 @@ export class DesktopInstallRecoveryStore {
     return next
   }
 
-  /** Claim startup verification, or identify an interrupted generation that must restore first. */
+  /** Claim startup verification, or persist an interrupted generation for native recovery UI. */
   async claim(): Promise<DesktopInstallRecoveryClaim> {
     return await this.withMutationLock(async () => await this.claimLocked())
   }
@@ -515,21 +527,92 @@ export class DesktopInstallRecoveryStore {
       return { action: 'verify', transaction: next }
     }
     if (state.phase === 'prepared') {
+      const next = this.recoveryPendingState(state, 'interrupted-install')
+      await this.writeState(next)
+      return { action: 'prompt', reason: 'interrupted-install', transaction: next }
+    }
+    if (state.phase === 'recovery-pending') {
+      return {
+        action: 'prompt',
+        reason: state.failureReason === 'interrupted-install'
+          ? 'interrupted-install'
+          : 'startup-unconfirmed',
+        transaction: state,
+      }
+    }
+    if (state.phase === 'retry-requested') {
+      if (state.verifyingGeneration === this.generationId) {
+        return { action: 'deferred', reason: 'origin-generation', transaction: state }
+      }
       const next = this.verifyingState(state)
       await this.writeState(next)
-      return { action: 'restore', reason: 'interrupted-install', transaction: next }
+      return { action: 'verify', transaction: next }
     }
     if (state.verifyingGeneration === this.generationId) {
       return { action: 'verify', transaction: state }
     }
-    const next = this.verifyingState(state)
+    const next = this.recoveryPendingState(state, 'startup-unconfirmed')
     await this.writeState(next)
-    return { action: 'restore', reason: 'startup-unconfirmed', transaction: next }
+    return { action: 'prompt', reason: 'startup-unconfirmed', transaction: next }
+  }
+
+  /** Persist one failed verifying generation before showing native recovery choices. */
+  async recordFailure(
+    transactionId: string,
+    failureReason: DesktopInstallRecoveryFailureReason,
+  ): Promise<DesktopInstallRecoveryTransaction> {
+    return await this.withMutationLock(async () => {
+      const state = await this.requireTransaction(transactionId)
+      this.assertBound(state)
+      if (state.phase === 'recovery-pending') return state
+      if (state.phase !== 'verifying' || state.verifyingGeneration !== this.generationId) {
+        throw new Error(`${BIN_NAME}: plugin install recovery transaction is not verifying in this generation`)
+      }
+      const next = this.recoveryPendingState(state, failureReason)
+      await this.writeState(next)
+      return next
+    })
+  }
+
+  /** Persist one explicit retry grant for consumption by exactly the next generation. */
+  async requestRetry(transactionId: string): Promise<DesktopInstallRecoveryTransaction> {
+    return await this.withMutationLock(async () => {
+      const state = await this.requireTransaction(transactionId)
+      this.assertBound(state)
+      if (state.phase !== 'recovery-pending') {
+        throw new Error(`${BIN_NAME}: plugin install recovery transaction is not awaiting a recovery choice`)
+      }
+      const next: DesktopInstallRecoveryTransaction = {
+        ...state,
+        phase: 'retry-requested',
+        verifyingGeneration: this.generationId,
+      }
+      await this.writeState(next)
+      return next
+    })
   }
 
   /** Commit that the claimed profile reached a healthy Renderer generation. */
   async markHealthy(transactionId: string): Promise<DesktopInstallRecoveryTransaction> {
     return await this.withMutationLock(async () => await this.markHealthyLocked(transactionId))
+  }
+
+  /** Persist that the healthy Desktop generation explained a completed rollback to the user. */
+  async markRollbackNotified(transactionId: string): Promise<DesktopInstallRecoveryTransaction> {
+    return await this.withMutationLock(async () => {
+      const state = await this.requireTransaction(transactionId)
+      this.assertBound(state)
+      if (state.phase !== 'rolled-back') {
+        throw new Error(`${BIN_NAME}: only a rolled-back plugin install can be marked notified`)
+      }
+      if (state.rollbackNotifiedAt !== undefined) return state
+      const next: DesktopInstallRecoveryTransaction = {
+        ...state,
+        rollbackNotifiedAt: timestamp(this.now),
+      }
+      await this.writeState(next)
+      return next
+    })
   }
 
   private async markHealthyLocked(transactionId: string): Promise<DesktopInstallRecoveryTransaction> {
@@ -642,6 +725,10 @@ export class DesktopInstallRecoveryStore {
   ): Promise<DesktopInstallRecoveryTransaction> {
     const state = await this.requireTransaction(transactionId)
     this.assertBound(state)
+    if (state.phase === 'verified' || state.phase === 'rolled-back') {
+      throw new Error(`${BIN_NAME}: terminal plugin install recovery transaction cannot require manual recovery`)
+    }
+    if (state.phase === 'manual-recovery-required') return state
     return await this.markManualState(state, failureReason, [])
   }
 
@@ -661,11 +748,24 @@ export class DesktopInstallRecoveryStore {
   }
 
   private verifyingState(state: DesktopInstallRecoveryTransaction): DesktopInstallRecoveryTransaction {
+    const { failureReason, ...active } = state
+    void failureReason
     return {
-      ...state,
+      ...active,
       phase: 'verifying',
       verifyingGeneration: this.generationId,
       verificationStartedAt: timestamp(this.now),
+    }
+  }
+
+  private recoveryPendingState(
+    state: DesktopInstallRecoveryTransaction,
+    failureReason: DesktopInstallRecoveryFailureReason,
+  ): DesktopInstallRecoveryTransaction {
+    return {
+      ...state,
+      phase: 'recovery-pending',
+      failureReason,
     }
   }
 

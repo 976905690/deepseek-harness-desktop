@@ -1,13 +1,20 @@
 /** Desktop-owned inventory and persistent disable state for direct profile bundles. */
 
 import { randomBytes } from 'node:crypto'
-import { lstatSync, readFileSync } from 'node:fs'
+import {
+  closeSync,
+  constants,
+  fstatSync,
+  lstatSync,
+  openSync,
+  readFileSync,
+} from 'node:fs'
 import { chmod, lstat, mkdir } from 'node:fs/promises'
-import { isAbsolute, dirname } from 'node:path'
+import { dirname, isAbsolute, join } from 'node:path'
 import { type Context, Service } from '@deepseek-ai/cordis'
 import {
-  loadProfile,
   PROFILE_TEMPLATES,
+  resolveProfileDir,
   type Profile,
 } from '@deepseek-ai/dsh-app-boot'
 import { withFileLock, writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
@@ -18,8 +25,10 @@ const STATE_VERSION = 1
 const STATE_FILE_MODE = 0o600
 const STATE_DIRECTORY_MODE = 0o700
 const MAX_STATE_BYTES = 64 * 1024
+const MAX_PROFILE_MANIFEST_BYTES = 1024 * 1024
 const MAX_PROFILES = 64
 const MAX_DISABLED_BUNDLES = 512
+const MAX_DIRECT_BUNDLES = 1024
 const PREVIEW_TTL_MS = 5 * 60 * 1000
 const MAX_PREVIEWS = 256
 const BUNDLE_ID_PATTERN = /^bundle_[A-Za-z0-9_-]{32}$/u
@@ -130,6 +139,19 @@ export interface DesktopPluginsBootstrap {
   readonly now?: () => number
 }
 
+/** Path-only inputs shared by the Host service and pre-Host recovery controller. */
+export type DesktopPluginStateBootstrap = Pick<
+  DesktopPluginsBootstrap,
+  'profileName' | 'homeDir' | 'statePath'
+>
+
+/** One strictly parsed direct bundle without any resolved patch or filesystem path. */
+export interface DesktopProfileManifestBundle {
+  readonly packageName: string
+  readonly status: 'active' | 'disabled'
+  readonly mutable: boolean
+}
+
 function emptyState(): DesktopPluginStateV1 {
   return { version: STATE_VERSION, profiles: [] }
 }
@@ -138,6 +160,87 @@ function safePackageName(value: unknown): value is string {
   return typeof value === 'string'
     && value.length <= 214
     && PACKAGE_NAME_PATTERN.test(value)
+}
+
+function assertStateBootstrap(bootstrap: DesktopPluginStateBootstrap): void {
+  assertDesktopProfileName(bootstrap.profileName)
+  for (const [label, value] of [
+    ['Harness home', bootstrap.homeDir],
+    ['state path', bootstrap.statePath],
+  ] as const) {
+    if (!isAbsolute(value) || value.includes('\0')) {
+      throw new Error(`${BIN_NAME}: desktop plugins ${label} must be an absolute path without NUL`)
+    }
+  }
+}
+
+function readProfileManifestBytes(path: string): Buffer {
+  const directory = dirname(path)
+  const directoryInfo = lstatSync(directory)
+  if (!directoryInfo.isDirectory() || directoryInfo.isSymbolicLink()) {
+    throw new Error(`${BIN_NAME}: active profile directory must be a real directory`)
+  }
+  const pathInfo = lstatSync(path)
+  if (!pathInfo.isFile() || pathInfo.isSymbolicLink()) {
+    throw new Error(`${BIN_NAME}: active profile manifest must be a regular file`)
+  }
+  if (pathInfo.size > MAX_PROFILE_MANIFEST_BYTES) {
+    throw new Error(`${BIN_NAME}: active profile manifest is too large`)
+  }
+  const descriptor = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0))
+  try {
+    const openedInfo = fstatSync(descriptor)
+    if (!openedInfo.isFile() || openedInfo.size > MAX_PROFILE_MANIFEST_BYTES) {
+      throw new Error(openedInfo.size > MAX_PROFILE_MANIFEST_BYTES
+        ? `${BIN_NAME}: active profile manifest is too large`
+        : `${BIN_NAME}: active profile manifest must be a regular file`)
+    }
+    const bytes = readFileSync(descriptor)
+    if (bytes.byteLength > MAX_PROFILE_MANIFEST_BYTES) {
+      throw new Error(`${BIN_NAME}: active profile manifest is too large`)
+    }
+    return bytes
+  } finally {
+    closeSync(descriptor)
+  }
+}
+
+function readDesktopProfileBundleNames(
+  bootstrap: DesktopPluginStateBootstrap,
+): readonly string[] {
+  assertStateBootstrap(bootstrap)
+  const profileDir = resolveProfileDir(bootstrap.profileName, bootstrap.homeDir)
+  const bytes = readProfileManifestBytes(join(profileDir, 'package.json'))
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) as unknown
+  } catch (cause) {
+    throw new Error(
+      `${BIN_NAME}: invalid active profile manifest: ${cause instanceof Error ? cause.message : String(cause)}`,
+    )
+  }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(`${BIN_NAME}: active profile manifest must hold a JSON object`)
+  }
+  const root = parsed as Record<string, unknown>
+  const dsh = root.dsh
+  if (dsh === undefined) return []
+  if (dsh === null || typeof dsh !== 'object' || Array.isArray(dsh)) {
+    throw new Error(`${BIN_NAME}: active profile manifest dsh field must be an object`)
+  }
+  const profile = (dsh as Record<string, unknown>).profile
+  if (profile === undefined) return []
+  if (profile === null || typeof profile !== 'object' || Array.isArray(profile)) {
+    throw new Error(`${BIN_NAME}: active profile manifest dsh.profile field must be an object`)
+  }
+  const bundles = (profile as Record<string, unknown>).bundles
+  if (bundles === undefined) return []
+  if (!Array.isArray(bundles)
+    || bundles.length > MAX_DIRECT_BUNDLES
+    || bundles.some(bundle => !safePackageName(bundle))) {
+    throw new Error(`${BIN_NAME}: active profile manifest dsh.profile.bundles is invalid`)
+  }
+  return bundles as string[]
 }
 
 function stableCompare(left: string, right: string): number {
@@ -229,6 +332,30 @@ export function readDesktopDisabledBundles(
   return new Set(profile?.disabledBundles ?? [])
 }
 
+/**
+ * Read the active profile's direct bundle declarations without resolving or
+ * parsing any bundle patch. This remains available when a bundle itself is
+ * what prevents the normal profile loader from starting.
+ */
+export function readDesktopProfileBundleInventory(
+  bootstrap: DesktopPluginStateBootstrap,
+): readonly DesktopProfileManifestBundle[] {
+  const disabled = readDesktopDisabledBundles(bootstrap.statePath, bootstrap.profileName)
+  const seen = new Set<string>()
+  const bundles: DesktopProfileManifestBundle[] = []
+  for (const packageName of readDesktopProfileBundleNames(bootstrap)) {
+    if (seen.has(packageName)) continue
+    seen.add(packageName)
+    const mutable = desktopPluginBundleMutable(packageName)
+    bundles.push({
+      packageName,
+      status: mutable && disabled.has(packageName) ? 'disabled' : 'active',
+      mutable,
+    })
+  }
+  return bundles
+}
+
 /** Only explicit product bundles are immutable; every other resolved direct layer is user-disableable. */
 export function desktopPluginBundleMutable(packageName: string): boolean {
   return safePackageName(packageName) && !IMMUTABLE_BUNDLES.has(packageName)
@@ -253,6 +380,83 @@ async function ensurePrivateStateDirectory(statePath: string): Promise<void> {
     throw new Error(`${BIN_NAME}: plugin-management state directory is not private`)
   }
   await chmod(directory, STATE_DIRECTORY_MODE)
+}
+
+/**
+ * Persist one manifest-declared mutable bundle disable for the next
+ * generation. The caller's authorization callback runs while the state lock
+ * is held, immediately before the manifest and state are re-read.
+ */
+export async function disableDesktopProfileBundle(
+  bootstrap: DesktopPluginStateBootstrap,
+  packageName: string,
+  authorize: () => void | Promise<void> = () => {},
+): Promise<DesktopPluginDisableResult> {
+  let authorizationFailure: unknown
+  try {
+    assertStateBootstrap(bootstrap)
+    if (!safePackageName(packageName)) {
+      throw new DesktopPluginsError('invalid-target', 'The Desktop plugin target is no longer available.')
+    }
+    if (!desktopPluginBundleMutable(packageName)) {
+      throw new DesktopPluginsError('immutable-target', 'This Desktop bundle cannot be disabled.')
+    }
+    await ensurePrivateStateDirectory(bootstrap.statePath)
+    await withFileLock(bootstrap.statePath, async () => {
+      try {
+        await authorize()
+      } catch (cause) {
+        authorizationFailure = cause
+        throw cause
+      }
+      if (!readDesktopProfileBundleNames(bootstrap).includes(packageName)
+        || !desktopPluginBundleMutable(packageName)) {
+        throw new DesktopPluginsError('invalid-target', 'The Desktop plugin target is no longer available.')
+      }
+      const state = readState(bootstrap.statePath)
+      const existingProfile = state.profiles.find(candidate => candidate.profileName === bootstrap.profileName)
+      const disabled = new Set(existingProfile?.disabledBundles ?? [])
+      if (disabled.has(packageName)) {
+        throw new DesktopPluginsError('already-disabled', 'This Desktop bundle is already disabled.')
+      }
+      disabled.add(packageName)
+      const profiles = state.profiles
+        .filter(candidate => candidate.profileName !== bootstrap.profileName)
+      if (existingProfile === undefined && profiles.length >= MAX_PROFILES) {
+        throw new Error('plugin-management state contains too many profiles')
+      }
+      if (disabled.size > MAX_DISABLED_BUNDLES) {
+        throw new Error('plugin-management state contains too many disabled bundles')
+      }
+      profiles.push({
+        profileName: bootstrap.profileName,
+        disabledBundles: [...disabled].sort(stableCompare),
+      })
+      profiles.sort((left, right) => stableCompare(left.profileName, right.profileName))
+      const next = parseState({
+        version: STATE_VERSION,
+        profiles,
+      })
+      const rendered = renderState(next)
+      if (Buffer.byteLength(rendered, 'utf8') > MAX_STATE_BYTES) {
+        throw new Error('plugin-management state is too large')
+      }
+      await writeFileAtomic(bootstrap.statePath, rendered, {
+        mode: STATE_FILE_MODE,
+        dirMode: STATE_DIRECTORY_MODE,
+      })
+    })
+    return { packageName }
+  } catch (cause) {
+    // The trusted caller owns authorization semantics; do not erase its
+    // generation/ownership error while mapping storage failures below.
+    if (cause === authorizationFailure) throw cause
+    if (cause instanceof DesktopPluginsError) throw cause
+    throw new DesktopPluginsError(
+      'persistence-failed',
+      'Unable to persist the Desktop plugin change.',
+    )
+  }
 }
 
 function renderState(state: DesktopPluginStateV1): string {
@@ -296,22 +500,10 @@ export class DesktopPluginsService extends Service implements DesktopPlugins {
 
   list(): readonly DesktopPluginBundle[] {
     this.assertActive()
-    const profile = this.loadCurrentProfile()
-    const disabled = readDesktopDisabledBundles(this.bootstrap.statePath, this.bootstrap.profileName)
-    const seen = new Set<string>()
-    const items: DesktopPluginBundle[] = []
-    for (const layer of profile.layers) {
-      if (seen.has(layer.packageName)) continue
-      seen.add(layer.packageName)
-      const mutable = desktopPluginBundleMutable(layer.packageName)
-      items.push({
-        bundleId: this.bundleId(layer.packageName),
-        packageName: layer.packageName,
-        status: mutable && disabled.has(layer.packageName) ? 'disabled' : 'active',
-        mutable,
-      })
-    }
-    return items
+    return readDesktopProfileBundleInventory(this.bootstrap).map(item => ({
+      ...item,
+      bundleId: this.bundleId(item.packageName),
+    }))
   }
 
   isDisabled(packageName: string): boolean {
@@ -384,16 +576,6 @@ export class DesktopPluginsService extends Service implements DesktopPlugins {
     }
   }
 
-  private loadCurrentProfile(): Profile {
-    return loadProfile(
-      BIN_NAME,
-      this.bootstrap.profileName,
-      this.bootstrap.installAnchor,
-      this.bootstrap.homeDir,
-      { userLayer: false },
-    )
-  }
-
   private bundleId(packageName: string): string {
     let id = this.bundleIds.get(packageName)
     if (id === undefined) {
@@ -413,48 +595,11 @@ export class DesktopPluginsService extends Service implements DesktopPlugins {
       if (current.status === 'disabled') {
         throw new DesktopPluginsError('already-disabled', 'This Desktop bundle is already disabled.')
       }
-      await ensurePrivateStateDirectory(this.bootstrap.statePath)
-      await withFileLock(this.bootstrap.statePath, async () => {
-        this.assertActive()
-        const profile = this.loadCurrentProfile()
-        if (!profile.layers.some(layer => layer.packageName === preview.packageName)
-          || !desktopPluginBundleMutable(preview.packageName)) {
-          throw this.invalidTarget()
-        }
-        const state = readState(this.bootstrap.statePath)
-        const existingProfile = state.profiles.find(candidate => candidate.profileName === this.bootstrap.profileName)
-        const disabled = new Set(existingProfile?.disabledBundles ?? [])
-        if (disabled.has(preview.packageName)) {
-          throw new DesktopPluginsError('already-disabled', 'This Desktop bundle is already disabled.')
-        }
-        disabled.add(preview.packageName)
-        const profiles = state.profiles
-          .filter(candidate => candidate.profileName !== this.bootstrap.profileName)
-        if (existingProfile === undefined && profiles.length >= MAX_PROFILES) {
-          throw new Error('plugin-management state contains too many profiles')
-        }
-        if (disabled.size > MAX_DISABLED_BUNDLES) {
-          throw new Error('plugin-management state contains too many disabled bundles')
-        }
-        profiles.push({
-          profileName: this.bootstrap.profileName,
-          disabledBundles: [...disabled].sort(stableCompare),
-        })
-        profiles.sort((left, right) => stableCompare(left.profileName, right.profileName))
-        const next = parseState({
-          version: STATE_VERSION,
-          profiles,
-        })
-        const rendered = renderState(next)
-        if (Buffer.byteLength(rendered, 'utf8') > MAX_STATE_BYTES) {
-          throw new Error('plugin-management state is too large')
-        }
-        await writeFileAtomic(this.bootstrap.statePath, rendered, {
-          mode: STATE_FILE_MODE,
-          dirMode: STATE_DIRECTORY_MODE,
-        })
-      })
-      return { packageName: preview.packageName }
+      return await disableDesktopProfileBundle(
+        this.bootstrap,
+        preview.packageName,
+        () => { this.assertActive() },
+      )
     } catch (cause) {
       if (cause instanceof DesktopPluginsError) throw cause
       throw new DesktopPluginsError(
