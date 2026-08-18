@@ -711,7 +711,7 @@ describe('Electron compatibility runtime', () => {
         productVersion: '2.0.1',
         profileDir: '/tmp/dsh-home/profiles/desktop',
         homeDir: '/tmp/dsh-home',
-        installRecoveryStatePath: '/tmp/dsh-desktop-user-data/plugin-install-recovery/state.json',
+        installRecoveryStatePath: join('/tmp/dsh-desktop-user-data', 'plugin-install-recovery', 'state.json'),
         spawn: expect.any(Function),
         onLaunchError: expect.any(Function),
       }))
