@@ -43,6 +43,11 @@ import {
 } from './tray-locale.ts'
 import { downloadDesktopUpdate } from './update-download.ts'
 import type { UpdateCheckResult } from './update-checker.ts'
+import {
+  evaluateWindowsWorkspaceVolume,
+  formatWindowsVolumeConcern,
+  type WindowsVolumeQuery,
+} from './windows-volume-diagnostics.ts'
 import { desktopWindowOptions } from './window-options.ts'
 
 /** Return the presentation mode opposite the active generation. */
@@ -132,6 +137,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
     private readonly restart: () => Promise<void>,
     private readonly onRendererBoot: (report: RendererBootReport) => boolean | void = () => {},
     private readonly logger: DesktopLogger | undefined = undefined,
+    private readonly workspaceVolumeQuery: WindowsVolumeQuery | undefined = undefined,
   ) {
     if (process.platform !== 'darwin' && process.platform !== 'win32' && process.platform !== 'linux') {
       throw new Error(`dsh-plugin-desktop: unsupported Electron platform ${process.platform}`)
@@ -252,6 +258,51 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
       ? await dialog.showOpenDialog(options)
       : await dialog.showOpenDialog(window, options)
     return result.canceled ? null : result.filePaths[0] ?? null
+  }
+
+  /** @inheritdoc */
+  async validateDirectory(path: string): Promise<boolean> {
+    const decision = evaluateWindowsWorkspaceVolume(this.platform, path, this.workspaceVolumeQuery)
+    if (decision.action === 'allow') return true
+
+    this.logError(`dsh-plugin-desktop: unsafe workspace volume: ${formatWindowsVolumeConcern(decision.concern)}`)
+    const zh = this.currentLocale === 'zh'
+    if (decision.action === 'confirm') {
+      const result = await dialog.showMessageBox({
+        type: 'warning',
+        title: zh ? '外接工作区' : 'Removable Workspace',
+        message: zh
+          ? '这个工作区位于可移除的 NTFS/ReFS 磁盘上。'
+          : 'This workspace is on a removable NTFS/ReFS drive.',
+        detail: zh
+          ? `使用过程中拔出磁盘会导致命令或插件操作失败。请保持磁盘连接。\n\n${path}`
+          : `Disconnecting the drive while DSH Desktop is running can break commands or plugin operations. Keep it connected.\n\n${path}`,
+        buttons: zh ? ['使用此文件夹', '选择其他文件夹'] : ['Use This Folder', 'Choose Another Folder'],
+        defaultId: 1,
+        cancelId: 1,
+        noLink: true,
+      })
+      const accepted = result.response === 0
+      this.logError(`dsh-plugin-desktop: workspace volume decision=${accepted ? 'confirmed' : 'cancelled'} path=${path}`)
+      return accepted
+    }
+
+    await dialog.showMessageBox({
+      type: 'error',
+      title: zh ? '不支持的工作区存储' : 'Unsupported Workspace Storage',
+      message: zh
+        ? `${decision.concern.fileSystem ?? '当前文件系统'} 不能安全用作 DSH Desktop 工作区。`
+        : `${decision.concern.fileSystem ?? 'This filesystem'} cannot safely host a DSH Desktop workspace.`,
+      detail: zh
+        ? `请选择本地 NTFS 或 ReFS 磁盘上的文件夹。exFAT、FAT32、网络盘和无法检测的磁盘不会被保存为工作区。\n\n${path}`
+        : `Choose a folder on a local NTFS or ReFS volume. exFAT, FAT32, network drives, and uninspectable volumes are not persisted as workspaces.\n\n${path}`,
+      buttons: [zh ? '选择其他文件夹' : 'Choose Another Folder'],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true,
+    })
+    this.logError(`dsh-plugin-desktop: workspace volume decision=blocked path=${path}`)
+    return false
   }
 
   /** @inheritdoc */

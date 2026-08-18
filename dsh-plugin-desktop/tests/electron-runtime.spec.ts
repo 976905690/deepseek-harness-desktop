@@ -44,7 +44,10 @@ vi.mock('../src/update-download.ts', () => ({
   downloadDesktopUpdate: updater.download,
 }))
 
-vi.mock('node:child_process', () => ({ spawn: childProcess.spawn }))
+vi.mock('node:child_process', async (importOriginal) => ({
+  ...await importOriginal<typeof import('node:child_process')>(),
+  spawn: childProcess.spawn,
+}))
 
 const electron = vi.hoisted(() => {
   const browserWindowOptions: unknown[] = []
@@ -346,6 +349,45 @@ describe('Electron compatibility runtime', () => {
     )
 
     await release()
+  })
+
+  it('blocks unsupported workspace volumes without returning a risky path', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
+    const query = vi.fn(() => ({ root: 'E:\\', fileSystem: 'EXFAT', driveType: 2 }))
+    const logger = { error: vi.fn(), errorCause: vi.fn() }
+    const runtime = new ElectronDesktopRuntime(async () => {}, undefined, logger, query)
+
+    await expect(runtime.validateDirectory('E:\\repo')).resolves.toBe(false)
+    expect(electron.dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'error',
+      defaultId: 0,
+      cancelId: 0,
+      message: expect.stringContaining('EXFAT'),
+    }))
+    expect(logger.error).toHaveBeenCalledWith('dsh-plugin-desktop: workspace volume decision=blocked path=E:\\repo')
+  })
+
+  it('requires explicit confirmation for a removable NTFS workspace', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    electron.dialog.showMessageBox.mockResolvedValue({ response: 1, checkboxChecked: false })
+    const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
+    const query = vi.fn(() => ({ root: 'E:\\', fileSystem: 'NTFS', driveType: 2 }))
+    const logger = { error: vi.fn(), errorCause: vi.fn() }
+    const runtime = new ElectronDesktopRuntime(async () => {}, undefined, logger, query)
+
+    await expect(runtime.validateDirectory('E:\\repo')).resolves.toBe(false)
+    expect(electron.dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'warning',
+      defaultId: 1,
+      cancelId: 1,
+      buttons: ['Use This Folder', 'Choose Another Folder'],
+    }))
+    expect(logger.error).toHaveBeenCalledWith('dsh-plugin-desktop: workspace volume decision=cancelled path=E:\\repo')
+
+    electron.dialog.showMessageBox.mockResolvedValue({ response: 0, checkboxChecked: false })
+    await expect(runtime.validateDirectory('E:\\repo')).resolves.toBe(true)
+    expect(logger.error).toHaveBeenCalledWith('dsh-plugin-desktop: workspace volume decision=confirmed path=E:\\repo')
   })
 
   it('logs renderer crashes with the Windows exception code', async () => {
