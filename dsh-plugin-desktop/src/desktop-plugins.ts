@@ -32,7 +32,8 @@ const MAX_DIRECT_BUNDLES = 1024
 const PREVIEW_TTL_MS = 5 * 60 * 1000
 const MAX_PREVIEWS = 256
 const BUNDLE_ID_PATTERN = /^bundle_[A-Za-z0-9_-]{32}$/u
-const PREVIEW_ID_PATTERN = /^disable_[A-Za-z0-9_-]{43}$/u
+const DISABLE_PREVIEW_ID_PATTERN = /^disable_[A-Za-z0-9_-]{43}$/u
+const ENABLE_PREVIEW_ID_PATTERN = /^enable_[A-Za-z0-9_-]{43}$/u
 const PACKAGE_NAME_PATTERN = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/u
 const IMMUTABLE_BUNDLES = new Set([
   ...(PROFILE_TEMPLATES.web ?? []),
@@ -71,6 +72,24 @@ export interface DesktopPluginDisableResult {
   readonly packageName: string
 }
 
+/** Short-lived confirmation minted for one exact disabled direct bundle. */
+export interface DesktopPluginEnablePreview {
+  /** One-shot opaque authority accepted by {@link DesktopPlugins.executeEnable}. */
+  readonly previewId: string
+  /** Active profile bound to the preview. */
+  readonly profileName: string
+  /** Informational package name shown by the confirmation UI. */
+  readonly packageName: string
+  /** ISO timestamp after which the preview is rejected. */
+  readonly expiresAt: string
+}
+
+/** Result of removing one persisted disable for the next Desktop generation. */
+export interface DesktopPluginEnableResult {
+  /** Informational package name whose direct bundle layer was re-enabled. */
+  readonly packageName: string
+}
+
 /** Narrow profile-bundle capability available to trusted Host plugins. */
 export interface DesktopPlugins {
   /** Re-scan direct bundle layers and return generation-local opaque identities. */
@@ -83,6 +102,10 @@ export interface DesktopPlugins {
   previewDisable(bundleId: string): DesktopPluginDisablePreview
   /** Consume one confirmation, revalidate its target, and persist the disable. */
   executeDisable(previewId: string): Promise<DesktopPluginDisableResult>
+  /** Validate one disabled mutable bundle and mint a short-lived confirmation. */
+  previewEnable(bundleId: string): DesktopPluginEnablePreview
+  /** Consume one confirmation, revalidate its target, and remove only its disable marker. */
+  executeEnable(previewId: string): Promise<DesktopPluginEnableResult>
 }
 
 declare module '@deepseek-ai/cordis' {
@@ -97,6 +120,7 @@ export type DesktopPluginsErrorCode =
   | 'invalid-target'
   | 'immutable-target'
   | 'already-disabled'
+  | 'already-active'
   | 'preview-expired'
   | 'persistence-failed'
 
@@ -118,8 +142,9 @@ interface DesktopPluginStateV1 {
   readonly profiles: readonly ProfileBundleState[]
 }
 
-interface DisablePreviewRecord {
+interface DesktopPluginPreviewRecord {
   readonly previewId: string
+  readonly action: 'disable' | 'enable'
   readonly profileName: string
   readonly packageName: string
   readonly expiresAt: number
@@ -459,6 +484,77 @@ export async function disableDesktopProfileBundle(
   }
 }
 
+/**
+ * Remove one mutable manifest-declared bundle's disable marker for the next
+ * generation. No profile manifest or package dependency is modified. The
+ * caller's authorization callback and all target checks run under the state
+ * lock so a disposed generation or concurrent state edit cannot be reused.
+ */
+export async function enableDesktopProfileBundle(
+  bootstrap: DesktopPluginStateBootstrap,
+  packageName: string,
+  authorize: () => void | Promise<void> = () => {},
+): Promise<DesktopPluginEnableResult> {
+  let authorizationFailure: unknown
+  try {
+    assertStateBootstrap(bootstrap)
+    if (!safePackageName(packageName)) {
+      throw new DesktopPluginsError('invalid-target', 'The Desktop plugin target is no longer available.')
+    }
+    if (!desktopPluginBundleMutable(packageName)) {
+      throw new DesktopPluginsError('immutable-target', 'This Desktop bundle cannot be enabled.')
+    }
+    await ensurePrivateStateDirectory(bootstrap.statePath)
+    await withFileLock(bootstrap.statePath, async () => {
+      try {
+        await authorize()
+      } catch (cause) {
+        authorizationFailure = cause
+        throw cause
+      }
+      if (!readDesktopProfileBundleNames(bootstrap).includes(packageName)
+        || !desktopPluginBundleMutable(packageName)) {
+        throw new DesktopPluginsError('invalid-target', 'The Desktop plugin target is no longer available.')
+      }
+      const state = readState(bootstrap.statePath)
+      const existingProfile = state.profiles.find(candidate => candidate.profileName === bootstrap.profileName)
+      const disabled = new Set(existingProfile?.disabledBundles ?? [])
+      if (!disabled.delete(packageName)) {
+        throw new DesktopPluginsError('already-active', 'This Desktop bundle is already active.')
+      }
+      const profiles = state.profiles
+        .filter(candidate => candidate.profileName !== bootstrap.profileName)
+      if (disabled.size > 0) {
+        profiles.push({
+          profileName: bootstrap.profileName,
+          disabledBundles: [...disabled].sort(stableCompare),
+        })
+      }
+      profiles.sort((left, right) => stableCompare(left.profileName, right.profileName))
+      const next = parseState({
+        version: STATE_VERSION,
+        profiles,
+      })
+      const rendered = renderState(next)
+      if (Buffer.byteLength(rendered, 'utf8') > MAX_STATE_BYTES) {
+        throw new Error('plugin-management state is too large')
+      }
+      await writeFileAtomic(bootstrap.statePath, rendered, {
+        mode: STATE_FILE_MODE,
+        dirMode: STATE_DIRECTORY_MODE,
+      })
+    })
+    return { packageName }
+  } catch (cause) {
+    if (cause === authorizationFailure) throw cause
+    if (cause instanceof DesktopPluginsError) throw cause
+    throw new DesktopPluginsError(
+      'persistence-failed',
+      'Unable to persist the Desktop plugin change.',
+    )
+  }
+}
+
 function renderState(state: DesktopPluginStateV1): string {
   return `${JSON.stringify(state, undefined, 2)}\n`
 }
@@ -476,13 +572,13 @@ function assertBootstrap(bootstrap: DesktopPluginsBootstrap): void {
   }
 }
 
-/** Generation-scoped direct bundle inventory with two-phase persistent disable. */
+/** Generation-scoped direct bundle inventory with two-phase persistent state changes. */
 export class DesktopPluginsService extends Service implements DesktopPlugins {
   private readonly now: () => number
   private readonly bundleIds = new Map<string, string>()
-  private readonly previews = new Map<string, DisablePreviewRecord>()
+  private readonly previews = new Map<string, DesktopPluginPreviewRecord>()
   private disposed = false
-  private operation: Promise<DesktopPluginDisableResult> | undefined
+  private operation: Promise<unknown> | undefined
 
   constructor(ctx: Context, private readonly bootstrap: DesktopPluginsBootstrap) {
     assertBootstrap(bootstrap)
@@ -530,41 +626,76 @@ export class DesktopPluginsService extends Service implements DesktopPlugins {
     if (target.status === 'disabled') {
       throw new DesktopPluginsError('already-disabled', 'This Desktop bundle is already disabled.')
     }
-    this.prunePreviews()
-    if (this.previews.size >= MAX_PREVIEWS) {
-      const oldest = this.previews.keys().next().value as string | undefined
-      if (oldest !== undefined) this.previews.delete(oldest)
-    }
-    const previewId = `disable_${randomBytes(32).toString('base64url')}`
-    const expiresAt = this.now() + PREVIEW_TTL_MS
-    this.previews.set(previewId, {
-      previewId,
-      profileName: this.bootstrap.profileName,
-      packageName: target.packageName,
-      expiresAt,
-    })
+    const preview = this.mintPreview('disable', target.packageName)
     return {
-      previewId,
-      profileName: this.bootstrap.profileName,
-      packageName: target.packageName,
-      expiresAt: new Date(expiresAt).toISOString(),
+      previewId: preview.previewId,
+      profileName: preview.profileName,
+      packageName: preview.packageName,
+      expiresAt: new Date(preview.expiresAt).toISOString(),
     }
   }
 
   executeDisable(previewId: string): Promise<DesktopPluginDisableResult> {
     try {
       this.assertActive()
-      if (!PREVIEW_ID_PATTERN.test(previewId)) return Promise.reject(this.expiredPreview())
+      if (!DISABLE_PREVIEW_ID_PATTERN.test(previewId)) return Promise.reject(this.expiredPreview())
       if (this.operation !== undefined) {
         return Promise.reject(new DesktopPluginsError('persistence-failed', 'Another Desktop plugin change is already running.'))
       }
       const preview = this.previews.get(previewId)
       this.previews.delete(previewId)
       if (preview === undefined || preview.expiresAt <= this.now()
+        || preview.action !== 'disable'
         || preview.profileName !== this.bootstrap.profileName) {
         return Promise.reject(this.expiredPreview())
       }
       const operation = this.persistDisable(preview)
+      this.operation = operation
+      void operation.then(
+        () => { if (this.operation === operation) this.operation = undefined },
+        () => { if (this.operation === operation) this.operation = undefined },
+      )
+      return operation
+    } catch (cause) {
+      return Promise.reject(cause)
+    }
+  }
+
+  previewEnable(bundleId: string): DesktopPluginEnablePreview {
+    this.assertActive()
+    if (!BUNDLE_ID_PATTERN.test(bundleId)) throw this.invalidTarget()
+    const target = this.list().find(item => item.bundleId === bundleId)
+    if (target === undefined) throw this.invalidTarget()
+    if (!target.mutable) {
+      throw new DesktopPluginsError('immutable-target', 'This Desktop bundle cannot be enabled.')
+    }
+    if (target.status === 'active') {
+      throw new DesktopPluginsError('already-active', 'This Desktop bundle is already active.')
+    }
+    const preview = this.mintPreview('enable', target.packageName)
+    return {
+      previewId: preview.previewId,
+      profileName: preview.profileName,
+      packageName: preview.packageName,
+      expiresAt: new Date(preview.expiresAt).toISOString(),
+    }
+  }
+
+  executeEnable(previewId: string): Promise<DesktopPluginEnableResult> {
+    try {
+      this.assertActive()
+      if (!ENABLE_PREVIEW_ID_PATTERN.test(previewId)) return Promise.reject(this.expiredPreview())
+      if (this.operation !== undefined) {
+        return Promise.reject(new DesktopPluginsError('persistence-failed', 'Another Desktop plugin change is already running.'))
+      }
+      const preview = this.previews.get(previewId)
+      this.previews.delete(previewId)
+      if (preview === undefined || preview.expiresAt <= this.now()
+        || preview.action !== 'enable'
+        || preview.profileName !== this.bootstrap.profileName) {
+        return Promise.reject(this.expiredPreview())
+      }
+      const operation = this.persistEnable(preview)
       this.operation = operation
       void operation.then(
         () => { if (this.operation === operation) this.operation = undefined },
@@ -585,7 +716,28 @@ export class DesktopPluginsService extends Service implements DesktopPlugins {
     return id
   }
 
-  private async persistDisable(preview: DisablePreviewRecord): Promise<DesktopPluginDisableResult> {
+  private mintPreview(
+    action: DesktopPluginPreviewRecord['action'],
+    packageName: string,
+  ): DesktopPluginPreviewRecord {
+    this.prunePreviews()
+    if (this.previews.size >= MAX_PREVIEWS) {
+      const oldest = this.previews.keys().next().value as string | undefined
+      if (oldest !== undefined) this.previews.delete(oldest)
+    }
+    const previewId = `${action}_${randomBytes(32).toString('base64url')}`
+    const preview: DesktopPluginPreviewRecord = {
+      previewId,
+      action,
+      profileName: this.bootstrap.profileName,
+      packageName,
+      expiresAt: this.now() + PREVIEW_TTL_MS,
+    }
+    this.previews.set(previewId, preview)
+    return preview
+  }
+
+  private async persistDisable(preview: DesktopPluginPreviewRecord): Promise<DesktopPluginDisableResult> {
     try {
       const current = this.list().find(item => item.packageName === preview.packageName)
       if (current === undefined) throw this.invalidTarget()
@@ -596,6 +748,30 @@ export class DesktopPluginsService extends Service implements DesktopPlugins {
         throw new DesktopPluginsError('already-disabled', 'This Desktop bundle is already disabled.')
       }
       return await disableDesktopProfileBundle(
+        this.bootstrap,
+        preview.packageName,
+        () => { this.assertActive() },
+      )
+    } catch (cause) {
+      if (cause instanceof DesktopPluginsError) throw cause
+      throw new DesktopPluginsError(
+        'persistence-failed',
+        'Unable to persist the Desktop plugin change.',
+      )
+    }
+  }
+
+  private async persistEnable(preview: DesktopPluginPreviewRecord): Promise<DesktopPluginEnableResult> {
+    try {
+      const current = this.list().find(item => item.packageName === preview.packageName)
+      if (current === undefined) throw this.invalidTarget()
+      if (!current.mutable) {
+        throw new DesktopPluginsError('immutable-target', 'This Desktop bundle cannot be enabled.')
+      }
+      if (current.status === 'active') {
+        throw new DesktopPluginsError('already-active', 'This Desktop bundle is already active.')
+      }
+      return await enableDesktopProfileBundle(
         this.bootstrap,
         preview.packageName,
         () => { this.assertActive() },
