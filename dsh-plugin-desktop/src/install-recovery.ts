@@ -12,7 +12,7 @@ import {
   unlink,
 } from 'node:fs/promises'
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
-import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
+import { withFileLock, writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { assertDesktopProfileName } from './profile-manager.ts'
 
 const BIN_NAME = 'dsh-plugin-desktop'
@@ -374,6 +374,10 @@ export class DesktopInstallRecoveryStore {
 
   /** Publish a pre-install WAL only after all allowlisted preimages are private and complete. */
   async begin(input: BeginDesktopInstallRecoveryInput): Promise<DesktopInstallRecoveryTransaction> {
+    return await this.withMutationLock(async () => await this.beginLocked(input))
+  }
+
+  private async beginLocked(input: BeginDesktopInstallRecoveryInput): Promise<DesktopInstallRecoveryTransaction> {
     if (!PACKAGE_NAME_PATTERN.test(input.packageName)) {
       throw new Error(`${BIN_NAME}: invalid plugin install recovery package name`)
     }
@@ -431,6 +435,10 @@ export class DesktopInstallRecoveryStore {
 
   /** Seal exact post-install hashes before exposing success or a restart grant. */
   async seal(transactionId: string): Promise<DesktopInstallRecoveryTransaction> {
+    return await this.withMutationLock(async () => await this.sealLocked(transactionId))
+  }
+
+  private async sealLocked(transactionId: string): Promise<DesktopInstallRecoveryTransaction> {
     const state = await this.requireTransaction(transactionId)
     this.assertBound(state)
     if (state.phase === 'awaiting-restart') return state
@@ -457,6 +465,10 @@ export class DesktopInstallRecoveryStore {
 
   /** Claim startup verification, or identify an interrupted generation that must restore first. */
   async claim(): Promise<DesktopInstallRecoveryClaim> {
+    return await this.withMutationLock(async () => await this.claimLocked())
+  }
+
+  private async claimLocked(): Promise<DesktopInstallRecoveryClaim> {
     const state = await this.read()
     if (state === undefined) return { action: 'none' }
     if (!this.matchesCurrentProfile(state)) {
@@ -488,6 +500,10 @@ export class DesktopInstallRecoveryStore {
 
   /** Commit that the claimed profile reached a healthy Renderer generation. */
   async markHealthy(transactionId: string): Promise<DesktopInstallRecoveryTransaction> {
+    return await this.withMutationLock(async () => await this.markHealthyLocked(transactionId))
+  }
+
+  private async markHealthyLocked(transactionId: string): Promise<DesktopInstallRecoveryTransaction> {
     const state = await this.requireTransaction(transactionId)
     this.assertBound(state)
     if (state.phase === 'verified') return state
@@ -505,6 +521,15 @@ export class DesktopInstallRecoveryStore {
 
   /** Restore exact preimages only when every current file is still a known pre- or post-image. */
   async restore(
+    transactionId: string,
+    failureReason: DesktopInstallRecoveryFailureReason,
+  ): Promise<DesktopInstallRecoveryRestoreResult> {
+    return await this.withMutationLock(
+      async () => await this.restoreLocked(transactionId, failureReason),
+    )
+  }
+
+  private async restoreLocked(
     transactionId: string,
     failureReason: DesktopInstallRecoveryFailureReason,
   ): Promise<DesktopInstallRecoveryRestoreResult> {
@@ -577,6 +602,15 @@ export class DesktopInstallRecoveryStore {
     transactionId: string,
     failureReason: DesktopInstallRecoveryFailureReason,
   ): Promise<DesktopInstallRecoveryTransaction> {
+    return await this.withMutationLock(
+      async () => await this.markManualRecoveryRequiredLocked(transactionId, failureReason),
+    )
+  }
+
+  private async markManualRecoveryRequiredLocked(
+    transactionId: string,
+    failureReason: DesktopInstallRecoveryFailureReason,
+  ): Promise<DesktopInstallRecoveryTransaction> {
     const state = await this.requireTransaction(transactionId)
     this.assertBound(state)
     return await this.markManualState(state, failureReason, [])
@@ -584,6 +618,10 @@ export class DesktopInstallRecoveryStore {
 
   /** Remove terminal WAL metadata and private preimages after its external obligations are complete. */
   async clear(transactionId: string): Promise<void> {
+    await this.withMutationLock(async () => await this.clearLocked(transactionId))
+  }
+
+  private async clearLocked(transactionId: string): Promise<void> {
     const state = await this.requireTransaction(transactionId)
     this.assertBound(state)
     if (state.phase !== 'verified' && state.phase !== 'rolled-back') {
@@ -653,6 +691,11 @@ export class DesktopInstallRecoveryStore {
       mode: STATE_FILE_MODE,
       dirMode: PRIVATE_DIRECTORY_MODE,
     })
+  }
+
+  private async withMutationLock<T>(operation: () => Promise<T>): Promise<T> {
+    await this.ensurePrivateDirectory(dirname(this.statePath))
+    return await withFileLock(this.statePath, operation)
   }
 
   private async assertProfileDirectory(): Promise<void> {

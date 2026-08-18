@@ -139,6 +139,23 @@ describe('Desktop plugin install recovery WAL', () => {
     await expect(begin(target)).rejects.toThrow('another plugin install recovery transaction is pending')
   })
 
+  it('serializes concurrent writers so only one prepare can be published', async () => {
+    const target = fixture()
+    const input = {
+      packageName: 'plugin-a',
+      packageVersion: '1.0.0',
+      receiptId: 'receipt-0001',
+    }
+    const results = await Promise.allSettled([
+      store(target).begin(input),
+      store(target).begin(input),
+    ])
+
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1)
+    expect(results.filter(result => result.status === 'rejected')).toHaveLength(1)
+    expect((await store(target).read())?.phase).toBe('prepared')
+  })
+
   it('seals postimages, lets only the next generation claim verification, and clears healthy state', async () => {
     const target = fixture()
     const origin = store(target)
@@ -290,13 +307,15 @@ describe('Desktop plugin install recovery WAL', () => {
 })
 
 describe('Desktop plugin install recovery filesystem boundaries', () => {
-  it('rejects symlinked and non-regular profile files', async () => {
+  it.skipIf(process.platform === 'win32')('rejects symlinked profile files', async () => {
     const linked = fixture([])
     const outside = join(linked.root, 'outside-package.json')
     writeFileSync(outside, PREINSTALL['package.json'])
     symlinkSync(outside, join(linked.profileDir, 'package.json'))
     await expect(begin(linked)).rejects.toThrow('only accepts regular files')
+  })
 
+  it('rejects non-regular profile files', async () => {
     const directory = fixture(['package.json'])
     mkdirSync(join(directory.profileDir, 'pnpm-lock.yaml'))
     await expect(begin(directory)).rejects.toThrow('only accepts regular files')
@@ -309,7 +328,7 @@ describe('Desktop plugin install recovery filesystem boundaries', () => {
     expect(existsSync(target.statePath)).toBe(false)
   })
 
-  it('rejects a symlinked state file', async () => {
+  it.skipIf(process.platform === 'win32')('rejects a symlinked state file', async () => {
     const target = fixture()
     mkdirSync(dirname(target.statePath), { recursive: true })
     const outside = join(target.root, 'outside-state.json')
