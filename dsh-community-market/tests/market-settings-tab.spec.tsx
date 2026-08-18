@@ -47,7 +47,7 @@ afterEach(() => {
 })
 
 const t = ((key: MarketLocaleKey): string => en[key]) as MarketSettingsTabProps['t']
-const props = { t, readLocale: () => 'en' } as MarketSettingsTabProps
+const props = { initialView: 'discover', t, readLocale: () => 'en' } as MarketSettingsTabProps
 const desktopActions = { openTerminal: true, requestRestart: true } as const
 const emptyState: MarketStateResponse = { sources: [], builtIns: [], desktopActions }
 
@@ -232,6 +232,17 @@ function catalogForSource(
 const catalog = catalogForSource(firstSource)
 
 describe('MarketSettingsTab', () => {
+  it('opens on Installable by default', async () => {
+    vi.mocked(readMarketState).mockResolvedValue(enabledState)
+    vi.mocked(readMarketInstallable).mockResolvedValue(installableResponse([]))
+
+    render(<MarketSettingsTab {...({ t, readLocale: () => 'en' } as MarketSettingsTabProps)} />)
+
+    expect((await screen.findByRole('button', { name: en.installable })).getAttribute('aria-pressed')).toBe('true')
+    await waitFor(() => expect(readMarketInstallable).toHaveBeenCalledOnce())
+    expect(readMarketCatalog).not.toHaveBeenCalled()
+  })
+
   it('loads source state on mount and avoids catalog I/O when none are selected', async () => {
     vi.mocked(readMarketState).mockResolvedValue(emptyState)
     render(<MarketSettingsTab {...props} />)

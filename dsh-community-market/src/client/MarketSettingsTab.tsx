@@ -111,12 +111,16 @@ function PluginIcon({ item, large = false }: { item: MarketItem; large?: boolean
 
 export type MarketSettingsTabProps = PropsRuntime<'settings.plugins.tab'>
   & PropsLocale<'community-market'>
-  & { readLocale: () => string }
+  & {
+    readLocale: () => string
+    initialView?: MarketView
+  }
 
 export interface MarketSurfaceProps {
   readonly readLocale: () => string
   readonly t: MarketSettingsTabProps['t']
   readonly showHeader?: boolean
+  readonly initialView?: MarketView
 }
 
 function retainEnabledCatalog(
@@ -191,8 +195,8 @@ function mergeCatalogPages(
   return { ...catalog, results, manualInstall: [...hints.values()], fetchedAt: new Date().toISOString() }
 }
 
-export function MarketSurface({ readLocale, t, showHeader = true }: MarketSurfaceProps) {
-  const [view, setView] = useState<MarketView>('discover')
+export function MarketSurface({ initialView = 'installable', readLocale, t, showHeader = true }: MarketSurfaceProps) {
+  const [view, setView] = useState<MarketView>(initialView)
   const [state, setState] = useState<MarketStateResponse>()
   const [catalog, setCatalog] = useState<MarketCatalogResponse>()
   const [query, setQuery] = useState('')
@@ -235,7 +239,7 @@ export function MarketSurface({ readLocale, t, showHeader = true }: MarketSurfac
   const installationsRequest = useRef<AbortController>()
   const operationRequest = useRef<AbortController>()
   const desktopActionRequest = useRef<AbortController>()
-  const viewRef = useRef<MarketView>('discover')
+  const viewRef = useRef<MarketView>(initialView)
 
   const rememberCategories = useCallback((next: MarketCatalogResponse) => {
     setCategoryOptions([...next.categories]
@@ -296,7 +300,12 @@ export function MarketSurface({ readLocale, t, showHeader = true }: MarketSurfac
     }
   }, [readLocale, rememberCategories, t])
 
-  const loadState = useCallback(async (q: string, categories: readonly string[], forceRefresh = false) => {
+  const loadState = useCallback(async (
+    q: string,
+    categories: readonly string[],
+    forceRefresh = false,
+    loadCatalogAfterState = true,
+  ) => {
     if (mutationRequest.current !== undefined) return
     readRequest.current?.abort()
     pageRequest.current?.abort()
@@ -313,6 +322,10 @@ export function MarketSurface({ readLocale, t, showHeader = true }: MarketSurfac
       setState(next)
       setCatalog(current => retainEnabledCatalog(current, next.sources))
       readRequest.current = undefined
+      if (!loadCatalogAfterState) {
+        setLoading(false)
+        return
+      }
       await loadCatalog(next, q, categories, forceRefresh)
     } catch {
       if (!request.signal.aborted && readRequest.current === request) setError(t('catalogError'))
@@ -381,7 +394,12 @@ export function MarketSurface({ readLocale, t, showHeader = true }: MarketSurfac
 
   useEffect(() => {
     setQuery('')
-    void loadState('', [])
+    if (viewRef.current === 'installable') {
+      void loadState('', [], false, false)
+      void loadInstallable()
+    } else {
+      void loadState('', [])
+    }
     return () => {
       readRequest.current?.abort()
       pageRequest.current?.abort()
@@ -398,7 +416,7 @@ export function MarketSurface({ readLocale, t, showHeader = true }: MarketSurfac
       operationRequest.current = undefined
       desktopActionRequest.current = undefined
     }
-  }, [loadState])
+  }, [loadInstallable, loadState])
 
   const items = useMemo(() => catalog?.results.flatMap(result =>
     (result.snapshot?.items ?? []).map(item => ({ item, source: result.source, stale: result.stale }))) ?? [], [catalog])
@@ -898,8 +916,12 @@ export function MarketSurface({ readLocale, t, showHeader = true }: MarketSurfac
   )
 }
 
-export function MarketSettingsTab({ readLocale, t }: MarketSettingsTabProps) {
-  return <MarketSurface readLocale={readLocale} t={t} />
+export function MarketSettingsTab({ initialView, readLocale, t }: MarketSettingsTabProps) {
+  return <MarketSurface
+    {...(initialView === undefined ? {} : { initialView })}
+    readLocale={readLocale}
+    t={t}
+  />
 }
 
 function DiscoverView(props: {
