@@ -21,34 +21,109 @@ The runtime coordinates these modules but does not expose either one as a third-
 
 ### Architecture shift
 
-The refactor moves the native lifecycle and platform policy behind two focused interfaces:
+The first change moves native resource ownership out of the runtime facade and behind one deep generation module:
 
 ```mermaid
 flowchart LR
-  subgraph Before[Before]
-    RuntimeBefore[ElectronRuntime]
-    RuntimeBefore --> WindowBefore[BrowserWindow]
-    RuntimeBefore --> TrayBefore[Tray]
-    RuntimeBefore --> ListenersBefore[Electron listeners]
-    RuntimeBefore --> PlatformBranches[process.platform branches]
+  subgraph BeforeShell["Before / shallow ownership"]
+    direction LR
+    RuntimeBefore[ElectronDesktopRuntime]
+    UpdatesBefore[Updates]
+    PickerBefore[Directory picker]
+    DiagnosticsBefore[Diagnostics]
+    ListenersBefore[Listeners and cleanup]
+    WindowBefore[BrowserWindow]
+    TrayBefore[Tray]
+
+    RuntimeBefore --> UpdatesBefore
+    RuntimeBefore --> PickerBefore
+    RuntimeBefore --> DiagnosticsBefore
+    RuntimeBefore --> ListenersBefore
+    RuntimeBefore --> WindowBefore
+    RuntimeBefore --> TrayBefore
+    ListenersBefore -. leak risk .-> WindowBefore
+    ListenersBefore -. leak risk .-> TrayBefore
   end
 
-  subgraph After[After]
-    RuntimeAfter[ElectronRuntime]
+  subgraph AfterShell["After / facade over a deep module"]
+    direction LR
+    RuntimeAfter[DesktopRuntime facade]
     Generation[ElectronShellGeneration]
-    Strategy[ElectronPlatformStrategy seam]
+    OrchestrationAfter[Updates and diagnostics orchestration]
+    WindowAfter[BrowserWindow]
+    TrayAfter[Tray]
+    ListenersAfter[Listeners and navigation policy]
+    DisposerAfter[One idempotent release path]
+
     RuntimeAfter --> Generation
-    RuntimeAfter --> Strategy
-    Generation --> WindowAfter[BrowserWindow]
-    Generation --> TrayAfter[Tray]
-    Generation --> ListenersAfter[Listeners and navigation policy]
-    Strategy --> Windows[Windows adapter]
-    Strategy --> macOS[macOS adapter]
-    Strategy --> Linux[Linux adapter]
+    RuntimeAfter --> OrchestrationAfter
+    Generation --> WindowAfter
+    Generation --> TrayAfter
+    Generation --> ListenersAfter
+    Generation --> DisposerAfter
   end
+
+  classDef focus fill:#0f172a,color:#ffffff,stroke:#0f172a,stroke-width:2px;
+  classDef risk fill:#ffffff,color:#111827,stroke:#ef4444,stroke-width:2px;
+  class Generation focus;
+  class ListenersBefore risk;
 ```
 
-The `ElectronRuntime` interface remains the orchestration point. The generation module earns locality by owning resources together, while the strategy seam earns leverage by giving the shared lifecycle one place to consume platform capabilities.
+The `ElectronRuntime` interface remains the orchestration point. `ElectronShellGeneration` earns locality because window, tray, listeners, navigation policy, and release now change and fail together behind one interface.
+
+### Platform strategy shift
+
+The second change consolidates the platform decisions that already vary together, while leaving unrelated one-off construction checks local:
+
+```mermaid
+flowchart LR
+  subgraph BeforePlatform["Before / runtime decisions scattered"]
+    direction LR
+    PickerDecision[Directory picker]
+    ModeDecision[Shell mode]
+    UpdateDecision[Update download]
+    PresentationDecision[Menu, Dock, and material]
+    WindowsBranch[Windows branch]
+    MacBranch[macOS branch]
+    LinuxBranch[Linux branch]
+
+    PickerDecision -->|if win32| WindowsBranch
+    ModeDecision -->|if win32 or darwin| WindowsBranch
+    ModeDecision -->|if darwin| MacBranch
+    UpdateDecision -->|if win32| WindowsBranch
+    UpdateDecision -->|if darwin| MacBranch
+    PresentationDecision --> WindowsBranch
+    PresentationDecision --> MacBranch
+    ModeDecision -. unsupported .-> LinuxBranch
+    UpdateDecision -. unsupported .-> LinuxBranch
+  end
+
+  subgraph AfterPlatform["After / one selected adapter"]
+    direction LR
+    RuntimePlatform[ElectronRuntime]
+    Strategy[ElectronPlatformStrategy seam]
+    WindowsAdapter[Windows adapter]
+    MacAdapter[macOS adapter]
+    LinuxAdapter[Linux adapter]
+    WindowsFacts[Picker, update, menu, and Mica]
+    MacFacts[Update, Dock icon, and shell mode]
+    LinuxFacts[Explicit unsupported capabilities]
+    LocalChecks[Window options and terminal keep local construction checks]
+
+    RuntimePlatform --> Strategy
+    Strategy --> WindowsAdapter --> WindowsFacts
+    Strategy --> MacAdapter --> MacFacts
+    Strategy --> LinuxAdapter --> LinuxFacts
+    RuntimePlatform -. platform value .-> LocalChecks
+  end
+
+  classDef focus fill:#0f172a,color:#ffffff,stroke:#0f172a,stroke-width:2px;
+  classDef risk fill:#ffffff,color:#111827,stroke:#ef4444,stroke-width:2px;
+  class Strategy focus;
+  class WindowsBranch,MacBranch,LinuxBranch risk;
+```
+
+With three concrete adapters, the strategy is a real seam. It gives capability checks and native presentation one selection point without forcing terminal or window-construction details into a fake universal interface.
 
 ### Generation lifecycle
 

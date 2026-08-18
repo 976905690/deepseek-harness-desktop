@@ -21,34 +21,109 @@ Runtime 负责协调这两个 module，但不会把任何一个暴露为第三�
 
 ### 架构变化
 
-这次重构把原生生命周期与平台策略放到两个聚焦的 interface 后面：
+第一项变更把原生资源所有权从 runtime facade 移到一个 deep generation module 后面：
 
 ```mermaid
 flowchart LR
-  subgraph Before[变更前]
-    RuntimeBefore[ElectronRuntime]
-    RuntimeBefore --> WindowBefore[BrowserWindow]
-    RuntimeBefore --> TrayBefore[Tray]
-    RuntimeBefore --> ListenersBefore[Electron listener]
-    RuntimeBefore --> PlatformBranches[process.platform 分支]
+  subgraph BeforeShell["变更前 / shallow ownership"]
+    direction LR
+    RuntimeBefore[ElectronDesktopRuntime]
+    UpdatesBefore[更新]
+    PickerBefore[目录选择]
+    DiagnosticsBefore[诊断]
+    ListenersBefore[Listener 与清理]
+    WindowBefore[BrowserWindow]
+    TrayBefore[Tray]
+
+    RuntimeBefore --> UpdatesBefore
+    RuntimeBefore --> PickerBefore
+    RuntimeBefore --> DiagnosticsBefore
+    RuntimeBefore --> ListenersBefore
+    RuntimeBefore --> WindowBefore
+    RuntimeBefore --> TrayBefore
+    ListenersBefore -. 泄漏风险 .-> WindowBefore
+    ListenersBefore -. 泄漏风险 .-> TrayBefore
   end
 
-  subgraph After[变更后]
-    RuntimeAfter[ElectronRuntime]
+  subgraph AfterShell["变更后 / deep module 上的 facade"]
+    direction LR
+    RuntimeAfter[DesktopRuntime facade]
     Generation[ElectronShellGeneration]
-    Strategy[ElectronPlatformStrategy seam]
+    OrchestrationAfter[更新与诊断协调]
+    WindowAfter[BrowserWindow]
+    TrayAfter[Tray]
+    ListenersAfter[Listener 与导航策略]
+    DisposerAfter[唯一幂等 release 路径]
+
     RuntimeAfter --> Generation
-    RuntimeAfter --> Strategy
-    Generation --> WindowAfter[BrowserWindow]
-    Generation --> TrayAfter[Tray]
-    Generation --> ListenersAfter[Listener 与导航策略]
-    Strategy --> Windows[Windows adapter]
-    Strategy --> macOS[macOS adapter]
-    Strategy --> Linux[Linux adapter]
+    RuntimeAfter --> OrchestrationAfter
+    Generation --> WindowAfter
+    Generation --> TrayAfter
+    Generation --> ListenersAfter
+    Generation --> DisposerAfter
   end
+
+  classDef focus fill:#0f172a,color:#ffffff,stroke:#0f172a,stroke-width:2px;
+  classDef risk fill:#ffffff,color:#111827,stroke:#ef4444,stroke-width:2px;
+  class Generation focus;
+  class ListenersBefore risk;
 ```
 
-`ElectronRuntime` interface 仍然是协调入口。Generation module 通过把资源放在一起拥有 locality；strategy seam 则通过让共享生命周期在一个位置消费平台能力获得 leverage。
+`ElectronRuntime` interface 仍然是协调入口。`ElectronShellGeneration` 获得 locality，是因为窗口、托盘、listener、导航策略与释放现在会在同一个 interface 后共同变化、共同失败。
+
+### 平台 Strategy 变化
+
+第二项变更收敛已经共同变化的平台决策，同时让无关的一次性构造检查继续留在局部：
+
+```mermaid
+flowchart LR
+  subgraph BeforePlatform["变更前 / runtime 决策散落"]
+    direction LR
+    PickerDecision[目录选择]
+    ModeDecision[Shell 模式]
+    UpdateDecision[更新下载]
+    PresentationDecision[菜单、Dock 与原生材质]
+    WindowsBranch[Windows 分支]
+    MacBranch[macOS 分支]
+    LinuxBranch[Linux 分支]
+
+    PickerDecision -->|if win32| WindowsBranch
+    ModeDecision -->|if win32 或 darwin| WindowsBranch
+    ModeDecision -->|if darwin| MacBranch
+    UpdateDecision -->|if win32| WindowsBranch
+    UpdateDecision -->|if darwin| MacBranch
+    PresentationDecision --> WindowsBranch
+    PresentationDecision --> MacBranch
+    ModeDecision -. 不支持 .-> LinuxBranch
+    UpdateDecision -. 不支持 .-> LinuxBranch
+  end
+
+  subgraph AfterPlatform["变更后 / 选择一个 adapter"]
+    direction LR
+    RuntimePlatform[ElectronRuntime]
+    Strategy[ElectronPlatformStrategy seam]
+    WindowsAdapter[Windows adapter]
+    MacAdapter[macOS adapter]
+    LinuxAdapter[Linux adapter]
+    WindowsFacts[目录、更新、菜单与 Mica]
+    MacFacts[更新、Dock 图标与 Shell 模式]
+    LinuxFacts[明确不支持的能力]
+    LocalChecks[Window options 与 terminal 保留局部构造检查]
+
+    RuntimePlatform --> Strategy
+    Strategy --> WindowsAdapter --> WindowsFacts
+    Strategy --> MacAdapter --> MacFacts
+    Strategy --> LinuxAdapter --> LinuxFacts
+    RuntimePlatform -. platform 值 .-> LocalChecks
+  end
+
+  classDef focus fill:#0f172a,color:#ffffff,stroke:#0f172a,stroke-width:2px;
+  classDef risk fill:#ffffff,color:#111827,stroke:#ef4444,stroke-width:2px;
+  class Strategy focus;
+  class WindowsBranch,MacBranch,LinuxBranch risk;
+```
+
+这里有三个具体 adapter，因此 strategy 是真实 seam。它为能力检查和原生呈现提供一个选择点，同时不会为了统一而把 terminal 或 window 构造细节硬塞进虚假的通用 interface。
 
 ### Generation 生命周期
 
