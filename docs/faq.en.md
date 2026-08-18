@@ -42,7 +42,7 @@ No plugins are copied automatically. Each profile has its own bundle and depende
 
 ## How are updates installed?
 
-Packaged applications check for stable releases in the background but never install silently. A newer version requires confirmation. macOS downloads and opens a DMG; Windows downloads and starts an NSIS installer. Network and download failures leave the current installation intact.
+Packaged applications check for stable releases in the background but never install silently. A newer version requires confirmation. Before downloading, a native save dialog lets you choose the installer's directory and filename; cancelling it does not start a download. macOS downloads and opens a DMG; Windows downloads and starts an NSIS installer. After the upgrade and next launch, the app asks whether to delete or keep the installer. Network and download failures leave the current installation intact.
 
 ## Where can I download the app or report a problem?
 
