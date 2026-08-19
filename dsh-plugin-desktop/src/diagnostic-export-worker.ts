@@ -14,9 +14,14 @@ import {
   type Stats,
   unlinkSync,
 } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { isMainThread, parentPort, workerData } from 'node:worker_threads'
 import AdmZip from 'adm-zip'
+import {
+  DESKTOP_LIFECYCLE_EVIDENCE_ENTRY,
+  DESKTOP_LIFECYCLE_SUMMARY_ENTRY,
+  summarizeDesktopLifecycleEvidence,
+} from './lifecycle-events.ts'
 import { isDesktopLogFileName } from './log-files.ts'
 
 const DIAGNOSTIC_ARCHIVE = /^diagnostics-\d+(?:-[0-9a-f-]+)?\.zip$/u
@@ -30,6 +35,7 @@ interface DiagnosticExportWorkerData {
   readonly maxEvidenceBytes: number
   readonly crashDumpsDir?: string
   readonly runStatePath?: string
+  readonly lifecycleEvidencePath?: string
 }
 
 export type DiagnosticExportWorkerResult =
@@ -64,10 +70,22 @@ function regularLogEntry(logsDir: string, name: string): LogEntry | undefined {
 function regularEvidenceEntry(path: string, name: string): LogEntry | undefined {
   try {
     const stats = lstatSync(path)
-    return !stats.isSymbolicLink() && stats.isFile() ? { name, path, stats } : undefined
+    if (stats.isSymbolicLink() || !stats.isFile() || hasLinkedParent(path)) return undefined
+    return { name, path, stats }
   } catch (cause) {
     if (skippableFileError(cause)) return undefined
     throw cause
+  }
+}
+
+function hasLinkedParent(path: string): boolean {
+  let current = dirname(path)
+  while (true) {
+    const stats = lstatSync(current)
+    if (stats.isSymbolicLink()) return true
+    const parent = dirname(current)
+    if (parent === current) return false
+    current = parent
   }
 }
 
@@ -162,6 +180,9 @@ async function createDiagnosticsArchive(data: DiagnosticExportWorkerData): Promi
   const runStateCandidate = data.runStatePath === undefined
     ? undefined
     : regularEvidenceEntry(data.runStatePath, 'crash-evidence/active-run.json')
+  const lifecycleCandidate = data.lifecycleEvidencePath === undefined
+    ? undefined
+    : regularEvidenceEntry(data.lifecycleEvidencePath, DESKTOP_LIFECYCLE_EVIDENCE_ENTRY)
   const zip = new AdmZip()
   let includedBytes = 0
   let omittedFiles = 0
@@ -169,6 +190,30 @@ async function createDiagnosticsArchive(data: DiagnosticExportWorkerData): Promi
   let omittedCrashDumps = 0
   let includedActiveRunMarker = false
   let omittedActiveRunMarker = false
+  let includedLifecycleEvidence = false
+  let omittedLifecycleEvidence = false
+  let includedLifecycleSummary = false
+  let omittedLifecycleSummary = false
+  if (lifecycleCandidate !== undefined) {
+    const content = readStableLog(lifecycleCandidate, data.maxEvidenceBytes - includedBytes)
+    if (content === undefined) {
+      omittedLifecycleEvidence = true
+    } else {
+      zip.addFile(lifecycleCandidate.name, content)
+      includedBytes += content.byteLength
+      includedLifecycleEvidence = true
+      const summary = summarizeDesktopLifecycleEvidence(content)
+      if (summary !== undefined) {
+        if (summary.byteLength <= data.maxEvidenceBytes - includedBytes) {
+          zip.addFile(DESKTOP_LIFECYCLE_SUMMARY_ENTRY, summary)
+          includedBytes += summary.byteLength
+          includedLifecycleSummary = true
+        } else {
+          omittedLifecycleSummary = true
+        }
+      }
+    }
+  }
   for (const entry of [...(runStateCandidate === undefined ? [] : [runStateCandidate]), ...crashCandidates, ...candidates]) {
     const content = readStableLog(entry, data.maxEvidenceBytes - includedBytes)
     if (content === undefined) {
@@ -197,8 +242,12 @@ async function createDiagnosticsArchive(data: DiagnosticExportWorkerData): Promi
     `omitted-crash-dumps: ${String(omittedCrashDumps)}`,
     `included-active-run-marker: ${String(includedActiveRunMarker)}`,
     `omitted-active-run-marker: ${String(omittedActiveRunMarker)}`,
+    `included-lifecycle-evidence: ${String(includedLifecycleEvidence)}`,
+    `omitted-lifecycle-evidence: ${String(omittedLifecycleEvidence)}`,
+    `included-lifecycle-summary: ${String(includedLifecycleSummary)}`,
+    `omitted-lifecycle-summary: ${String(omittedLifecycleSummary)}`,
     `evidence-byte-limit: ${String(data.maxEvidenceBytes)}`,
-    'privacy: logs may contain local paths, workspace IDs, and session IDs; crash dumps may contain process memory',
+    'privacy: logs may contain local paths, workspace IDs, and session IDs; crash dumps may contain process memory; lifecycle evidence contains startup timings and bounded plugin IDs',
   ].join('\n')
   zip.addFile('system-info.txt', Buffer.from(`${info}\n`, 'utf8'))
 

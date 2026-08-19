@@ -284,6 +284,47 @@ describe('published package surface', () => {
     expect(clearVerified).toBeGreaterThan(profileHealthy)
   })
 
+  it('wires lifecycle evidence through key startup stages and terminal outcomes', () => {
+    const main = readFileSync(new URL('src/main.ts', packageRoot), 'utf8')
+    const createRecorder = main.indexOf('const lifecycleRecorder = createDesktopLifecycleRecorder({')
+    const startRun = main.indexOf('lifecycleRecorder.startStartup(startupStage)')
+    const finishRenderer = main.indexOf('lifecycleRecorder.finishRendererBoot(')
+    const rendererStage = main.indexOf("startupStage = 'renderer-startup'")
+    const startRenderer = main.indexOf('lifecycleRecorder.startRendererBoot()')
+    const awaitRenderer = main.indexOf('const rendererReport = await rendererBoot')
+    const healthStage = main.indexOf("startupStage = 'health-commit'")
+    const completeStartup = main.indexOf('lifecycleRecorder.completeStartup(startupStage, rendererReport)')
+    const catchFailure = main.indexOf('} catch (cause) {')
+    const failPendingRenderer = main.indexOf('lifecycleRecorder.failRendererBootIfPending(')
+    const catchFailStartup = main.indexOf('lifecycleRecorder.failStartup(', failPendingRenderer)
+
+    expect(main).toContain("import { createDesktopLifecycleRecorder } from './lifecycle-events.ts'")
+    expect(createRecorder).toBeGreaterThanOrEqual(0)
+    expect(startRun).toBeGreaterThan(createRecorder)
+    for (const stage of [
+      'shell-environment',
+      'runtime-bootstrap',
+      'profile-selection',
+      'install-recovery',
+      'profile-composition',
+      'host-boot',
+      'renderer-startup',
+      'health-commit',
+    ]) {
+      expect(main).toContain(`startupStage = '${stage}'`)
+    }
+    expect(main).toContain('lifecycleRecorder.transitionStartupStage(startupStage)')
+    expect(finishRenderer).toBeGreaterThan(createRecorder)
+    expect(startRenderer).toBeGreaterThan(rendererStage)
+    expect(startRenderer).toBeLessThan(awaitRenderer)
+    expect(healthStage).toBeGreaterThan(awaitRenderer)
+    expect(completeStartup).toBeGreaterThan(healthStage)
+    expect(failPendingRenderer).toBeGreaterThan(catchFailure)
+    expect(catchFailStartup).toBeGreaterThan(failPendingRenderer)
+    expect(main).toContain('lifecycleRendererFailureReason(runtime.rendererBootFailureReason)')
+    expect(main).toContain('lifecycleStartupFailureReason(cause, runtime)')
+  })
+
   it('routes protected and ordinary startup failures through the native recovery window', () => {
     const main = readFileSync(new URL('src/main.ts', packageRoot), 'utf8')
     const windows = [...main.matchAll(/await openStartupRecoveryWindow\(/gu)]
