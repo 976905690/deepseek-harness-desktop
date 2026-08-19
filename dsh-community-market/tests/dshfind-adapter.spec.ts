@@ -324,6 +324,8 @@ describe('dshfind install target normalization', () => {
     ['a prerelease version', { ...baseInstall, methods: [{ ...reviewedMethod, revision: '1.2.4-rc.1' }] }],
     ['a mutable tag instead of a version', { ...baseInstall, methods: [{ ...reviewedMethod, revision: 'latest' }] }],
     ['an invalid package name', { ...baseInstall, methods: [{ ...reviewedMethod, spec: 'Not A Package!' }] }],
+    ['an overlong package name', { ...baseInstall, pkg_name: undefined, methods: [{ ...reviewedMethod, spec: `dsh-${'a'.repeat(211)}` }] }],
+    ['an overlong version', { ...baseInstall, methods: [{ ...reviewedMethod, revision: `${'1'.repeat(63)}.2.3` }] }],
     ['a spec disagreeing with pkg_name', { ...baseInstall, methods: [{ ...reviewedMethod, spec: 'other-package' }] }],
     ['ambiguous reviewed targets', {
       ...baseInstall,

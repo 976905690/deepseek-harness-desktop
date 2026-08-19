@@ -22,6 +22,8 @@ const CATEGORY_PATTERN = /^[a-z0-9][a-z0-9._:-]*$/u
 const DATA_VERSION_PATTERN = /^sha256:[0-9a-f]{64}$/u
 const NPM_PACKAGE_PATTERN = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/u
 const STABLE_SEMVER_PATTERN = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/u
+const MAX_NPM_PACKAGE_LENGTH = 214
+const MAX_NPM_VERSION_LENGTH = 64
 const UNSAFE_TEXT_PATTERN = /[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/u
 
 type CatalogItem = CatalogSnapshot['items'][number]
@@ -207,6 +209,8 @@ function reviewedNpmTarget(
       || method.requiresBuildAllowance !== false
       || typeof method.spec !== 'string'
       || typeof method.revision !== 'string'
+      || method.spec.length > MAX_NPM_PACKAGE_LENGTH
+      || method.revision.length > MAX_NPM_VERSION_LENGTH
       || !NPM_PACKAGE_PATTERN.test(method.spec)
       || !STABLE_SEMVER_PATTERN.test(method.revision)
       || (packageName !== undefined && method.spec !== packageName)
