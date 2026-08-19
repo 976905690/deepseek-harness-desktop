@@ -5,12 +5,13 @@ import {
   Menu,
   nativeImage,
   nativeTheme,
+  Notification,
   shell,
   Tray,
 } from 'electron'
 import { formatDesktopExitCode } from './desktop-logger.ts'
 import type { ElectronPlatformStrategy } from './electron-platform.ts'
-import type { DesktopShellSpec } from './runtime.ts'
+import type { DesktopNotification, DesktopShellSpec } from './runtime.ts'
 import { prepareTrayIcon } from './tray-icons.ts'
 import { desktopWindowOptions } from './window-options.ts'
 
@@ -46,6 +47,7 @@ export class ElectronShellGeneration {
   private tray: Tray | undefined
   private mounted = false
   private released = false
+  private attentionCount = 0
   private cleanupListeners: (() => void) | undefined
 
   constructor(private readonly options: ElectronShellGenerationOptions) {}
@@ -69,6 +71,7 @@ export class ElectronShellGeneration {
     this.window = window
 
     const show = (): void => { this.show() }
+    const clearAttention = (): void => { this.clearAttention() }
     const close = (event: Electron.Event): void => {
       if (this.options.isQuitting()) return
       event.preventDefault()
@@ -133,6 +136,7 @@ export class ElectronShellGeneration {
 
     app.on('activate', show)
     window.on('close', close)
+    window.on('focus', clearAttention)
     window.on('page-title-updated', preserveBlankTitle)
     window.webContents.on('before-input-event', handleZoomShortcut)
     window.webContents.on('will-frame-navigate', navigate)
@@ -157,6 +161,7 @@ export class ElectronShellGeneration {
     this.cleanupListeners = () => {
       app.off('activate', show)
       window.off('close', close)
+      window.off('focus', clearAttention)
       window.off('page-title-updated', preserveBlankTitle)
       window.off('ready-to-show', show)
       window.webContents.off('before-input-event', handleZoomShortcut)
@@ -185,9 +190,24 @@ export class ElectronShellGeneration {
   show(): void {
     const window = this.window
     if (window === undefined || window.isDestroyed()) return
+    this.clearAttention()
     if (window.isMinimized()) window.restore()
     window.show()
     window.focus()
+  }
+
+  notifyAttention(notification: DesktopNotification): void {
+    const window = this.window
+    if (window === undefined || window.isDestroyed() || window.isFocused()) return
+
+    this.attentionCount += 1
+    if (this.options.platform.platform === 'win32') window.flashFrame(true)
+    else app.setBadgeCount(this.attentionCount)
+
+    if (!Notification.isSupported()) return
+    const nativeNotification = new Notification(notification)
+    nativeNotification.once('click', () => { this.show() })
+    nativeNotification.show()
   }
 
   async showOpenDialog(options: Electron.OpenDialogOptions): Promise<Electron.OpenDialogReturnValue> {
@@ -213,6 +233,7 @@ export class ElectronShellGeneration {
 
     const window = this.window
     const tray = this.tray
+    this.clearAttention()
     this.window = undefined
     this.tray = undefined
     if (window === undefined) return
@@ -221,5 +242,16 @@ export class ElectronShellGeneration {
     this.cleanupListeners = undefined
     tray?.destroy()
     if (!window.isDestroyed()) window.destroy()
+  }
+
+  private clearAttention(): void {
+    if (this.attentionCount === 0) return
+    this.attentionCount = 0
+    if (this.options.platform.platform === 'win32') {
+      const window = this.window
+      if (window !== undefined && !window.isDestroyed()) window.flashFrame(false)
+    } else {
+      app.setBadgeCount(0)
+    }
   }
 }

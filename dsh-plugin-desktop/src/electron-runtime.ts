@@ -240,6 +240,11 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
   }
 
   /** @inheritdoc */
+  notifyAttention(notification: DesktopNotification): void {
+    this.generation?.notifyAttention(notification)
+  }
+
+  /** @inheritdoc */
   async pickDirectory(): Promise<string | null> {
     if (!this.platformStrategy.canPickDirectory) {
       throw new Error(`dsh-plugin-desktop: native workspace picker is unavailable on ${this.platform}`)

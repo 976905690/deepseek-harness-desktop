@@ -107,7 +107,9 @@ const electron = vi.hoisted(() => {
     }
 
     readonly isDestroyed = vi.fn(() => false)
+    readonly isFocused = vi.fn(() => false)
     readonly isMinimized = vi.fn(() => false)
+    readonly flashFrame = vi.fn()
     readonly restore = vi.fn()
     readonly show = vi.fn()
     readonly hide = vi.fn()
@@ -164,6 +166,7 @@ const electron = vi.hoisted(() => {
       }),
       getVersion: vi.fn(() => '43.4.0'),
       isPackaged: false,
+      setBadgeCount: vi.fn(),
       on: vi.fn(),
       off: vi.fn(),
     },
@@ -779,6 +782,58 @@ describe('Electron desktop runtime', () => {
     expect(window?.hide).toHaveBeenCalledOnce()
 
     await release()
+  })
+
+  it('shows privacy-safe macOS attention only while unfocused and clears it on notification click', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
+    const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
+    const runtime = new ElectronDesktopRuntime(async () => {})
+    const release = runtime.schedule(spec)
+    await runtime.mountScheduled()
+
+    const window = electron.browserWindows[0]
+    runtime.notifyAttention({ title: 'Turn Completed', body: 'A direct user turn has finished.' })
+    runtime.notifyAttention({ title: 'Background Job Completed', body: 'A background job has finished.' })
+
+    expect(electron.app.setBadgeCount.mock.calls).toEqual([[1], [2]])
+    expect(electron.notifications).toHaveLength(2)
+    expect(electron.notifications[0]?.options).toEqual({
+      title: 'Turn Completed',
+      body: 'A direct user turn has finished.',
+    })
+    const click = electron.notifications[0]?.once.mock.calls.find(([event]) => event === 'click')?.[1]
+    expect(click).toEqual(expect.any(Function))
+    click()
+    expect(electron.app.setBadgeCount).toHaveBeenLastCalledWith(0)
+    expect(window?.show).toHaveBeenCalledOnce()
+    expect(window?.focus).toHaveBeenCalledOnce()
+
+    window?.isFocused.mockReturnValue(true)
+    runtime.notifyAttention({ title: 'Ignored', body: 'Focused window' })
+    expect(electron.notifications).toHaveLength(2)
+
+    await release()
+  })
+
+  it('flashes the Windows taskbar and clears attention on focus and release', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
+    const runtime = new ElectronDesktopRuntime(async () => {})
+    const release = runtime.schedule(spec)
+    await runtime.mountScheduled()
+
+    const window = electron.browserWindows[0]
+    const focus = electron.browserWindowOn.mock.calls.find(([event]) => event === 'focus')?.[1]
+    runtime.notifyAttention({ title: 'Turn Completed', body: 'A direct user turn has finished.' })
+    expect(window?.flashFrame).toHaveBeenLastCalledWith(true)
+    expect(focus).toEqual(expect.any(Function))
+    focus()
+    expect(window?.flashFrame).toHaveBeenLastCalledWith(false)
+
+    runtime.notifyAttention({ title: 'Background Job Failed', body: 'A background job needs attention.' })
+    await release()
+    expect(window?.flashFrame).toHaveBeenLastCalledWith(false)
+    expect(electron.browserWindowOff).toHaveBeenCalledWith('focus', expect.any(Function))
   })
 
   it('releases the window and tray when post-load startup wiring fails', async () => {
