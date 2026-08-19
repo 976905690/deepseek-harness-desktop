@@ -89,4 +89,3 @@ Desktop 类型检查和构建通过。聚焦启动测试完成 50 项。完整 D
 ## 后果
 
 `main.ts` 不再需要理解参与启动提交的 WAL phase，也不再需要维护 WAL 写入与 Profile 写入之间的顺序。只有状态提交 module 确认 Host 已静默时，恢复 UI 才会拿到 controller。新的启动持久状态不应在 `main.ts` 增加另一条直接写路径；如果它的顺序跨越多个 module，应加入本提交协议，否则继续留在原 owner 内。
-

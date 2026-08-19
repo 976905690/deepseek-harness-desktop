@@ -89,4 +89,3 @@ Desktop type checking and build passed. The focused startup suite completed 50 t
 ## Consequences
 
 `main.ts` no longer needs to understand the WAL phases that participate in startup commits or the ordering between WAL and Profile writes. Recovery UI receives a controller only when the state-commit module confirms the Host is quiescent. New startup-persistent state must not add another direct write path in `main.ts`; it should either stay within its existing owner or join this commit protocol when ordering spans multiple modules.
-
