@@ -233,11 +233,6 @@ async function start(): Promise<void> {
   let verifyingInstall: DesktopInstallRecoveryTransaction | undefined
   let verifiedInstallToClear: DesktopInstallRecoveryTransaction | undefined
   let rolledBackInstallToNotify: DesktopInstallRecoveryTransaction | undefined
-  let rendererBootSettled = false
-  let resolveRendererBoot!: (report: RendererBootReport) => void
-  const rendererBoot = new Promise<RendererBootReport>((resolve) => {
-    resolveRendererBoot = resolve
-  })
   const generationId = randomUUID()
   let startupStage: DesktopStartupFailureStage = 'electron-ready'
   const appVersion = desktopProductVersion()
@@ -320,13 +315,11 @@ async function start(): Promise<void> {
     nativeExit.requestRelaunch()
     await shutdown.request(0)
   }, (report) => {
-    lifecycleRecorder.finishRendererBoot(
-      report,
-      lifecycleRendererFailureReason(runtime.rendererBootFailureReason),
-    )
-    if (!rendererBootSettled) {
-      rendererBootSettled = true
-      resolveRendererBoot(report)
+    if (report.status === 'failed') {
+      lifecycleRecorder.finishRendererBoot(
+        report,
+        lifecycleRendererFailureReason(runtime.rendererBootFailureReason),
+      )
     }
     // Main owns every pre-health failure branch. Returning true prevents the
     // legacy Renderer recovery dialog from racing the native startup window.
@@ -654,31 +647,38 @@ async function start(): Promise<void> {
     startupStage = 'renderer-startup'
     lifecycleRecorder.transitionStartupStage(startupStage)
     lifecycleRecorder.startRendererBoot()
-    runtime.beginRendererBootMonitoring()
-    await runtime.mountScheduled()
-    const rendererReport = await rendererBoot
-    if (rendererReport.status === 'healthy') {
-      startupStage = 'health-commit'
-      lifecycleRecorder.transitionStartupStage(startupStage)
-      if (verifyingInstall !== undefined) {
-        if (installRecovery === undefined) {
-          throw new Error(`${BIN_NAME}: plugin install recovery store is unavailable`)
+    const rendererBoot = runtime.beginRendererBootMonitoring({
+      commitHealthy: async () => {
+        lifecycleRecorder.finishRendererBoot({ status: 'healthy' }, 'renderer-failed')
+        startupStage = 'health-commit'
+        lifecycleRecorder.transitionStartupStage(startupStage)
+        if (verifyingInstall !== undefined) {
+          if (installRecovery === undefined) {
+            throw new Error(`${BIN_NAME}: plugin install recovery store is unavailable`)
+          }
+          await installRecovery.markHealthy(verifyingInstall.transactionId)
+          verifiedInstallToClear = verifyingInstall
+          verifyingInstall = undefined
         }
-        await installRecovery.markHealthy(verifyingInstall.transactionId)
-        verifiedInstallToClear = verifyingInstall
-        verifyingInstall = undefined
-      }
-      markDesktopProfileHealthy(selectionStatePath, activeProfileName)
-      if (verifiedInstallToClear !== undefined && installRecovery !== undefined) {
-        try {
-          await installRecovery.clear(verifiedInstallToClear.transactionId)
-          verifiedInstallToClear = undefined
-        } catch (cause) {
-          electronLogger.error(
-            `${BIN_NAME}: failed to clear verified plugin install recovery state: ${cause instanceof Error ? cause.message : String(cause)}`,
-          )
+        markDesktopProfileHealthy(selectionStatePath, activeProfileName)
+        if (verifiedInstallToClear !== undefined && installRecovery !== undefined) {
+          try {
+            await installRecovery.clear(verifiedInstallToClear.transactionId)
+            verifiedInstallToClear = undefined
+          } catch (cause) {
+            electronLogger.error(
+              `${BIN_NAME}: failed to clear verified plugin install recovery state: ${cause instanceof Error ? cause.message : String(cause)}`,
+            )
+          }
         }
-      }
+      },
+    })
+    const [, rendererVerdict] = await Promise.all([
+      runtime.mountScheduled(),
+      rendererBoot,
+    ])
+    const rendererReport = rendererVerdict.report
+    if (!('failureReason' in rendererVerdict)) {
       if (rolledBackInstallToNotify !== undefined) {
         const notified = await showInstallRollbackNotice(
           rolledBackInstallToNotify,
@@ -696,15 +696,10 @@ async function start(): Promise<void> {
           }
         }
       }
-    } else if (verifyingInstall !== undefined) {
-      throw new RendererStartupFailure(
-        runtime.rendererBootFailureReason ?? 'renderer-failed',
-        rendererReport,
-      )
     } else {
       throw new RendererStartupFailure(
-        runtime.rendererBootFailureReason ?? 'renderer-failed',
-        rendererReport,
+        rendererVerdict.failureReason,
+        rendererVerdict.report,
       )
     }
     lifecycleRecorder.completeStartup(startupStage, rendererReport)
