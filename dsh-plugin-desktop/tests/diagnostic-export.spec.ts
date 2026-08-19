@@ -194,6 +194,27 @@ describe('exportDiagnosticsZip', () => {
     expect(zip.readAsText('system-info.txt')).toContain('included-lifecycle-evidence: false')
   })
 
+  it('allows evidence when user data is reached through a linked ancestor', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'dsh-dx-user-data-link-'))
+    const target = join(root, 'target')
+    const linkedAncestor = join(root, 'linked')
+    const userData = join(linkedAncestor, 'user-data')
+    const logs = join(userData, 'logs')
+    mkdirSync(join(target, 'user-data', 'logs'), { recursive: true })
+    symlinkSync(target, linkedAncestor, process.platform === 'win32' ? 'junction' : 'dir')
+    writeFileSync(join(logs, 'dsh-2026-08-16.log'), 'owned\n')
+    const lifecycleEvidencePath = writeLifecycleEvidence(userData)
+
+    const out = await exportDiagnosticsZip(logs, userData, {
+      appVersion: APP_VERSION,
+      lifecycleEvidencePath,
+    })
+
+    const zip = new AdmZip(out)
+    expect(zip.readAsText(DESKTOP_LIFECYCLE_EVIDENCE_ENTRY)).toContain('"runId":"zip-run"')
+    expect(zip.readAsText('system-info.txt')).toContain('included-lifecycle-evidence: true')
+  })
+
   it('includes local Crashpad minidumps but excludes unrelated crash files', async () => {
     const root = mkdtempSync(join(tmpdir(), 'dsh-dx-dump-'))
     const logs = join(root, 'logs')

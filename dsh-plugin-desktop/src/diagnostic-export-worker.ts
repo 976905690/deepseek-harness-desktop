@@ -14,7 +14,7 @@ import {
   type Stats,
   unlinkSync,
 } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { isMainThread, parentPort, workerData } from 'node:worker_threads'
 import AdmZip from 'adm-zip'
 import {
@@ -67,10 +67,10 @@ function regularLogEntry(logsDir: string, name: string): LogEntry | undefined {
   }
 }
 
-function regularEvidenceEntry(path: string, name: string): LogEntry | undefined {
+function regularEvidenceEntry(path: string, name: string, ownerDir: string): LogEntry | undefined {
   try {
     const stats = lstatSync(path)
-    if (stats.isSymbolicLink() || !stats.isFile() || hasLinkedParent(path)) return undefined
+    if (stats.isSymbolicLink() || !stats.isFile() || hasLinkedParent(path, ownerDir)) return undefined
     return { name, path, stats }
   } catch (cause) {
     if (skippableFileError(cause)) return undefined
@@ -78,13 +78,17 @@ function regularEvidenceEntry(path: string, name: string): LogEntry | undefined 
   }
 }
 
-function hasLinkedParent(path: string): boolean {
-  let current = dirname(path)
+function hasLinkedParent(path: string, ownerDir: string): boolean {
+  const owner = resolve(ownerDir)
+  let current = dirname(resolve(path))
+  const relativeParent = relative(owner, current)
+  if (relativeParent === '..' || relativeParent.startsWith(`..${sep}`) || isAbsolute(relativeParent)) return true
   while (true) {
     const stats = lstatSync(current)
     if (stats.isSymbolicLink()) return true
+    if (relative(owner, current) === '') return false
     const parent = dirname(current)
-    if (parent === current) return false
+    if (parent === current) return true
     current = parent
   }
 }
@@ -179,10 +183,10 @@ async function createDiagnosticsArchive(data: DiagnosticExportWorkerData): Promi
     .sort((a, b) => b.stats.mtimeMs - a.stats.mtimeMs || b.name.localeCompare(a.name, 'en'))
   const runStateCandidate = data.runStatePath === undefined
     ? undefined
-    : regularEvidenceEntry(data.runStatePath, 'crash-evidence/active-run.json')
+    : regularEvidenceEntry(data.runStatePath, 'crash-evidence/active-run.json', data.userDataDir)
   const lifecycleCandidate = data.lifecycleEvidencePath === undefined
     ? undefined
-    : regularEvidenceEntry(data.lifecycleEvidencePath, DESKTOP_LIFECYCLE_EVIDENCE_ENTRY)
+    : regularEvidenceEntry(data.lifecycleEvidencePath, DESKTOP_LIFECYCLE_EVIDENCE_ENTRY, data.userDataDir)
   const zip = new AdmZip()
   let includedBytes = 0
   let omittedFiles = 0
