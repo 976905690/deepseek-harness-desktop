@@ -48,10 +48,9 @@ import {
 } from './update-download.ts'
 import type { UpdateCheckResult } from './update-checker.ts'
 import {
-  evaluateWindowsWorkspaceVolume,
-  formatWindowsVolumeConcern,
   type WindowsVolumeQuery,
 } from './windows-volume-diagnostics.ts'
+import { ElectronWorkspaceAdmission } from './workspace-admission.ts'
 
 /** Return the presentation mode opposite the active generation. */
 export function nextDesktopShellMode(mode: DesktopShellSpec['mode']): DesktopShellSpec['mode'] {
@@ -105,7 +104,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
   private readonly trayItems = new Map<symbol, DesktopTrayItem>()
   private terminalSpec: DesktopTerminalSpec | undefined
   private diagnosticExport: Promise<void> | undefined
-  private directoryPickTask: Promise<string | null> | undefined
+  private readonly workspaceAdmission: ElectronWorkspaceAdmission
   private updateCleanupTask: Promise<void> | undefined
   private rendererBootReported = false
   private rendererBootMonitoring = false
@@ -116,11 +115,22 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
     private readonly restart: () => Promise<void>,
     private readonly onRendererBoot: (report: RendererBootReport) => boolean | void = () => {},
     private readonly logger: DesktopLogger | undefined = undefined,
-    private readonly workspaceVolumeQuery: WindowsVolumeQuery | undefined = undefined,
+    workspaceVolumeQuery: WindowsVolumeQuery | undefined = undefined,
   ) {
     this.platformStrategy = electronPlatformStrategy()
     this.platform = this.platformStrategy.platform
     const platformStrategy = this.platformStrategy
+    this.workspaceAdmission = new ElectronWorkspaceAdmission({
+      platform: this.platform,
+      canPickDirectory: platformStrategy.canPickDirectory,
+      locale: () => this.currentLocale,
+      showOpenDialog: async options => this.generation === undefined
+        ? await dialog.showOpenDialog(options)
+        : await this.generation.showOpenDialog(options),
+      showMessageBox: async options => await dialog.showMessageBox(options),
+      logError: message => { this.logError(message) },
+      ...(workspaceVolumeQuery === undefined ? {} : { volumeQuery: workspaceVolumeQuery }),
+    })
     this.updates = {
       get isPackaged() { return app.isPackaged },
       get canDownload() { return app.isPackaged && platformStrategy.updateDownloadPlatform !== undefined },
@@ -241,73 +251,12 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
 
   /** @inheritdoc */
   async pickDirectory(): Promise<string | null> {
-    if (!this.platformStrategy.canPickDirectory) {
-      throw new Error(`dsh-plugin-desktop: native workspace picker is unavailable on ${this.platform}`)
-    }
-    if (this.directoryPickTask !== undefined) return await this.directoryPickTask
-    const task = this.showDirectoryPicker()
-    this.directoryPickTask = task
-    try {
-      return await task
-    } finally {
-      if (this.directoryPickTask === task) this.directoryPickTask = undefined
-    }
-  }
-
-  private async showDirectoryPicker(): Promise<string | null> {
-    const options: Electron.OpenDialogOptions = {
-      title: this.currentLocale === 'zh' ? '选择工作区目录' : 'Select Workspace Directory',
-      properties: ['openDirectory', 'dontAddToRecent'],
-    }
-    const result = this.generation === undefined
-      ? await dialog.showOpenDialog(options)
-      : await this.generation.showOpenDialog(options)
-    return result.canceled ? null : result.filePaths[0] ?? null
+    return await this.workspaceAdmission.pickDirectory()
   }
 
   /** @inheritdoc */
   async validateDirectory(path: string): Promise<boolean> {
-    const decision = evaluateWindowsWorkspaceVolume(this.platform, path, this.workspaceVolumeQuery)
-    if (decision.action === 'allow') return true
-
-    this.logError(`dsh-plugin-desktop: unsafe workspace volume: ${formatWindowsVolumeConcern(decision.concern)}`)
-    const zh = this.currentLocale === 'zh'
-    if (decision.action === 'confirm') {
-      const result = await dialog.showMessageBox({
-        type: 'warning',
-        title: zh ? '外接工作区' : 'Removable Workspace',
-        message: zh
-          ? '这个工作区位于可移除的 NTFS/ReFS 磁盘上。'
-          : 'This workspace is on a removable NTFS/ReFS drive.',
-        detail: zh
-          ? `使用过程中拔出磁盘会导致命令或插件操作失败。请保持磁盘连接。\n\n${path}`
-          : `Disconnecting the drive while DSH Desktop is running can break commands or plugin operations. Keep it connected.\n\n${path}`,
-        buttons: zh ? ['使用此文件夹', '选择其他文件夹'] : ['Use This Folder', 'Choose Another Folder'],
-        defaultId: 1,
-        cancelId: 1,
-        noLink: true,
-      })
-      const accepted = result.response === 0
-      this.logError(`dsh-plugin-desktop: workspace volume decision=${accepted ? 'confirmed' : 'cancelled'} path=${path}`)
-      return accepted
-    }
-
-    await dialog.showMessageBox({
-      type: 'error',
-      title: zh ? '不支持的工作区存储' : 'Unsupported Workspace Storage',
-      message: zh
-        ? `${decision.concern.fileSystem ?? '当前文件系统'} 不能安全用作 DSH Desktop 工作区。`
-        : `${decision.concern.fileSystem ?? 'This filesystem'} cannot safely host a DSH Desktop workspace.`,
-      detail: zh
-        ? `请选择本地 NTFS 或 ReFS 磁盘上的文件夹。exFAT、FAT32、网络盘和无法检测的磁盘不会被保存为工作区。\n\n${path}`
-        : `Choose a folder on a local NTFS or ReFS volume. exFAT, FAT32, network drives, and uninspectable volumes are not persisted as workspaces.\n\n${path}`,
-      buttons: [zh ? '选择其他文件夹' : 'Choose Another Folder'],
-      defaultId: 0,
-      cancelId: 0,
-      noLink: true,
-    })
-    this.logError(`dsh-plugin-desktop: workspace volume decision=blocked path=${path}`)
-    return false
+    return await this.workspaceAdmission.validateDirectory(path)
   }
 
   /** @inheritdoc */
