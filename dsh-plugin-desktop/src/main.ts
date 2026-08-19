@@ -345,9 +345,10 @@ async function start(): Promise<void> {
         locale: desktopLocaleFromLanguageTag(app.getLocale()),
         failureStage: startupStage,
         failureDetail: maskSecrets(failureDetail),
-        exportDiagnostics: async () => await exportDesktopDiagnostics(app.getPath('userData'), {
+        exportDiagnostics: async signal => await exportDesktopDiagnostics(app.getPath('userData'), {
           appVersion,
           crashDumpsDir: app.getPath('crashDumps'),
+          signal,
         }),
       })
       return await startupRecoveryWindow.run()
@@ -743,9 +744,10 @@ async function handleFatalLauncherFailure(cause: unknown): Promise<void> {
       locale: desktopLocaleFromLanguageTag(app.getLocale()),
       failureStage: 'electron-ready',
       failureDetail: detail,
-      exportDiagnostics: async () => await exportDesktopDiagnostics(app.getPath('userData'), {
+      exportDiagnostics: async signal => await exportDesktopDiagnostics(app.getPath('userData'), {
         appVersion: desktopProductVersion(),
         crashDumpsDir: app.getPath('crashDumps'),
+        signal,
       }),
     })
     const result = await recoveryWindow.run()
