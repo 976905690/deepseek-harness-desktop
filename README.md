@@ -152,13 +152,13 @@ headless 检查使用 `corepack yarn check`；完整的构建、测试和发布�
 <table>
   <thead>
     <tr>
-      <th align="center">微信群</th>
+      <th align="center">企业微信</th>
       <th align="center">QQ群</th>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <td align="center"><img src="assets/community-wechat-group.png" alt="DeepSeek Harness Desktop 微信群二维码" width="180" height="180"></td>
+      <td align="center"><img src="assets/community-wechat-group.png" alt="DeepSeek Harness Desktop 企业微信二维码" width="180" height="180"></td>
       <td align="center"><img src="assets/community-qq-group.jpg" alt="DeepSeek Harness Desktop QQ群二维码" width="180" height="180"></td>
     </tr>
   </tbody>
