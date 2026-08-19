@@ -31,6 +31,12 @@ import type {
   DesktopUpdateAdapter,
 } from './runtime.ts'
 import type { RendererBootReport } from './renderer-boot-contract.ts'
+import {
+  DesktopRendererHealthGate,
+  type DesktopRendererHealthGateOptions,
+  type RendererHealthFailureReason,
+  type RendererHealthVerdict,
+} from './renderer-health.ts'
 import type { DesktopLogger } from './desktop-logger.ts'
 import { exportDesktopDiagnostics } from './diagnostic-export.ts'
 import {
@@ -87,9 +93,6 @@ const PRODUCT_VERSION = desktopProductVersion()
 /** Main-process deadline for one Renderer generation to settle its client Loader. */
 export const RENDERER_BOOT_TIMEOUT_MS = 30_000
 
-/** Failure class used by startup recovery to distinguish a hung Renderer. */
-export type RendererBootFailureReason = 'renderer-failed' | 'renderer-timeout'
-
 /** Native adapter used by the DSH Desktop launcher and owned by its Cordis shell plugin. */
 export class ElectronDesktopRuntime implements DesktopRuntime {
   readonly platform: DesktopPlatform
@@ -106,10 +109,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
   private diagnosticExport: Promise<void> | undefined
   private readonly workspaceAdmission: ElectronWorkspaceAdmission
   private updateCleanupTask: Promise<void> | undefined
-  private rendererBootReported = false
-  private rendererBootMonitoring = false
-  private rendererBootTimer: NodeJS.Timeout | undefined
-  private bootFailureReason: RendererBootFailureReason | undefined
+  private rendererHealthGate: DesktopRendererHealthGate | undefined
 
   constructor(
     private readonly restart: () => Promise<void>,
@@ -156,33 +156,29 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
   }
 
   /** Terminal failure class for the first Renderer boot report, when it failed. */
-  get rendererBootFailureReason(): RendererBootFailureReason | undefined {
-    return this.bootFailureReason
+  get rendererBootFailureReason(): RendererHealthFailureReason | undefined {
+    return this.rendererHealthGate?.failureReason
   }
 
-  /** Arm one main-process deadline immediately before the native shell starts loading. */
-  beginRendererBootMonitoring(timeoutMs: number = RENDERER_BOOT_TIMEOUT_MS): void {
-    if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) {
-      throw new Error('dsh-plugin-desktop: renderer boot timeout must be a positive integer')
-    }
-    if (this.rendererBootReported || this.rendererBootMonitoring) {
+  /** Arm the health gate immediately before the native shell starts loading. */
+  beginRendererBootMonitoring(
+    options: DesktopRendererHealthGateOptions,
+    timeoutMs: number = RENDERER_BOOT_TIMEOUT_MS,
+  ): Promise<RendererHealthVerdict> {
+    if (this.rendererHealthGate !== undefined) {
       throw new Error('dsh-plugin-desktop: renderer boot monitoring already started')
     }
-    this.rendererBootMonitoring = true
-    this.rendererBootTimer = setTimeout(() => {
-      this.failRendererBoot(
-        'renderer-timeout',
-        `The Renderer did not report boot health within ${String(timeoutMs)}ms.`,
-      )
-    }, timeoutMs)
-    this.rendererBootTimer.unref()
+    const gate = new DesktopRendererHealthGate(options)
+    this.rendererHealthGate = gate
+    return gate.begin(timeoutMs).then((verdict) => {
+      this.handleRendererBootVerdict(verdict.report)
+      return verdict
+    })
   }
 
   /** Stop a pending deadline while startup is being torn down for another failure. */
   stopRendererBootMonitoring(): void {
-    this.rendererBootMonitoring = false
-    if (this.rendererBootTimer !== undefined) clearTimeout(this.rendererBootTimer)
-    this.rendererBootTimer = undefined
+    this.rendererHealthGate?.stop()
   }
 
   /** @inheritdoc */
@@ -228,11 +224,13 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
         isQuitting: () => this.quitting,
         buildTrayTemplate: () => this.buildTrayTemplate(spec),
         stopRendererBootMonitoring: () => { this.stopRendererBootMonitoring() },
+        abortRendererBootMonitoring: cause => { this.rendererHealthGate?.stop(cause) },
         failRendererBoot: error => { this.failRendererBoot('renderer-failed', error) },
         logError: message => { this.logError(message) },
       })
       this.generation = generation
       this.mountTask = generation.mount(beforeInteractive).then(() => {
+        this.rendererHealthGate?.acceptNativeMount()
         void this.offerUpdateArtifactCleanup().catch((cause: unknown) => {
           this.logError(`dsh-plugin-desktop: failed to resolve update installer cleanup: ${cause instanceof Error ? cause.message : String(cause)}`)
         })
@@ -361,10 +359,10 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
 
   /** @inheritdoc */
   reportRendererBoot(report: RendererBootReport): void {
-    if (this.rendererBootReported) return
-    this.rendererBootReported = true
-    this.stopRendererBootMonitoring()
-    if (report.status === 'failed') this.bootFailureReason ??= 'renderer-failed'
+    this.rendererHealthGate?.report(report)
+  }
+
+  private handleRendererBootVerdict(report: RendererBootReport): void {
     if (report.status === 'failed') {
       const plugins = report.plugins.length === 0 ? 'Unknown client plugin' : report.plugins.join(', ')
       const error = report.error === undefined ? 'The client Loader did not provide an error message.' : report.error
@@ -413,10 +411,8 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
     this.stopRendererBootMonitoring()
   }
 
-  private failRendererBoot(reason: RendererBootFailureReason, error: string): void {
-    if (!this.rendererBootMonitoring || this.rendererBootReported) return
-    this.bootFailureReason = reason
-    this.reportRendererBoot({ status: 'failed', plugins: [], error })
+  private failRendererBoot(reason: RendererHealthFailureReason, error: string): void {
+    this.rendererHealthGate?.fail(reason, error)
   }
 
   private async showRendererBootRecovery(report: Extract<RendererBootReport, { status: 'failed' }>): Promise<void> {
