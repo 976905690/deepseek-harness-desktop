@@ -4,6 +4,7 @@ import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { Worker } from 'node:worker_threads'
 import type { DiagnosticExportWorkerResult } from './diagnostic-export-worker.ts'
+import { desktopLifecycleEvidencePath } from './lifecycle-events.ts'
 
 /** Bound both worker memory and the amount of potentially sensitive log history exported. */
 export const MAX_DIAGNOSTIC_EVIDENCE_BYTES = 50 * 1024 * 1024
@@ -20,6 +21,8 @@ export interface DiagnosticExportOptions {
   readonly crashDumpsDir?: string
   /** Active-run marker used to identify a launch that did not shut down cleanly. */
   readonly runStatePath?: string
+  /** Current-run lifecycle JSONL written by the Electron launcher. */
+  readonly lifecycleEvidencePath?: string
 }
 
 export interface DesktopDiagnosticExportOptions {
@@ -96,6 +99,7 @@ export function exportDiagnosticsZip(
       maxEvidenceBytes,
       ...(options.crashDumpsDir === undefined ? {} : { crashDumpsDir: options.crashDumpsDir }),
       ...(options.runStatePath === undefined ? {} : { runStatePath: options.runStatePath }),
+      ...(options.lifecycleEvidencePath === undefined ? {} : { lifecycleEvidencePath: options.lifecycleEvidencePath }),
     },
     resourceLimits: { maxOldGenerationSizeMb: 256 },
   })
@@ -113,6 +117,7 @@ export function exportDesktopDiagnostics(
     appVersion: options.appVersion,
     crashDumpsDir: options.crashDumpsDir ?? join(userDataDir, 'Crashpad'),
     runStatePath: join(userDataDir, 'crash-evidence', 'active-run.json'),
+    lifecycleEvidencePath: desktopLifecycleEvidencePath(userDataDir),
     ...(options.maxEvidenceBytes === undefined ? {} : { maxEvidenceBytes: options.maxEvidenceBytes }),
   })
 }
