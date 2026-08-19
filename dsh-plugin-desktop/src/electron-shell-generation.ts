@@ -37,6 +37,7 @@ export interface ElectronShellGenerationOptions {
   readonly isQuitting: () => boolean
   readonly buildTrayTemplate: () => Electron.MenuItemConstructorOptions[]
   readonly stopRendererBootMonitoring: () => void
+  readonly abortRendererBootMonitoring: (cause: unknown) => void
   readonly failRendererBoot: (error: string) => void
   readonly logError: (message: string) => void
 }
@@ -182,6 +183,7 @@ export class ElectronShellGeneration {
       beforeInteractive?.()
       this.mounted = true
     } catch (cause) {
+      this.options.abortRendererBootMonitoring(cause)
       await this.release()
       throw cause
     }
