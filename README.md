@@ -6,7 +6,7 @@
   万物皆「插件」，桌面本身也是「插件」。
 </p>
 
-<p align="center"><sub>独立的社区开源项目，与深度求索不存在隶属、合作、授权或背书关系。中文 · <a href="README.en.md">English</a></sub></p>
+<p align="center"><sub>独立的社区开源项目，与深度求索不存在隶属、合作、授权或背书关系。<br>本仓库目前无深度求索员工或 DeepSeek Harness 上游官方团队成员参与；GitHub Contributors 中显示的上游贡献者来自 fork 继承和同步的提交历史。<br>中文 · <a href="README.en.md">English</a></sub></p>
 
 <p align="center">
   <img src="assets/desktop-hero-zh.png" alt="DSH Desktop：基于 DeepSeek Harness 构建的开源桌面客户端" width="100%">
@@ -108,6 +108,8 @@ DSH Desktop 没有修改上游源码，也不是一个固定写死的外壳。�
 ## 与 DeepSeek Harness 的关系
 
 DSH Desktop 是基于 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 和 Cordis 插件思想构建的独立社区项目，旨在提供开放、可组合的 DSH 桌面体验。
+
+本仓库由社区独立维护，目前不存在深度求索员工或 DeepSeek Harness 上游官方团队成员参与本项目开发、维护或治理的情形。GitHub Contributors 页面中可能出现的上游贡献者，来自本仓库 fork 时继承及后续同步的上游提交历史；该署名仅反映提交来源，不代表相关人员参与本仓库，也不构成任何隶属、合作、授权或背书关系。
 
 上游项目提供核心的智能体能力、插件系统和 Web UI；DSH Desktop 主要负责：
 

@@ -6,7 +6,7 @@
   Everything is a plugin — the desktop itself is a plugin.
 </p>
 
-<p align="center"><sub>An independent community project, not affiliated with, authorized by, or endorsed by DeepSeek. <a href="README.md">中文</a> · English</sub></p>
+<p align="center"><sub>An independent community project, not affiliated with, authorized by, or endorsed by DeepSeek.<br>No DeepSeek employee or official upstream DeepSeek Harness team member currently participates in this repository; upstream contributors shown by GitHub are inherited from synchronized fork history.<br><a href="README.md">中文</a> · English</sub></p>
 
 <p align="center">
   <img src="assets/desktop-hero-en.png" alt="DSH Desktop, an open-source desktop client built on DeepSeek Harness" width="100%">
@@ -108,6 +108,8 @@ Unlike many other projects, this project itself is a DSH [plugin](docs/plugin-de
 ## Relationship to DeepSeek Harness
 
 DSH Desktop is an independent community project built on [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) and the Cordis plugin model, intended to provide an open and composable DSH desktop experience.
+
+This repository is independently maintained by the community. No DeepSeek employee or member of the official upstream DeepSeek Harness team currently participates in its development, maintenance, or governance. Contributors from the upstream project may appear on GitHub's Contributors page because this repository inherited and later synchronized upstream commit history when it was forked. Such attribution reflects commit provenance only and does not imply involvement in this repository or any affiliation, partnership, authorization, or endorsement.
 
 The upstream project provides the core agent capabilities, plugin system, and Web UI. DSH Desktop primarily provides:
 
