@@ -52,8 +52,6 @@ import {
 import {
   beginDesktopProfileStartup,
   listDesktopProfiles,
-  markDesktopProfileFailed,
-  markDesktopProfileHealthy,
   readDesktopProfileState,
   selectDesktopProfile,
   type DesktopProfileStartup,
@@ -69,6 +67,7 @@ import {
 } from './startup-recovery-window.ts'
 import { routeDesktopStartupFailure } from './startup-failure-routing.ts'
 import { DesktopStartupGeneration } from './startup-generation.ts'
+import { DesktopStartupStateCommit } from './startup-state-commit.ts'
 import {
   desktopInstallAnchor,
   prepareDesktopProfile,
@@ -213,7 +212,6 @@ async function start(): Promise<void> {
   }
 
   let profileStartup: DesktopProfileStartup | undefined
-  let profileStatePath: string | undefined
   let shutdown: DesktopShutdown | undefined
   let removeShutdownRequests: (() => void) | undefined
   let removeUncaughtExceptionLogging: (() => void) | undefined
@@ -225,8 +223,7 @@ async function start(): Promise<void> {
   let startupRecoveryController: DesktopStartupRecoveryController | undefined
   let startupRecoveryWindow: DesktopStartupRecoveryWindow | undefined
   let startupRecoveryConfigurationPaths: DesktopStartupRecoveryConfigurationPaths | undefined
-  let verifyingInstall: DesktopInstallRecoveryTransaction | undefined
-  let verifiedInstallToClear: DesktopInstallRecoveryTransaction | undefined
+  let startupStateCommit: DesktopStartupStateCommit | undefined
   let rolledBackInstallToNotify: DesktopInstallRecoveryTransaction | undefined
   let startupStage: DesktopStartupFailureStage = 'electron-ready'
   const appVersion = desktopProductVersion()
@@ -419,7 +416,6 @@ async function start(): Promise<void> {
     const pluginManagementStatePath = join(app.getPath('userData'), 'plugin-management', 'state.json')
     startupStage = 'profile-selection'
     lifecycleRecorder.transitionStartupStage(startupStage)
-    profileStatePath = selectionStatePath
     profileStartup = beginDesktopProfileStartup(selectionStatePath, homeDir)
     const activeProfileName = profileStartup.profileName
     const activeProfileDir = resolveProfileDir(activeProfileName, homeDir)
@@ -434,6 +430,14 @@ async function start(): Promise<void> {
       profileDir: activeProfileDir,
       generationId,
     })
+    const stateCommit = new DesktopStartupStateCommit({
+      profile: profileStartup,
+      profileStatePath: selectionStatePath,
+      installRecovery,
+      quiesceForRecovery: () => generation.quiesceForRecovery(),
+      logger: electronLogger,
+    })
+    startupStateCommit = stateCommit
     startupRecoveryController = new DesktopStartupRecoveryController({
       pluginState: {
         profileName: activeProfileName,
@@ -450,6 +454,7 @@ async function start(): Promise<void> {
     startupStage = 'install-recovery'
     lifecycleRecorder.transitionStartupStage(startupStage)
     const recoveryClaim = await installRecovery.claim()
+    stateCommit.observeInstallRecoveryClaim(recoveryClaim)
     if (recoveryClaim.action === 'prompt') {
       electronLogger.error(
         `${BIN_NAME}: protected plugin install ${recoveryClaim.transaction.packageName} (${recoveryClaim.transaction.transactionId}) requires a recovery choice after ${recoveryClaim.reason}`,
@@ -464,18 +469,11 @@ async function start(): Promise<void> {
       lifecycleRecorder.failStartup(startupStage, 'startup-failed')
       await shutdown.request(recoveryResult === 'restart' ? 0 : 1)
       return
-    } else if (recoveryClaim.action === 'verify') {
-      verifyingInstall = recoveryClaim.transaction
     } else if (
       recoveryClaim.action === 'terminal'
       && recoveryClaim.transaction.phase === 'manual-recovery-required'
     ) {
       throw new Error(`${BIN_NAME}: plugin install recovery requires manual repair before this profile can start`)
-    } else if (
-      recoveryClaim.action === 'terminal'
-      && recoveryClaim.transaction.phase === 'verified'
-    ) {
-      verifiedInstallToClear = recoveryClaim.transaction
     } else if (
       recoveryClaim.action === 'terminal'
       && recoveryClaim.transaction.phase === 'rolled-back'
@@ -604,25 +602,7 @@ async function start(): Promise<void> {
         lifecycleRecorder.finishRendererBoot({ status: 'healthy' }, 'renderer-failed')
         startupStage = 'health-commit'
         lifecycleRecorder.transitionStartupStage(startupStage)
-        if (verifyingInstall !== undefined) {
-          if (installRecovery === undefined) {
-            throw new Error(`${BIN_NAME}: plugin install recovery store is unavailable`)
-          }
-          await installRecovery.markHealthy(verifyingInstall.transactionId)
-          verifiedInstallToClear = verifyingInstall
-          verifyingInstall = undefined
-        }
-        markDesktopProfileHealthy(selectionStatePath, activeProfileName)
-        if (verifiedInstallToClear !== undefined && installRecovery !== undefined) {
-          try {
-            await installRecovery.clear(verifiedInstallToClear.transactionId)
-            verifiedInstallToClear = undefined
-          } catch (cause) {
-            electronLogger.error(
-              `${BIN_NAME}: failed to clear verified plugin install recovery state: ${cause instanceof Error ? cause.message : String(cause)}`,
-            )
-          }
-        }
+        await stateCommit.commitHealthy()
       },
     })
     const [, rendererVerdict] = await Promise.all([
@@ -670,66 +650,49 @@ async function start(): Promise<void> {
     lifecycleRecorder.failStartup(startupStage, lifecycleStartupFailureReason(cause, runtime))
     electronLogger.errorCause(cause)
     let exitCode = 1
-    let installRecoveryRelaunch = false
-    const failureRoute = routeDesktopStartupFailure({
-      appReady: app.isReady(),
-      stage: startupStage,
-      verifyingProtectedInstall: verifyingInstall !== undefined,
-      ...(profileStartup === undefined
-        ? {}
-        : {
-            profile: {
-              active: profileStartup.profileName,
-              lastKnownGood: profileStartup.state.lastKnownGood,
-            },
+    const failureReason: DesktopInstallRecoveryFailureReason = cause instanceof RendererStartupFailure
+      ? cause.reason
+      : runtime.rendererBootFailureReason ?? 'startup-failed'
+    const failureCommit = startupStateCommit === undefined
+      ? {
+          route: routeDesktopStartupFailure({
+            appReady: app.isReady(),
+            stage: startupStage,
+            verifyingProtectedInstall: false,
+            ...(profileStartup === undefined
+              ? {}
+              : {
+                  profile: {
+                    active: profileStartup.profileName,
+                    lastKnownGood: profileStartup.state.lastKnownGood,
+                  },
+                }),
           }),
-    })
-    const recoveryActionsSafe = await generation.quiesceForRecovery()
-    if (failureRoute === 'protected-install-recovery'
-      && verifyingInstall !== undefined
-      && installRecovery !== undefined) {
-      const transaction = verifyingInstall
-      const failureReason: DesktopInstallRecoveryFailureReason = cause instanceof RendererStartupFailure
-        ? cause.reason
-        : runtime.rendererBootFailureReason ?? 'startup-failed'
-      electronLogger.error(
-        `${BIN_NAME}: plugin install ${transaction.packageName} (${transaction.transactionId}) requires recovery after ${failureReason}`,
+          recoveryActionsSafe: await generation.quiesceForRecovery(),
+        }
+      : await startupStateCommit.commitFailure({
+          appReady: app.isReady(),
+          stage: startupStage,
+          failureReason,
+        })
+    const failureRoute = failureCommit.route
+    if (failureCommit.reopenLastKnownGood !== undefined) {
+      nativeExit.requestRelaunch()
+      exitCode = 0
+      notifyProfileRecovery(
+        runtime,
+        electronLogger,
+        `Reopening last-known-good profile ${failureCommit.reopenLastKnownGood}.`,
       )
-      try {
-        await installRecovery.recordFailure(transaction.transactionId, failureReason)
-      } catch (recoveryCause) {
-        electronLogger.error(
-          `${BIN_NAME}: failed to persist plugin recovery choice state for ${transaction.packageName}: ${recoveryCause instanceof Error ? recoveryCause.message : String(recoveryCause)}`,
-        )
-      }
-    }
-    if (profileStartup !== undefined && profileStatePath !== undefined) {
-      try {
-        if (failureRoute !== 'protected-install-recovery') {
-          markDesktopProfileFailed(profileStatePath, profileStartup.profileName)
-        }
-        if (!installRecoveryRelaunch && failureRoute === 'last-known-good') {
-          nativeExit.requestRelaunch()
-          exitCode = 0
-          notifyProfileRecovery(
-            runtime,
-            electronLogger,
-            `Reopening last-known-good profile ${profileStartup.state.lastKnownGood}.`,
-          )
-        }
-      } catch (stateCause) {
-        electronLogger.error(`dsh-plugin-desktop: failed to roll back desktop profile state: ${stateCause instanceof Error ? stateCause.message : String(stateCause)}`)
-      }
     }
     if (exitCode !== 0
       && (failureRoute === 'protected-install-recovery' || failureRoute === 'startup-recovery')) {
       const detail = cause instanceof Error ? cause.message : String(cause)
       const recoveryResult = await openStartupRecoveryWindow(
         detail,
-        recoveryActionsSafe ? startupRecoveryController : undefined,
+        failureCommit.recoveryActionsSafe ? startupRecoveryController : undefined,
       )
       if (recoveryResult === 'restart') {
-        installRecoveryRelaunch = true
         nativeExit.requestRelaunch()
         exitCode = 0
       }
