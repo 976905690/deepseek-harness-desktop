@@ -1,8 +1,6 @@
 /** DSH Desktop executable: minimal Electron bootstrap around the Host Cordis root. */
 
 import { app, crashReporter, dialog } from 'electron'
-import type { Context } from '@deepseek-ai/cordis'
-import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -70,6 +68,7 @@ import {
   type DesktopStartupFailureStage,
 } from './startup-recovery-window.ts'
 import { routeDesktopStartupFailure } from './startup-failure-routing.ts'
+import { DesktopStartupGeneration } from './startup-generation.ts'
 import {
   desktopInstallAnchor,
   prepareDesktopProfile,
@@ -213,16 +212,12 @@ async function start(): Promise<void> {
     return
   }
 
-  let current: Context | undefined
-  let hostDisposeTask: Promise<boolean> | undefined
   let profileStartup: DesktopProfileStartup | undefined
   let profileStatePath: string | undefined
   let shutdown: DesktopShutdown | undefined
   let removeShutdownRequests: (() => void) | undefined
   let removeUncaughtExceptionLogging: (() => void) | undefined
   let removeChildProcessLogging: (() => void) | undefined
-  let disposeDshRuntime: (() => void) | undefined
-  let disposePnpmRuntime: (() => void) | undefined
   let fileExporter: FileExporter | undefined
   let runtime!: ElectronDesktopRuntime
   let logSink: LogFileSink | undefined
@@ -233,7 +228,6 @@ async function start(): Promise<void> {
   let verifyingInstall: DesktopInstallRecoveryTransaction | undefined
   let verifiedInstallToClear: DesktopInstallRecoveryTransaction | undefined
   let rolledBackInstallToNotify: DesktopInstallRecoveryTransaction | undefined
-  const generationId = randomUUID()
   let startupStage: DesktopStartupFailureStage = 'electron-ready'
   const appVersion = desktopProductVersion()
   try {
@@ -250,6 +244,8 @@ async function start(): Promise<void> {
     logSink = undefined
   }
   const electronLogger = new ElectronStderrLogger(logSink)
+  const generation = new DesktopStartupGeneration({ logger: electronLogger })
+  const generationId = generation.id
   const lifecycleRecorder = createDesktopLifecycleRecorder({
     userDataDir: app.getPath('userData'),
     appVersion,
@@ -327,19 +323,7 @@ async function start(): Promise<void> {
   }, electronLogger)
   const finalExit = (code: number): void => { nativeExit.finish(code) }
   shutdown = createDesktopShutdown(
-    async () => {
-      try {
-        if (hostDisposeTask !== undefined) {
-          const stopped = await hostDisposeTask
-          if (!stopped) await current?.fiber.dispose()
-        } else {
-          await current?.fiber.dispose()
-        }
-      } finally {
-        disposeDshRuntime?.()
-        disposePnpmRuntime?.()
-      }
-    },
+    async () => { await generation.release() },
     finalExit,
   )
   const requestQuit = (code: number): void => { void shutdown.request(code) }
@@ -380,29 +364,6 @@ async function start(): Promise<void> {
     }
   }
 
-  const quiesceHostForRecovery = async (): Promise<boolean> => {
-    const host = current
-    if (host === undefined) return true
-    hostDisposeTask ??= Promise.resolve().then(async () => {
-      await host.fiber.dispose()
-      current = undefined
-      return true
-    }).catch((cause: unknown) => {
-      electronLogger.error(
-        `${BIN_NAME}: failed to stop the plugin Host before recovery: ${cause instanceof Error ? cause.message : String(cause)}`,
-      )
-      return false
-    })
-    let timeout: ReturnType<typeof setTimeout> | undefined
-    const timedOut = new Promise<false>(resolve => {
-      timeout = setTimeout(() => { resolve(false) }, 5_000)
-    })
-    const result = await Promise.race([hostDisposeTask, timedOut])
-    if (timeout !== undefined) clearTimeout(timeout)
-    if (!result) electronLogger.error(`${BIN_NAME}: plugin Host did not stop in time; mutating recovery actions are unavailable`)
-    return result
-  }
-
   app.on('second-instance', () => {
     if (startupRecoveryWindow !== undefined) startupRecoveryWindow.show()
     else runtime.show()
@@ -434,14 +395,7 @@ async function start(): Promise<void> {
       stderr: electronLogger,
       exit: finalExit,
     }
-    installFailLoud(BIN_NAME, failLoudProcess, async () => {
-      try {
-        await current?.fiber.dispose()
-      } finally {
-        disposeDshRuntime?.()
-        disposePnpmRuntime?.()
-      }
-    })
+    installFailLoud(BIN_NAME, failLoudProcess, async () => { await generation.release() })
 
     startupStage = 'runtime-bootstrap'
     lifecycleRecorder.transitionStartupStage(startupStage)
@@ -460,8 +414,7 @@ async function start(): Promise<void> {
       stateDir: join(app.getPath('userData'), 'runtime-commands'),
       environment: process.env,
     })
-    const releasePnpmRuntime = (): void => { pnpmRuntime.dispose() }
-    disposePnpmRuntime = releasePnpmRuntime
+    const releasePnpmRuntime = generation.own(() => { pnpmRuntime.dispose() })
     const selectionStatePath = join(app.getPath('userData'), 'profile-selection', 'state.json')
     const pluginManagementStatePath = join(app.getPath('userData'), 'plugin-management', 'state.json')
     startupStage = 'profile-selection'
@@ -558,8 +511,7 @@ async function start(): Promise<void> {
           environment: process.env,
         })
       : undefined
-    const releaseDshRuntime = (): void => { dshRuntime?.dispose() }
-    disposeDshRuntime = releaseDshRuntime
+    const releaseDshRuntime = generation.own(() => { dshRuntime?.dispose() })
     const desktopPnpmBootstrap: DesktopPnpmBootstrap = {
       activeProfileName,
       activeProfileDir: prepared.profile.dir,
@@ -582,6 +534,7 @@ async function start(): Promise<void> {
       prepared.rootConfig,
       prepared.patches,
       async (hostCtx) => {
+        generation.bindHost(hostCtx)
         hostCtx.effect(
           () => releasePnpmRuntime,
           'dsh-plugin-desktop: packaged pnpm runtime PATH',
@@ -592,7 +545,6 @@ async function start(): Promise<void> {
             'dsh-plugin-desktop: packaged dsh runtime PATH',
           )
         }
-        current = hostCtx
         hostCtx.effect(
           () => releasePackageResolver,
           'dsh-plugin-desktop: profile package resolution',
@@ -633,7 +585,7 @@ async function start(): Promise<void> {
       releasePackageResolver()
       throw cause
     })
-    current = ctx
+    generation.bindHost(ctx)
     fileExporter?.setThreshold((ctx.settings.get(DESKTOP_SETTINGS_NAMESPACE) as DesktopSettings | undefined)?.logLevel ?? 'info')
     ctx.on('settings/updated', (namespace, next) => {
       if (namespace !== DESKTOP_SETTINGS_NAMESPACE) return
@@ -732,7 +684,7 @@ async function start(): Promise<void> {
             },
           }),
     })
-    const recoveryActionsSafe = await quiesceHostForRecovery()
+    const recoveryActionsSafe = await generation.quiesceForRecovery()
     if (failureRoute === 'protected-install-recovery'
       && verifyingInstall !== undefined
       && installRecovery !== undefined) {
