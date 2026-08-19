@@ -158,7 +158,7 @@ Choose whichever platform you prefer to discuss usage, plugin development, and p
   </thead>
   <tbody>
     <tr>
-      <td align="center"><img src="assets/community-wechat-group.png" alt="DeepSeek Harness Desktop WeCom QR code" width="180" height="180"></td>
+      <td align="center"><img src="assets/community-wechat-group.png" alt="DeepSeek Harness Desktop WeCom QR code" title="Scan to add us on WeCom" width="180" height="180"></td>
       <td align="center"><img src="assets/community-qq-group.jpg" alt="DeepSeek Harness Desktop QQ group QR code" width="180" height="180"></td>
     </tr>
   </tbody>
