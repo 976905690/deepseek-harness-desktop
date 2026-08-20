@@ -70,6 +70,9 @@ export function AdvancedFrame({ layout, platform, renderSlot, useSessions }: Adv
     detailsSession === undefined ? 0 : panels.details,
     platform === 'darwin' ? MACOS_SIDEBAR_COLLAPSED : SIDEBAR_COLLAPSED,
   )
+  // macOS keeps a wider native rail around the centered upstream sidebar,
+  // while the public owner contract still reports the rendered 56px rail.
+  const sidebarOwnerWidth = collapsed ? SIDEBAR_COLLAPSED : columns.sidebar
   const columnsRef = useRef(columns)
   columnsRef.current = columns
 
@@ -106,7 +109,7 @@ export function AdvancedFrame({ layout, platform, renderSlot, useSessions }: Adv
       {platform === 'win32' && <div className="dshDesktopWindowsCaptionRow" aria-hidden="true" />}
       <aside className="dshDesktopSidebarSurface">
         <div className="dshDesktopUpstreamSidebar">
-          {renderSlot('sidebar', { collapsed, width: columns.sidebar })}
+          {renderSlot('sidebar', { collapsed, width: sidebarOwnerWidth })}
         </div>
       </aside>
       <main className="dshDesktopConversationSurface">{renderSlot('conversation', {})}</main>
