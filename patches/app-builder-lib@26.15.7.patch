@@ -26,31 +26,11 @@ diff --git a/templates/nsis/installer.nsi b/templates/nsis/installer.nsi
 index 2f5d5cf1240c5219217498f1f1a0530deab435a6..821e1d1c9b97dce3fd8e847132508384968072a0 100644
 --- a/templates/nsis/installer.nsi
 +++ b/templates/nsis/installer.nsi
-@@ -20,12 +20,13 @@
- !ifdef INSTALL_MODE_PER_ALL_USERS
-   !ifdef BUILD_UNINSTALLER
-     RequestExecutionLevel user
-   !else
-     RequestExecutionLevel admin
-   !endif
- !else
-   RequestExecutionLevel user
- !endif
+@@ -28,0 +29 @@
 +ManifestLongPathAware true
- 
- !ifdef BUILD_UNINSTALLER
-   SilentInstall silent
 diff --git a/templates/nsis/portable.nsi b/templates/nsis/portable.nsi
 index 8d2992afbe79af270a0d08c38203166d3afc03f1..bd8dc7fd2bc01a4ec9ade821bbd5d7bd37265caf 100644
 --- a/templates/nsis/portable.nsi
 +++ b/templates/nsis/portable.nsi
-@@ -4,8 +4,9 @@
- # https://github.com/electron-userland/electron-builder/issues/3972#issuecomment-505171582
- CRCCheck off
- WindowIcon Off
- AutoCloseWindow True
- RequestExecutionLevel ${REQUEST_EXECUTION_LEVEL}
+@@ -8,0 +9 @@
 +ManifestLongPathAware true
- 
- Function .onInit
-   !ifndef SPLASH_IMAGE
