@@ -23,6 +23,7 @@ const manifest = JSON.parse(readFileSync(new URL('package.json', packageRoot), '
     asarUnpack?: unknown
     afterPack?: unknown
     electronFuses?: unknown
+    toolsets?: Record<string, unknown>
     files?: unknown
     mac?: {
       hardenedRuntime?: unknown
@@ -394,6 +395,7 @@ describe('published package surface', () => {
       'node_modules/**',
     ])
     expect(manifest.build?.electronFuses).toEqual({ runAsNode: true })
+    expect(manifest.build?.toolsets).toEqual({ nsis: '1.2.1' })
     expect(manifest.files).toEqual(expect.arrayContaining([
       'build/app-icon.png',
       'build/app-icon-mac.png',
@@ -614,6 +616,7 @@ describe('published package surface', () => {
     expect(patch).toContain('importCerts(keychainFile, certPaths, cscPasswords, keychainPassword)')
     expect(patch).toContain('"-k", keychainPassword, keychainFile')
     expect(patch).toContain('ManifestLongPathAware true')
+    expect(manifest.build?.toolsets?.nsis).toBe('1.2.1')
     expect(installedCodeSign).toContain('importCerts(keychainFile, certPaths, cscPasswords, keychainPassword)')
     expect(installedCodeSign).toContain('"-k", keychainPassword, keychainFile')
     expect(installedNsisInstaller).toContain('ManifestLongPathAware true')
