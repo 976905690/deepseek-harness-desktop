@@ -630,6 +630,31 @@ describe('standard source registration trust boundary', () => {
 })
 
 describe('catalog Host route pagination boundary', () => {
+  it.each([
+    ['timeout', 504, 'catalog-timeout'],
+    ['response', 502, 'catalog-invalid-response'],
+    ['http', 502, 'catalog-unavailable'],
+  ] as const)('returns a bounded %s failure code for catalog diagnostics', async (networkCode, status, code) => {
+    const scanCatalog = vi.spyOn(DefaultCatalogService.prototype, 'scanCatalog')
+      .mockRejectedValue(new CatalogNetworkError(networkCode))
+    try {
+      const response = await requestMarketCatalog(
+        [source()],
+        `${marketRoutes.catalog}?sourceRecordId=${source().sourceRecordId}`,
+      )
+
+      expect(response.statusCode).toBe(status)
+      expect(response.body).toEqual({
+        error: networkCode === 'timeout'
+          ? 'catalog request timed out'
+          : networkCode === 'response' ? 'catalog response was invalid' : 'catalog source unavailable',
+        code,
+      })
+    } finally {
+      scanCatalog.mockRestore()
+    }
+  })
+
   it('uses the Host limit of 50 and preserves repeated category parameters', async () => {
     const index = catalogIndex()
     const scanCatalog = vi.spyOn(DefaultCatalogService.prototype, 'scanCatalog').mockResolvedValue(index)
