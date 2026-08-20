@@ -1,0 +1,22 @@
+diff --git a/lib/client.js b/lib/client.js
+index 741dc8a..72b49c7 100644
+--- a/lib/client.js
++++ b/lib/client.js
+@@ -1498,6 +1498,8 @@ window.__ModuleLoader__.load({
+ 			*/
+ 			const curatedFields = (family) => {
+ 				const ownsIdentity = family === "pi-ai" && props.declared === true;
++				const baseURLOverridden = (0, _deepseek_ai_dsh_client_schema_form.hasPath)(draft, ["baseURL"]);
++				const canCustomizeApi = ownsIdentity || baseURLOverridden;
+ 				const customModels = (0, _deepseek_ai_dsh_client_schema_form.getPath)(draft, ["models"]);
+ 				const modelsOverridden = (0, _deepseek_ai_dsh_client_schema_form.hasPath)(draft, ["models"]);
+ 				const models = modelDrafts(modelsOverridden ? customModels : inheritedModels());
+@@ -1586,7 +1588,7 @@ window.__ModuleLoader__.load({
+ 									}
+ 								})]
+ 							}),
+-							ownsIdentity ? (0, react_jsx_runtime.jsxs)("div", {
++							canCustomizeApi ? (0, react_jsx_runtime.jsxs)("div", {
+ 								className: ModelsSection_module_css_default["field"],
+ 								children: [(0, react_jsx_runtime.jsx)("span", {
+ 									className: ModelsSection_module_css_default["fieldLabel"],
