@@ -7358,14 +7358,17 @@ __metadata:
     "@types/js-yaml": "npm:^4.0.9"
     "@types/node": "npm:^22.20.0"
     "@types/react": "npm:^18"
+    "@types/semver": "npm:^7.7.1"
     adm-zip: "npm:^0.6.0"
     dsh-community-market: "npm:0.1.0-dev.0"
+    dshmarket: "npm:1.17.1"
     electron: "npm:43.4.0"
     electron-builder: "npm:26.15.7"
     koffi: "npm:3.1.5"
     node-addon-require-builtin: "npm:^0.1.4"
     pnpm: "npm:11.7.0"
     react: "npm:18.3.1"
+    semver: "npm:^7.8.5"
     sharp: "npm:0.35.3"
     tsdown: "npm:0.22.2"
     typescript: "npm:6.0.3"
@@ -7378,6 +7381,38 @@ __metadata:
     dsh-plugin-desktop: lib/bin.js
   languageName: unknown
   linkType: soft
+
+"dshmarket@npm:1.17.1":
+  version: 1.17.1
+  resolution: "dshmarket@npm:1.17.1"
+  dependencies:
+    js-yaml: "npm:^4.1.0"
+    undici: "npm:^7.29.0"
+  peerDependencies:
+    "@deepseek-ai/cordis": ^4.0.1
+    "@deepseek-ai/dsh-settings": ^0.1.0-rc.7
+  peerDependenciesMeta:
+    "@deepseek-ai/dsh-settings":
+      optional: true
+  checksum: 10c0/b5c32d516b41ff6c603dada84cbbe7ed1753cb9c800b9df3d373f9fffa3f55f0767d05bbb5c727637c0ad58a0d576ecab62955297c27ef527fbae9de4861cf56
+  languageName: node
+  linkType: hard
+
+"dshmarket@patch:dshmarket@npm%3A1.17.1#./.yarn/patches/dshmarket-npm-1.17.1-d9fe6da08c.patch::locator=deepseek-harness-desktop%40workspace%3A.":
+  version: 1.17.1
+  resolution: "dshmarket@patch:dshmarket@npm%3A1.17.1#./.yarn/patches/dshmarket-npm-1.17.1-d9fe6da08c.patch::version=1.17.1&hash=810d73&locator=deepseek-harness-desktop%40workspace%3A."
+  dependencies:
+    js-yaml: "npm:^4.1.0"
+    undici: "npm:^7.29.0"
+  peerDependencies:
+    "@deepseek-ai/cordis": ^4.0.1
+    "@deepseek-ai/dsh-settings": ^0.1.0-rc.7
+  peerDependenciesMeta:
+    "@deepseek-ai/dsh-settings":
+      optional: true
+  checksum: 10c0/c05d85152dde5107e29bc74a3b4e6781136e516167f5caa9cc31e771b0f38aa1633599d12aed2ffebd01ce325d211d7e57fa0739f71fcc598054dee559c5d15d
+  languageName: node
+  linkType: hard
 
 "dts-resolver@npm:^3.0.0":
   version: 3.0.0
@@ -11409,7 +11444,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"undici@npm:^7.24.4, undici@npm:^7.25.0":
+"undici@npm:^7.24.4, undici@npm:^7.25.0, undici@npm:^7.29.0":
   version: 7.29.0
   resolution: "undici@npm:7.29.0"
   checksum: 10c0/85ea96e91e7f3de24de678cbbc54230fdd641a3b0643005f2aef044af1f1a2db8fbecb88b28e6fa78bb41ffeafda4479b57075b6b6ab92beac4b7b5ab53f9b10

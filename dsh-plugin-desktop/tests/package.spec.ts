@@ -128,12 +128,16 @@ describe('published package surface', () => {
     expect(manifest.dsh?.client).toEqual({
       platform: 'web',
       inject: [
+        '@deepseek-ai/dsh-api-remotes',
+        '@deepseek-ai/dsh-client-connection',
+        '@deepseek-ai/dsh-client-locale',
         '@deepseek-ai/dsh-client-runtime',
+        '@deepseek-ai/dsh-client-ui-settings',
         '@deepseek-ai/dsh-client-ui-theme',
       ],
     })
     expect(readFileSync(new URL('cordis.patch.yml', packageRoot), 'utf8')).toContain('name: dsh-plugin-desktop')
-    expect(readFileSync(new URL('cordis.patch.yml', packageRoot), 'utf8')).toContain('name: dsh-community-market')
+    expect(readFileSync(new URL('cordis.patch.yml', packageRoot), 'utf8')).not.toContain('name: dsh-community-market')
     expect(readFileSync(new URL('cordis.patch.yml', packageRoot), 'utf8')).toContain('name: dsh-plugin-desktop/terminal')
     expect(readFileSync(new URL('cordis.patch.yml', packageRoot), 'utf8')).toContain('name: dsh-plugin-desktop/pnpm')
     expect(readFileSync(new URL('cordis.patch.yml', packageRoot), 'utf8')).toContain('name: dsh-plugin-desktop/profiles')
@@ -142,8 +146,11 @@ describe('published package surface', () => {
     expect(readFileSync(new URL('cordis.patch.yml', packageRoot), 'utf8')).toContain('name: dsh-plugin-desktop/updates')
   })
 
-  it('keeps unaudited marketplace packages out of the published runtime', () => {
-    expect(manifest.dependencies).not.toHaveProperty('dshmarket')
+  it('pins both selectable Market providers in the published runtime', () => {
+    expect(manifest.dependencies).toMatchObject({
+      'dsh-community-market': '0.1.0-dev.0',
+      dshmarket: '1.17.1',
+    })
     expect(manifest.optionalDependencies ?? {}).not.toHaveProperty('dshmarket')
   })
 
@@ -350,6 +357,23 @@ describe('published package surface', () => {
     expect(main).toContain('async () => { await generation.release() }')
     expect(main).not.toContain('disposePnpmRuntime')
     expect(main).not.toContain('disposeDshRuntime')
+  })
+
+  it('injects profile creation into the generation-scoped Host service without selecting it', () => {
+    const main = readFileSync(new URL('src/main.ts', packageRoot), 'utf8')
+    const profileImport = main.indexOf('createDesktopWebProfile,')
+    const profileService = main.indexOf('await hostCtx.plugin(DesktopProfileService, {')
+    const create = main.indexOf('create: name => createDesktopWebProfile(homeDir, name),', profileService)
+    const list = main.indexOf('list: () => listDesktopProfiles(homeDir),', profileService)
+    const persist = main.indexOf('persistSelection: name => { selectDesktopProfile(selectionStatePath, homeDir, name) },', profileService)
+    const restart = main.indexOf('requestRestart: () => runtime.requestRestart(),', profileService)
+
+    expect(profileImport).toBeGreaterThanOrEqual(0)
+    expect(profileService).toBeGreaterThan(profileImport)
+    expect(create).toBeGreaterThan(profileService)
+    expect(list).toBeGreaterThan(create)
+    expect(persist).toBeGreaterThan(list)
+    expect(restart).toBeGreaterThan(persist)
   })
 
   it('wires local crash evidence before Electron becomes ready', () => {

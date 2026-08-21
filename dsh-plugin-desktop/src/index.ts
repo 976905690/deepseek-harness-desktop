@@ -26,6 +26,22 @@ import {
   handleDesktopDirectoryPickerRequest,
   handleDesktopDirectoryValidationRequest,
 } from './directory-picker-route.ts'
+import {
+  DESKTOP_MARKET_SELECT_PATH,
+  DESKTOP_PROFILE_CREATE_PATH,
+  DESKTOP_PROFILE_SELECT_PATH,
+  DESKTOP_SETTINGS_PATH,
+  DESKTOP_TERMINAL_OPEN_PATH,
+} from './desktop-settings-contract.ts'
+import {
+  handleDesktopMarketSelectRequest,
+  handleDesktopProfileCreateRequest,
+  handleDesktopProfileSelectRequest,
+  handleDesktopSettingsRequest,
+  handleDesktopTerminalOpenRequest,
+} from './desktop-settings-route.ts'
+import type {} from './desktop-settings-controller.ts'
+import { desktopBootRecoveryInjections } from './desktop-boot-recovery.ts'
 import type { DesktopShellMode } from './runtime.ts'
 import type {} from './runtime.ts'
 
@@ -146,6 +162,40 @@ export function apply(ctx: Context, config: Config): void {
     },
   )
   const rendererOrigin = `http://127.0.0.1:${String(ctx.webServer.port)}`
+  ctx.on('webserver/index-inject', table => {
+    table.push(...desktopBootRecoveryInjections())
+  })
+  const desktopSettings = ctx.get('desktopSettingsController')
+  if (desktopSettings !== undefined) {
+    const reportSettingsError = (operation: string, cause: unknown): void => {
+      ctx.logger.error(
+        `dsh-plugin-desktop: failed to ${operation}: ${cause instanceof Error ? cause.message : String(cause)}`,
+      )
+    }
+    const settingsRoutes = [
+      [DESKTOP_SETTINGS_PATH, handleDesktopSettingsRequest],
+      [DESKTOP_PROFILE_CREATE_PATH, handleDesktopProfileCreateRequest],
+      [DESKTOP_PROFILE_SELECT_PATH, handleDesktopProfileSelectRequest],
+      [DESKTOP_MARKET_SELECT_PATH, handleDesktopMarketSelectRequest],
+      [DESKTOP_TERMINAL_OPEN_PATH, handleDesktopTerminalOpenRequest],
+    ] as const
+    for (const [path, handler] of settingsRoutes) {
+      ctx.effect(
+        () => ctx.webServer.register({
+          kind: 'exact',
+          path,
+          handler: (req, res) => handler(
+            req,
+            res,
+            rendererOrigin,
+            desktopSettings,
+            reportSettingsError,
+          ),
+        }),
+        `dsh-plugin-desktop: private settings route ${path}`,
+      )
+    }
+  }
   ctx.effect(
     () => ctx.webServer.register({
       kind: 'exact',

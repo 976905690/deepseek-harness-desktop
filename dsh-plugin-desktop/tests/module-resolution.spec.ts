@@ -1,224 +1,145 @@
-import { pathToFileURL } from 'node:url'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const hooks = vi.hoisted(() => ({
+const harness = vi.hoisted(() => ({
   resolve: undefined as undefined | ((
     specifier: string,
     context: { parentURL?: string },
     nextResolve: (specifier: string, context: { parentURL?: string }) => unknown,
   ) => unknown),
   deregister: vi.fn(),
-  desktopResolve: vi.fn((specifier: string) => {
-    const exports: Record<string, string> = {
-      'dsh-plugin-desktop': '/current/dsh-plugin-desktop/lib/index.js',
-      'dsh-plugin-desktop/profile': '/current/dsh-plugin-desktop/lib/profile.js',
-      'dsh-plugin-desktop/client': '/current/dsh-plugin-desktop/lib/client.js',
-    }
-    const resolved = exports[specifier]
-    if (resolved !== undefined) return resolved
-    const error = new Error(`Package subpath is not exported: ${specifier}`)
-    Object.assign(error, { code: 'ERR_PACKAGE_PATH_NOT_EXPORTED' })
-    throw error
-  }),
+  sources: new Map<string, 'install' | 'profile'>(),
+  overlay: vi.fn((packageName: string) => ({
+    packageName,
+    selected: { source: harness.sources.get(packageName) ?? 'profile' },
+  })),
 }))
 
 vi.mock('node:module', () => ({
-  createRequire: vi.fn(() => ({ resolve: hooks.desktopResolve })),
-  registerHooks: vi.fn((definition: { resolve: typeof hooks.resolve }) => {
-    hooks.resolve = definition.resolve
-    return { deregister: hooks.deregister }
+  registerHooks: vi.fn((definition: { resolve: typeof harness.resolve }) => {
+    harness.resolve = definition.resolve
+    return { deregister: harness.deregister }
   }),
+}))
+
+vi.mock('../src/package-overlay.ts', () => ({
+  packageNameFromSpecifier(specifier: string): string | undefined {
+    if (specifier.length === 0 || specifier.startsWith('.') || specifier.startsWith('/')
+      || specifier.startsWith('#') || URL.canParse(specifier)) return undefined
+    const parts = specifier.split('/')
+    return specifier.startsWith('@') ? `${parts[0]}/${parts[1]}` : parts[0]
+  },
+  resolveOverlayPackage: harness.overlay,
 }))
 
 const { installProfilePackageResolver } = await import('../src/module-resolution.ts')
 
+function missing(specifier: string, parentURL?: string): Error {
+  return Object.assign(
+    new Error(`Cannot find package '${specifier}' imported from ${parentURL ?? 'unknown'}`),
+    { code: 'ERR_MODULE_NOT_FOUND' },
+  )
+}
+
 describe('installProfilePackageResolver', () => {
   beforeEach(() => {
-    hooks.resolve = undefined
-    hooks.deregister.mockClear()
-    hooks.desktopResolve.mockClear()
+    harness.resolve = undefined
+    harness.deregister.mockClear()
+    harness.overlay.mockClear()
+    harness.sources.clear()
   })
 
-  it('routes Loader bare imports through the selected profile and keeps relative imports unchanged', async () => {
-    const profileBaseUrl = 'file:///C:/Users/test/profile/'
-    const dispose = installProfilePackageResolver(profileBaseUrl)
-    const nextResolve = vi.fn(async (specifier: string, context: { parentURL?: string }) => ({
-      specifier,
-      context,
-    }))
+  it('uses the overlay-selected side for every Loader package and subpath', () => {
+    const profileBaseUrl = 'file:///C:/Users/test/profile/package.json'
+    harness.sources.set('@deepseek-ai/dsh-web-app', 'install')
+    harness.sources.set('dsh-plugin-desktop', 'profile')
+    installProfilePackageResolver(profileBaseUrl)
+    const nextResolve = vi.fn((specifier: string, context: { parentURL?: string }) => ({ specifier, context }))
     const loaderEntryUrl = import.meta.resolve('@deepseek-ai/cordis-plugin-loader')
 
-    expect(hooks.resolve?.(
-      'dsh-plugin-desktop',
+    const installed = harness.resolve?.(
+      '@deepseek-ai/dsh-web-app',
       { parentURL: loaderEntryUrl },
       nextResolve,
-    )).toEqual({
-      shortCircuit: true,
-      url: pathToFileURL('/current/dsh-plugin-desktop/lib/index.js').href,
-    })
+    ) as { context: { parentURL?: string } }
+    expect(installed.context.parentURL).not.toBe(profileBaseUrl)
+    expect(installed.context.parentURL).toMatch(/\/lib\/index\.js$/u)
 
-    expect(hooks.resolve?.(
+    expect(harness.resolve?.(
       'dsh-plugin-desktop/profile',
       { parentURL: loaderEntryUrl },
       nextResolve,
     )).toEqual({
-      shortCircuit: true,
-      url: pathToFileURL('/current/dsh-plugin-desktop/lib/profile.js').href,
-    })
-
-    expect(() => hooks.resolve?.(
-      'dsh-plugin-desktop/private-entry',
-      { parentURL: loaderEntryUrl },
-      nextResolve,
-    )).toThrow('Package subpath is not exported')
-
-    await expect(hooks.resolve?.(
-      'dsh-plugin-desktop-old',
-      { parentURL: loaderEntryUrl },
-      nextResolve,
-    )).resolves.toEqual({
-      specifier: 'dsh-plugin-desktop-old',
+      specifier: 'dsh-plugin-desktop/profile',
       context: { parentURL: profileBaseUrl },
     })
-    expect(hooks.desktopResolve).toHaveBeenCalledWith('dsh-plugin-desktop')
-    expect(hooks.desktopResolve).toHaveBeenCalledWith('dsh-plugin-desktop/profile')
-    expect(hooks.desktopResolve).not.toHaveBeenCalledWith('dsh-plugin-desktop-old')
+    expect(harness.overlay).toHaveBeenCalledWith('@deepseek-ai/dsh-web-app', expect.any(Object))
+    expect(harness.overlay).toHaveBeenCalledWith('dsh-plugin-desktop', expect.any(Object))
+  })
 
-    await expect(hooks.resolve?.(
-      'left-pad',
-      { parentURL: loaderEntryUrl },
-      nextResolve,
-    )).resolves.toEqual({
-      specifier: 'left-pad',
-      context: { parentURL: profileBaseUrl },
-    })
+  it('keeps non-package Loader specifiers on ordinary Node resolution', () => {
+    installProfilePackageResolver('file:///C:/Users/test/profile/package.json')
+    const nextResolve = vi.fn((specifier: string, context: { parentURL?: string }) => ({ specifier, context }))
+    const loaderEntryUrl = import.meta.resolve('@deepseek-ai/cordis-plugin-loader')
 
-    await expect(hooks.resolve?.(
-      './relative.js',
-      { parentURL: loaderEntryUrl },
-      nextResolve,
-    )).resolves.toEqual({
+    expect(harness.resolve?.('./relative.js', { parentURL: loaderEntryUrl }, nextResolve)).toEqual({
       specifier: './relative.js',
       context: { parentURL: loaderEntryUrl },
     })
-
-    await expect(hooks.resolve?.(
-      'left-pad',
-      { parentURL: 'file:///C:/Users/test/other.js' },
-      nextResolve,
-    )).resolves.toEqual({
-      specifier: 'left-pad',
-      context: { parentURL: 'file:///C:/Users/test/other.js' },
+    expect(harness.resolve?.('cordis:include', { parentURL: loaderEntryUrl }, nextResolve)).toEqual({
+      specifier: 'cordis:include',
+      context: { parentURL: loaderEntryUrl },
     })
-
-    dispose()
-    expect(hooks.deregister).toHaveBeenCalledTimes(1)
+    expect(harness.overlay).not.toHaveBeenCalled()
   })
 
-  it('resolves dependencies of a linked profile plugin through the selected profile', () => {
-    const profileBaseUrl = 'file:///C:/Users/test/profile/package.json'
-    const linkedPluginUrl = 'file:///D:/workspace/plugins/dsh-linked/lib/index.js'
-    const profileDependencyUrl = 'file:///C:/Users/test/profile/node_modules/zod/index.js'
-    installProfilePackageResolver(profileBaseUrl)
-    const nextResolve = vi.fn((specifier: string, context: { parentURL?: string }) => {
-      if (specifier === 'dsh-linked' && context.parentURL === profileBaseUrl) {
-        return { url: linkedPluginUrl }
-      }
-      if (specifier === 'zod' && context.parentURL === profileBaseUrl) {
-        return { url: profileDependencyUrl }
-      }
-      const error = new Error(`Cannot find package '${specifier}' imported from ${context.parentURL ?? 'unknown'}`)
-      Object.assign(error, { code: 'ERR_MODULE_NOT_FOUND' })
-      throw error
-    })
-    const loaderEntryUrl = import.meta.resolve('@deepseek-ai/cordis-plugin-loader')
-
-    expect(hooks.resolve?.(
-      'dsh-linked',
-      { parentURL: loaderEntryUrl },
-      nextResolve,
-    )).toEqual({ url: linkedPluginUrl })
-
-    expect(hooks.resolve?.(
-      'zod',
-      { parentURL: linkedPluginUrl },
-      nextResolve,
-    )).toEqual({ url: profileDependencyUrl })
-  })
-
-  it('keeps profile dependency fallback across linked plugin relative modules', () => {
+  it('keeps package-local dependencies and Profile fallback across linked relative modules', () => {
     const profileBaseUrl = 'file:///C:/Users/test/profile/package.json'
     const linkedPluginUrl = 'file:///D:/workspace/plugins/dsh-linked/lib/index.js'
     const linkedFeatureUrl = 'file:///D:/workspace/plugins/dsh-linked/lib/feature.js'
-    const profileDependencyUrl = 'file:///C:/Users/test/profile/node_modules/zod/index.js'
-    installProfilePackageResolver(profileBaseUrl)
-    const nextResolve = vi.fn((specifier: string, context: { parentURL?: string }) => {
-      if (specifier === 'dsh-linked' && context.parentURL === profileBaseUrl) {
-        return { url: linkedPluginUrl }
-      }
-      if (specifier === './feature.js' && context.parentURL === linkedPluginUrl) {
-        return { url: linkedFeatureUrl }
-      }
-      if (specifier === 'zod' && context.parentURL === profileBaseUrl) {
-        return { url: profileDependencyUrl }
-      }
-      const error = new Error(`Cannot find package '${specifier}' imported from ${context.parentURL ?? 'unknown'}`)
-      Object.assign(error, { code: 'ERR_MODULE_NOT_FOUND' })
-      throw error
-    })
-    const loaderEntryUrl = import.meta.resolve('@deepseek-ai/cordis-plugin-loader')
-
-    expect(hooks.resolve?.('dsh-linked', { parentURL: loaderEntryUrl }, nextResolve))
-      .toEqual({ url: linkedPluginUrl })
-    expect(hooks.resolve?.('./feature.js', { parentURL: linkedPluginUrl }, nextResolve))
-      .toEqual({ url: linkedFeatureUrl })
-    expect(hooks.resolve?.('zod', { parentURL: linkedFeatureUrl }, nextResolve))
-      .toEqual({ url: profileDependencyUrl })
-  })
-
-  it('keeps profile dependency fallback across linked plugin package dependencies', () => {
-    const profileBaseUrl = 'file:///C:/Users/test/profile/package.json'
-    const linkedPluginUrl = 'file:///D:/workspace/plugins/dsh-linked/lib/index.js'
     const localDependencyUrl = 'file:///D:/workspace/plugins/dsh-linked/node_modules/local-dependency/index.js'
     const profilePeerUrl = 'file:///C:/Users/test/profile/node_modules/profile-peer/index.js'
     installProfilePackageResolver(profileBaseUrl)
     const nextResolve = vi.fn((specifier: string, context: { parentURL?: string }) => {
-      if (specifier === 'dsh-linked' && context.parentURL === profileBaseUrl) {
-        return { url: linkedPluginUrl }
-      }
-      if (specifier === 'local-dependency' && context.parentURL === linkedPluginUrl) {
-        return { url: localDependencyUrl }
-      }
-      if (specifier === 'profile-peer' && context.parentURL === profileBaseUrl) {
-        return { url: profilePeerUrl }
-      }
-      const error = new Error(`Cannot find package '${specifier}' imported from ${context.parentURL ?? 'unknown'}`)
-      Object.assign(error, { code: 'ERR_MODULE_NOT_FOUND' })
-      throw error
+      if (specifier === 'dsh-linked' && context.parentURL === profileBaseUrl) return { url: linkedPluginUrl }
+      if (specifier === './feature.js' && context.parentURL === linkedPluginUrl) return { url: linkedFeatureUrl }
+      if (specifier === 'local-dependency' && context.parentURL === linkedFeatureUrl) return { url: localDependencyUrl }
+      if (specifier === 'profile-peer' && context.parentURL === profileBaseUrl) return { url: profilePeerUrl }
+      throw missing(specifier, context.parentURL)
     })
     const loaderEntryUrl = import.meta.resolve('@deepseek-ai/cordis-plugin-loader')
 
-    expect(hooks.resolve?.('dsh-linked', { parentURL: loaderEntryUrl }, nextResolve))
-      .toEqual({ url: linkedPluginUrl })
-    expect(hooks.resolve?.('local-dependency', { parentURL: linkedPluginUrl }, nextResolve))
-      .toEqual({ url: localDependencyUrl })
-    expect(hooks.resolve?.('profile-peer', { parentURL: localDependencyUrl }, nextResolve))
-      .toEqual({ url: profilePeerUrl })
+    expect(harness.resolve?.('dsh-linked', { parentURL: loaderEntryUrl }, nextResolve)).toEqual({ url: linkedPluginUrl })
+    expect(harness.resolve?.('./feature.js', { parentURL: linkedPluginUrl }, nextResolve)).toEqual({ url: linkedFeatureUrl })
+    expect(harness.resolve?.('local-dependency', { parentURL: linkedFeatureUrl }, nextResolve)).toEqual({ url: localDependencyUrl })
+    expect(harness.resolve?.('profile-peer', { parentURL: localDependencyUrl }, nextResolve)).toEqual({ url: profilePeerUrl })
   })
 
-  it('does not expose profile dependencies to unrelated modules', () => {
+  it('allows a Desktop-selected package to use a missing dependency from the Profile overlay', () => {
+    const profileBaseUrl = 'file:///C:/Users/test/profile/package.json'
+    const desktopPluginUrl = 'file:///Applications/DSH.app/Contents/Resources/app.asar/node_modules/plugin/index.js'
+    const profilePeerUrl = 'file:///C:/Users/test/profile/node_modules/profile-peer/index.js'
+    harness.sources.set('plugin', 'install')
+    installProfilePackageResolver(profileBaseUrl)
+    const nextResolve = vi.fn((specifier: string, context: { parentURL?: string }) => {
+      if (specifier === 'plugin' && context.parentURL?.endsWith('/lib/index.js')) return { url: desktopPluginUrl }
+      if (specifier === 'profile-peer' && context.parentURL === profileBaseUrl) return { url: profilePeerUrl }
+      throw missing(specifier, context.parentURL)
+    })
+    const loaderEntryUrl = import.meta.resolve('@deepseek-ai/cordis-plugin-loader')
+
+    expect(harness.resolve?.('plugin', { parentURL: loaderEntryUrl }, nextResolve)).toEqual({ url: desktopPluginUrl })
+    expect(harness.resolve?.('profile-peer', { parentURL: desktopPluginUrl }, nextResolve)).toEqual({ url: profilePeerUrl })
+  })
+
+  it('does not expose Profile dependencies to unrelated modules', () => {
     const profileBaseUrl = 'file:///C:/Users/test/profile/package.json'
     installProfilePackageResolver(profileBaseUrl)
     const nextResolve = vi.fn((specifier: string, context: { parentURL?: string }) => {
-      if (context.parentURL === profileBaseUrl) {
-        return { url: 'file:///C:/Users/test/profile/node_modules/zod/index.js' }
-      }
-      const error = new Error(`Cannot find package '${specifier}' imported from ${context.parentURL ?? 'unknown'}`)
-      Object.assign(error, { code: 'ERR_MODULE_NOT_FOUND' })
-      throw error
+      if (context.parentURL === profileBaseUrl) return { url: 'file:///C:/Users/test/profile/node_modules/zod/index.js' }
+      throw missing(specifier, context.parentURL)
     })
 
-    expect(() => hooks.resolve?.(
+    expect(() => harness.resolve?.(
       'zod',
       { parentURL: 'file:///C:/Program%20Files/DSH%20Desktop/resources/app.asar/lib/main.js' },
       nextResolve,
@@ -227,11 +148,9 @@ describe('installProfilePackageResolver', () => {
   })
 
   it('deregisters hooks only once even if the disposer is reused', () => {
-    const dispose = installProfilePackageResolver('file:///C:/Users/test/profile/')
-
+    const dispose = installProfilePackageResolver('file:///C:/Users/test/profile/package.json')
     dispose()
     dispose()
-
-    expect(hooks.deregister).toHaveBeenCalledTimes(1)
+    expect(harness.deregister).toHaveBeenCalledTimes(1)
   })
 })

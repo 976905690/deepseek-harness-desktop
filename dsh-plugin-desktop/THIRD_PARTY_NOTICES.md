@@ -341,6 +341,7 @@ the package names, versions, and licenses for transparency.
 | devlop | 1.1.0 | MIT |
 | diff | 9.0.0 | BSD-3-Clause |
 | dsh-community-market | 0.1.0-dev.0 | MIT |
+| dshmarket | 1.17.1 | MIT |
 | dunder-proto | 1.0.1 | MIT |
 | ecdsa-sig-formatter | 1.0.11 | Apache-2.0 |
 | ee-first | 1.1.1 | MIT |
@@ -524,6 +525,7 @@ the package names, versions, and licenses for transparency.
 | turndown | 7.2.4 | MIT |
 | type-is | 2.1.0 | MIT |
 | typebox | 1.1.38 | MIT |
+| undici | 7.29.0 | MIT |
 | undici-types | 8.3.0 | MIT |
 | unist-util-is | 6.0.1 | MIT |
 | unist-util-position | 5.0.0 | MIT |
