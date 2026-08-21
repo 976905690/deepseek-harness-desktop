@@ -1,20 +1,37 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const harness = vi.hoisted(() => ({
-  resolve: undefined as undefined | ((
-    specifier: string,
-    context: { parentURL?: string },
-    nextResolve: (specifier: string, context: { parentURL?: string }) => unknown,
-  ) => unknown),
-  deregister: vi.fn(),
-  sources: new Map<string, 'install' | 'profile'>(),
-  overlay: vi.fn((packageName: string) => ({
-    packageName,
-    selected: { source: harness.sources.get(packageName) ?? 'profile' },
-  })),
-}))
+const harness = vi.hoisted(() => {
+  const cjsOriginal = vi.fn((
+    request: string,
+    _parent?: { filename?: string } | null,
+    _isMain?: boolean,
+    _options?: unknown,
+  ) => `ordinary:${request}`)
+  return {
+    resolve: undefined as undefined | ((
+      specifier: string,
+      context: { parentURL?: string },
+      nextResolve: (specifier: string, context: { parentURL?: string }) => unknown,
+    ) => unknown),
+    deregister: vi.fn(),
+    sources: new Map<string, 'install' | 'profile'>(),
+    overlay: vi.fn((packageName: string) => {
+      const source = harness.sources.get(packageName) ?? 'profile'
+      return {
+        packageName,
+        selected: {
+          source,
+          manifestPath: `/${source}/${packageName}/package.json`,
+        },
+      }
+    }),
+    cjsOriginal,
+    cjsModule: { _resolveFilename: cjsOriginal },
+  }
+})
 
 vi.mock('node:module', () => ({
+  default: harness.cjsModule,
   registerHooks: vi.fn((definition: { resolve: typeof harness.resolve }) => {
     harness.resolve = definition.resolve
     return { deregister: harness.deregister }
@@ -22,6 +39,7 @@ vi.mock('node:module', () => ({
 }))
 
 vi.mock('../src/package-overlay.ts', () => ({
+  findOverlayPackage: harness.overlay,
   packageNameFromSpecifier(specifier: string): string | undefined {
     if (specifier.length === 0 || specifier.startsWith('.') || specifier.startsWith('/')
       || specifier.startsWith('#') || URL.canParse(specifier)) return undefined
@@ -46,6 +64,8 @@ describe('installProfilePackageResolver', () => {
     harness.deregister.mockClear()
     harness.overlay.mockClear()
     harness.sources.clear()
+    harness.cjsOriginal.mockClear()
+    harness.cjsModule._resolveFilename = harness.cjsOriginal
   })
 
   it('uses the overlay-selected side for every Loader package and subpath', () => {
@@ -145,6 +165,32 @@ describe('installProfilePackageResolver', () => {
       nextResolve,
     )).toThrow('Cannot find package')
     expect(nextResolve).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses the same overlay for CommonJS package manifests resolved from the Profile anchor', () => {
+    const profileBaseUrl = 'file:///tmp/dsh-profile/package.json'
+    harness.sources.set('@deepseek-ai/dsh-client-modules', 'install')
+    const dispose = installProfilePackageResolver(profileBaseUrl)
+    const resolveFilename = harness.cjsModule._resolveFilename
+
+    expect(resolveFilename(
+      '@deepseek-ai/dsh-client-modules/package.json',
+      { filename: '/tmp/dsh-profile/package.json' },
+      false,
+    )).toBe('/install/@deepseek-ai/dsh-client-modules/package.json')
+    expect(resolveFilename(
+      '@deepseek-ai/dsh-client-modules/package.json',
+      { filename: '/tmp/another-profile/package.json' },
+      false,
+    )).toBe('ordinary:@deepseek-ai/dsh-client-modules/package.json')
+    expect(resolveFilename(
+      '@deepseek-ai/dsh-client-modules/client.js',
+      { filename: '/tmp/dsh-profile/package.json' },
+      false,
+    )).toBe('ordinary:@deepseek-ai/dsh-client-modules/client.js')
+
+    dispose()
+    expect(harness.cjsModule._resolveFilename).toBe(harness.cjsOriginal)
   })
 
   it('deregisters hooks only once even if the disposer is reused', () => {
