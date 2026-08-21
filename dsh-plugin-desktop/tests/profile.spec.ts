@@ -200,7 +200,8 @@ describe('desktop profile composition', {
     }))
     expect(patches).toContainEqual(expect.objectContaining({
       id: 'webserver',
-      config: { host: '127.0.0.1', port: 0 },
+      name: 'dsh-plugin-desktop/webserver',
+      config: { host: '127.0.0.1', port: 43_120 },
     }))
     expect(patches).toContainEqual(expect.objectContaining({
       id: 'agent-presets',
@@ -520,7 +521,8 @@ describe('desktop profile composition', {
       disabled: false,
       config: expect.objectContaining({ mode: 'advanced', port: 43_189 }),
     }))
-    expect(rows.find(row => row.id === 'webserver')).toEqual(expect.objectContaining({
+    expect(prepared.patches.filter(patch => patch.id === 'webserver').at(-1)).toEqual(expect.objectContaining({
+      name: 'dsh-plugin-desktop/webserver',
       config: { host: '127.0.0.1', port: 43_189 },
     }))
     expect(rows.find(row => row.id === 'settings')).toEqual(expect.objectContaining({
@@ -543,7 +545,7 @@ describe('desktop profile composition', {
     })
     expect(desktopStartupSettingsFromSettings({ 'dsh-desktop': { mode: 'advanced' } })).toEqual({
       mode: 'advanced',
-      port: 0,
+      port: 43_120,
     })
     expect(desktopShellModeFromSettings({ unrelated: { enabled: true } })).toBe('compatibility')
   })

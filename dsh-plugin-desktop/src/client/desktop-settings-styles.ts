@@ -66,6 +66,10 @@ const CSS = `
 }
 .dshDesktopSettingsChoice[aria-disabled="true"]:not([data-selected="true"]) { opacity: .58; }
 .dshDesktopSettingsChoiceCopy { display: block; flex: 1; min-width: 0; }
+.dshDesktopSettingsChoiceAside { flex: 0 0 auto; margin-left: 12px; }
+.dshDesktopSettingsDeleteConfirm { display: flex; align-items: flex-end; flex-direction: column; gap: 8px; max-width: 320px; }
+.dshDesktopSettingsDeleteWarning { color: var(--dsw-alias-state-warning-primary); font-size: 12px; line-height: 1.4; text-align: right; }
+.dshDesktopSettingsDeleteActions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .dshDesktopSettingsChoiceTitle {
   display: flex;
   align-items: center;
@@ -150,6 +154,8 @@ const CSS = `
   font-size: 12px;
 }
 .dshDesktopSettingsButton:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
+.dshDesktopSettingsButtonSecondary { color: var(--dsw-alias-label-secondary); }
+.dshDesktopSettingsButtonDanger { color: var(--dsw-alias-state-error-primary); }
 .dshDesktopSettingsButton:disabled { cursor: default; opacity: .55; }
 .dshDesktopSettingsTerminalAction {
   display: flex;

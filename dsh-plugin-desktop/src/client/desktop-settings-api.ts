@@ -3,6 +3,7 @@
 const SETTINGS_PATH = '/api/desktop/settings'
 const PROFILE_CREATE_PATH = '/api/desktop/profiles/create'
 const PROFILE_SELECT_PATH = '/api/desktop/profiles/select'
+const PROFILE_DELETE_PATH = '/api/desktop/profiles/delete'
 const MARKET_SELECT_PATH = '/api/desktop/market/select'
 const TERMINAL_OPEN_PATH = '/api/desktop/terminal/open'
 const MAX_PROFILES = 256
@@ -17,6 +18,7 @@ export interface DesktopProfileView {
   readonly exists: boolean
   readonly webCapable: boolean
   readonly selectable: boolean
+  readonly deletable: boolean
 }
 
 /** Market selection fixed for the running generation. */
@@ -44,6 +46,7 @@ export interface DesktopSettingsApi {
   read(): Promise<DesktopSettingsView>
   createProfile(name: string): Promise<DesktopSettingsView>
   selectProfile(name: string): Promise<DesktopRestartAcceptance>
+  deleteProfile(name: string): Promise<DesktopSettingsView>
   selectMarket(provider: DesktopMarketProvider): Promise<DesktopRestartAcceptance>
   openTerminal(): Promise<void>
 }
@@ -65,7 +68,8 @@ function parseProfile(value: unknown): DesktopProfileView {
     || value.name.length > MAX_PROFILE_NAME_LENGTH
     || typeof value.exists !== 'boolean'
     || typeof value.webCapable !== 'boolean'
-    || typeof value.selectable !== 'boolean') {
+    || typeof value.selectable !== 'boolean'
+    || typeof value.deletable !== 'boolean') {
     throw new Error('dsh-plugin-desktop: invalid profile settings response')
   }
   return Object.freeze({
@@ -73,6 +77,7 @@ function parseProfile(value: unknown): DesktopProfileView {
     exists: value.exists,
     webCapable: value.webCapable,
     selectable: value.selectable,
+    deletable: value.deletable,
   })
 }
 
@@ -165,6 +170,9 @@ export function createDesktopSettingsApi(fetcher: FetchLike = globalThis.fetch.b
     async selectProfile(name: string) {
       return parseDesktopRestartAcceptance(await readResponse(await post(fetcher, PROFILE_SELECT_PATH, { name })))
     },
+    async deleteProfile(name: string) {
+      return parseDesktopSettingsView(await readResponse(await post(fetcher, PROFILE_DELETE_PATH, { name })))
+    },
     async selectMarket(provider: DesktopMarketProvider) {
       return parseDesktopRestartAcceptance(await readResponse(await post(fetcher, MARKET_SELECT_PATH, { provider })))
     },
@@ -178,6 +186,7 @@ export const desktopSettingsPaths = Object.freeze({
   settings: SETTINGS_PATH,
   profileCreate: PROFILE_CREATE_PATH,
   profileSelect: PROFILE_SELECT_PATH,
+  profileDelete: PROFILE_DELETE_PATH,
   marketSelect: MARKET_SELECT_PATH,
   terminalOpen: TERMINAL_OPEN_PATH,
 })

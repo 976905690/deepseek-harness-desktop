@@ -27,15 +27,23 @@ import {
   handleDesktopDirectoryValidationRequest,
 } from './directory-picker-route.ts'
 import {
+  DESKTOP_DIAGNOSTICS_EXPORT_PATH,
   DESKTOP_MARKET_SELECT_PATH,
   DESKTOP_PROFILE_CREATE_PATH,
+  DESKTOP_PROFILE_CREATE_WINDOW_PATH,
+  DESKTOP_PROFILE_DELETE_PATH,
+  DESKTOP_PROFILE_ROLLBACK_PATH,
   DESKTOP_PROFILE_SELECT_PATH,
   DESKTOP_SETTINGS_PATH,
   DESKTOP_TERMINAL_OPEN_PATH,
 } from './desktop-settings-contract.ts'
 import {
+  handleDesktopDiagnosticsExportRequest,
   handleDesktopMarketSelectRequest,
   handleDesktopProfileCreateRequest,
+  handleDesktopProfileCreateWindowRequest,
+  handleDesktopProfileDeleteRequest,
+  handleDesktopProfileRollbackRequest,
   handleDesktopProfileSelectRequest,
   handleDesktopSettingsRequest,
   handleDesktopTerminalOpenRequest,
@@ -44,6 +52,7 @@ import type {} from './desktop-settings-controller.ts'
 import { desktopBootRecoveryInjections } from './desktop-boot-recovery.ts'
 import type { DesktopShellMode } from './runtime.ts'
 import type {} from './runtime.ts'
+import { DESKTOP_DEFAULT_WEB_PORT } from './desktop-port.ts'
 
 /** Stable Cordis plugin name. */
 export const name = 'desktop-shell'
@@ -71,7 +80,7 @@ export interface DesktopSettings {
 /** Schema registered with the standard settings service. */
 export const DesktopSettingsSchema: z<DesktopSettings> = z.object({
   mode: z.union(['compatibility', 'advanced'] as const).default('compatibility'),
-  port: z.number().step(1).min(0).max(65_535).default(0),
+  port: z.number().step(1).min(0).max(65_535).default(DESKTOP_DEFAULT_WEB_PORT),
   logLevel: z.union(['debug', 'info', 'warn', 'error'] as const).default('info'),
 })
 
@@ -94,7 +103,7 @@ export interface Config {
 /** Validated native window configuration. */
 export const Config: z<Config> = z.object({
   mode: z.union(['compatibility', 'advanced'] as const).default('compatibility'),
-  port: z.number().step(1).min(0).max(65_535).default(0),
+  port: z.number().step(1).min(0).max(65_535).default(DESKTOP_DEFAULT_WEB_PORT),
   width: z.number().step(1).min(800).default(1280),
   height: z.number().step(1).min(600).default(840),
   minWidth: z.number().step(1).min(640).default(900),
@@ -175,9 +184,13 @@ export function apply(ctx: Context, config: Config): void {
     const settingsRoutes = [
       [DESKTOP_SETTINGS_PATH, handleDesktopSettingsRequest],
       [DESKTOP_PROFILE_CREATE_PATH, handleDesktopProfileCreateRequest],
+      [DESKTOP_PROFILE_CREATE_WINDOW_PATH, handleDesktopProfileCreateWindowRequest],
+      [DESKTOP_PROFILE_DELETE_PATH, handleDesktopProfileDeleteRequest],
+      [DESKTOP_PROFILE_ROLLBACK_PATH, handleDesktopProfileRollbackRequest],
       [DESKTOP_PROFILE_SELECT_PATH, handleDesktopProfileSelectRequest],
       [DESKTOP_MARKET_SELECT_PATH, handleDesktopMarketSelectRequest],
       [DESKTOP_TERMINAL_OPEN_PATH, handleDesktopTerminalOpenRequest],
+      [DESKTOP_DIAGNOSTICS_EXPORT_PATH, handleDesktopDiagnosticsExportRequest],
     ] as const
     for (const [path, handler] of settingsRoutes) {
       ctx.effect(

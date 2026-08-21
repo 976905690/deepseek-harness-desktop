@@ -8,6 +8,7 @@ import type { DesktopSettingsPostResponse } from './desktop-settings-controller.
 import type {
   DesktopMarketSelectRequest,
   DesktopProfileCreateRequest,
+  DesktopProfileDeleteRequest,
   DesktopProfileSelectRequest,
   DesktopSettingsErrorResponse,
 } from './desktop-settings-contract.ts'
@@ -264,6 +265,30 @@ export async function handleDesktopProfileSelectRequest(
   }
 }
 
+/** Delete one inactive user profile and return a fresh settings projection. */
+export async function handleDesktopProfileDeleteRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  expectedOrigin: string,
+  controller: DesktopSettingsController,
+  reportError: (operation: string, cause: unknown) => void = () => {},
+): Promise<void> {
+  if (req.method !== 'POST') return finishJson(res, 405, error('method not allowed'), 'POST')
+  if (!isSameOriginLoopbackRequest(req, expectedOrigin, true)) {
+    return finishJson(res, 403, error('forbidden'))
+  }
+  const value = await parsePostBody(req, res)
+  if (value === INVALID_BODY) return
+  const request = parseProfileRequest(value) as DesktopProfileDeleteRequest | undefined
+  if (request === undefined) return finishJson(res, 400, error('invalid profile deletion request'))
+  try {
+    finishJson(res, 200, await controller.deleteProfile(request.name))
+  } catch (cause) {
+    reportError('delete profile', cause)
+    finishJson(res, 409, error('profile could not be deleted'))
+  }
+}
+
 /** Persist one Market provider and queue restart only after persistence succeeds. */
 export async function handleDesktopMarketSelectRequest(
   req: IncomingMessage,
@@ -315,6 +340,81 @@ export async function handleDesktopTerminalOpenRequest(
   } catch (cause) {
     reportError('open terminal', cause)
     finishJson(res, 500, error('terminal could not be opened'))
+  }
+}
+
+/** Export diagnostics from an exact empty same-origin request. */
+export async function handleDesktopDiagnosticsExportRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  expectedOrigin: string,
+  controller: DesktopSettingsController,
+  reportError: (operation: string, cause: unknown) => void = () => {},
+): Promise<void> {
+  if (req.method !== 'POST') return finishJson(res, 405, error('method not allowed'), 'POST')
+  if (!isSameOriginLoopbackRequest(req, expectedOrigin, true)) {
+    return finishJson(res, 403, error('forbidden'))
+  }
+  const value = await parsePostBody(req, res)
+  if (value === INVALID_BODY) return
+  if (!isEmptyRequest(value)) return finishJson(res, 400, error('invalid diagnostic export request'))
+  try {
+    finishJson(res, 200, await controller.exportDiagnostics())
+  } catch (cause) {
+    reportError('export diagnostics', cause)
+    finishJson(res, 500, error('diagnostics could not be exported'))
+  }
+}
+
+/** Open the isolated native Profile creator from an exact empty request. */
+export async function handleDesktopProfileCreateWindowRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  expectedOrigin: string,
+  controller: DesktopSettingsController,
+  reportError: (operation: string, cause: unknown) => void = () => {},
+): Promise<void> {
+  if (req.method !== 'POST') return finishJson(res, 405, error('method not allowed'), 'POST')
+  if (!isSameOriginLoopbackRequest(req, expectedOrigin, true)) {
+    return finishJson(res, 403, error('forbidden'))
+  }
+  const value = await parsePostBody(req, res)
+  if (value === INVALID_BODY) return
+  if (!isEmptyRequest(value)) return finishJson(res, 400, error('invalid Profile creator request'))
+  try {
+    finishJson(res, 200, controller.openProfileCreator())
+  } catch (cause) {
+    reportError('open Profile creator', cause)
+    finishJson(res, 500, error('Profile creator could not be opened'))
+  }
+}
+
+/** Restore the last-known-good Profile from an exact empty request. */
+export async function handleDesktopProfileRollbackRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  expectedOrigin: string,
+  controller: DesktopSettingsController,
+  reportError: (operation: string, cause: unknown) => void = () => {},
+): Promise<void> {
+  if (req.method !== 'POST') return finishJson(res, 405, error('method not allowed'), 'POST')
+  if (!isSameOriginLoopbackRequest(req, expectedOrigin, true)) {
+    return finishJson(res, 403, error('forbidden'))
+  }
+  const value = await parsePostBody(req, res)
+  if (value === INVALID_BODY) return
+  if (!isEmptyRequest(value)) return finishJson(res, 400, error('invalid Profile rollback request'))
+  try {
+    finishPostResponse(
+      res,
+      202,
+      controller.rollbackProfile(),
+      'restore last-known-good Profile',
+      reportError,
+    )
+  } catch (cause) {
+    reportError('prepare last-known-good Profile restore', cause)
+    finishJson(res, 409, error('last-known-good Profile could not be restored'))
   }
 }
 

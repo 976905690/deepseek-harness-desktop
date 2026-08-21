@@ -6,8 +6,12 @@ import DesktopSettingsController, {
   type DesktopSettingsControllerBootstrap,
 } from '../src/desktop-settings-controller.ts'
 import {
+  handleDesktopDiagnosticsExportRequest,
   handleDesktopMarketSelectRequest,
   handleDesktopProfileCreateRequest,
+  handleDesktopProfileCreateWindowRequest,
+  handleDesktopProfileDeleteRequest,
+  handleDesktopProfileRollbackRequest,
   handleDesktopProfileSelectRequest,
   handleDesktopSettingsRequest,
   handleDesktopTerminalOpenRequest,
@@ -58,12 +62,19 @@ function bootstrap(
       current: { name: DESKTOP.name, dir: DESKTOP.dir },
       list: () => [DESKTOP, WORK, BROKEN],
       create: () => WORK,
+      canDelete: () => false,
+      delete: async () => {},
     },
     persistProfileSelection: async () => {},
     readMarket: () => market(),
     selectMarket: async provider => market(provider),
     scheduleRestart: () => {},
     openTerminal: () => {},
+    exportDiagnostics: async () => {},
+    openProfileCreator: () => {},
+    prepareProfileRollback: () => ({
+      response: { accepted: true, restartRequired: true, targetProfile: 'desktop' },
+    }),
     ...overrides,
   }
 }
@@ -124,9 +135,9 @@ describe('desktop settings controller', () => {
     expect(controller.read()).toEqual({
       current: 'desktop',
       profiles: [
-        { name: 'desktop', exists: true, webCapable: true, selectable: true },
-        { name: 'work', exists: true, webCapable: true, selectable: true },
-        { name: 'broken', exists: true, webCapable: false, selectable: false },
+        { name: 'desktop', exists: true, webCapable: true, selectable: true, deletable: false },
+        { name: 'work', exists: true, webCapable: true, selectable: true, deletable: false },
+        { name: 'broken', exists: true, webCapable: false, selectable: false, deletable: false },
       ],
       market: { requested: 'disabled', effective: 'disabled', legacyDefaulted: false },
     })
@@ -151,14 +162,37 @@ describe('desktop settings controller', () => {
     expect(controller.createProfile('work')).toEqual({
       current: 'desktop',
       profiles: [
-        { name: 'desktop', exists: true, webCapable: true, selectable: true },
-        { name: 'work', exists: true, webCapable: true, selectable: true },
+        { name: 'desktop', exists: true, webCapable: true, selectable: true, deletable: false },
+        { name: 'work', exists: true, webCapable: true, selectable: true, deletable: false },
       ],
       market: { requested: 'disabled', effective: 'disabled', legacyDefaulted: false },
     })
     expect(create).toHaveBeenCalledWith('work')
     expect(persistProfileSelection).not.toHaveBeenCalled()
     expect(scheduleRestart).not.toHaveBeenCalled()
+  })
+
+  it('deletes an eligible profile and returns the fresh projection', async () => {
+    const remove = vi.fn(async () => {})
+    const controller = new DesktopSettingsController(bootstrap({
+      profiles: {
+        current: { name: DESKTOP.name, dir: DESKTOP.dir },
+        list: () => [DESKTOP, WORK],
+        create: () => WORK,
+        canDelete: name => name === WORK.name,
+        delete: remove,
+      },
+    }))
+
+    await expect(controller.deleteProfile('work')).resolves.toEqual({
+      current: 'desktop',
+      profiles: [
+        { name: 'desktop', exists: true, webCapable: true, selectable: true, deletable: false },
+        { name: 'work', exists: true, webCapable: true, selectable: true, deletable: true },
+      ],
+      market: { requested: 'disabled', effective: 'disabled', legacyDefaulted: false },
+    })
+    expect(remove).toHaveBeenCalledWith('work')
   })
 
   it('persists a fresh selectable profile and defers restart until after response', async () => {
@@ -241,6 +275,31 @@ describe('desktop settings controller', () => {
     expect(controller.openTerminal()).toEqual({ accepted: true })
     expect(openTerminal).toHaveBeenCalledOnce()
   })
+
+  it('hands native diagnostics, Profile creation, and rollback to launcher capabilities', async () => {
+    const exportDiagnostics = vi.fn(async () => {})
+    const openProfileCreator = vi.fn()
+    const afterResponse = vi.fn()
+    const prepareProfileRollback = vi.fn(() => ({
+      response: { accepted: true as const, restartRequired: true as const, targetProfile: 'desktop' },
+      afterResponse,
+    }))
+    const controller = new DesktopSettingsController(bootstrap({
+      exportDiagnostics,
+      openProfileCreator,
+      prepareProfileRollback,
+    }))
+
+    await expect(controller.exportDiagnostics()).resolves.toEqual({ accepted: true })
+    expect(controller.openProfileCreator()).toEqual({ accepted: true })
+    expect(controller.rollbackProfile()).toEqual({
+      response: { accepted: true, restartRequired: true, targetProfile: 'desktop' },
+      afterResponse,
+    })
+    expect(exportDiagnostics).toHaveBeenCalledOnce()
+    expect(openProfileCreator).toHaveBeenCalledOnce()
+    expect(prepareProfileRollback).toHaveBeenCalledOnce()
+  })
 })
 
 describe('desktop settings HTTP boundary', () => {
@@ -293,12 +352,35 @@ describe('desktop settings HTTP boundary', () => {
     expect(JSON.parse(res.body)).toEqual({
       current: 'desktop',
       profiles: [
-        { name: 'desktop', exists: true, webCapable: true, selectable: true },
-        { name: 'work', exists: true, webCapable: true, selectable: true },
+        { name: 'desktop', exists: true, webCapable: true, selectable: true, deletable: false },
+        { name: 'work', exists: true, webCapable: true, selectable: true, deletable: false },
       ],
       market: { requested: 'disabled', effective: 'disabled', legacyDefaulted: false },
     })
     expect(create).toHaveBeenCalledWith('work')
+  })
+
+  it('deletes a profile through the exact mutation endpoint', async () => {
+    const remove = vi.fn(async () => {})
+    const controller = new DesktopSettingsController(bootstrap({
+      profiles: {
+        current: { name: DESKTOP.name, dir: DESKTOP.dir },
+        list: () => [DESKTOP, WORK],
+        create: () => WORK,
+        canDelete: name => name === WORK.name,
+        delete: remove,
+      },
+    }))
+    const res = response()
+
+    await handleDesktopProfileDeleteRequest(jsonRequest({ name: 'work' }), res, ORIGIN, controller)
+
+    expect(res.statusCode).toBe(200)
+    expect(remove).toHaveBeenCalledWith('work')
+    expect(JSON.parse(res.body).profiles).toEqual([
+      { name: 'desktop', exists: true, webCapable: true, selectable: true, deletable: false },
+      { name: 'work', exists: true, webCapable: true, selectable: true, deletable: true },
+    ])
   })
 
   it.each([
@@ -429,6 +511,41 @@ describe('desktop settings HTTP boundary', () => {
       expect(rejected.statusCode).toBe(req.headers.origin === ORIGIN ? 400 : 403)
     }
     expect(openTerminal).toHaveBeenCalledOnce()
+  })
+
+  it('exports diagnostics, opens the native creator, and starts rollback only after response', async () => {
+    const exportDiagnostics = vi.fn(async () => {})
+    const openProfileCreator = vi.fn()
+    const afterResponse = vi.fn()
+    const controller = new DesktopSettingsController(bootstrap({
+      exportDiagnostics,
+      openProfileCreator,
+      prepareProfileRollback: () => ({
+        response: { accepted: true, restartRequired: true, targetProfile: 'desktop' },
+        afterResponse,
+      }),
+    }))
+    const diagnosticResponse = response()
+    const creatorResponse = response()
+    const rollbackResponse = response()
+
+    await handleDesktopDiagnosticsExportRequest(jsonRequest({}), diagnosticResponse, ORIGIN, controller)
+    await handleDesktopProfileCreateWindowRequest(jsonRequest({}), creatorResponse, ORIGIN, controller)
+    await handleDesktopProfileRollbackRequest(jsonRequest({}), rollbackResponse, ORIGIN, controller)
+
+    expect(diagnosticResponse.statusCode).toBe(200)
+    expect(creatorResponse.statusCode).toBe(200)
+    expect(rollbackResponse.statusCode).toBe(202)
+    expect(JSON.parse(rollbackResponse.body)).toEqual({
+      accepted: true,
+      restartRequired: true,
+      targetProfile: 'desktop',
+    })
+    expect(exportDiagnostics).toHaveBeenCalledOnce()
+    expect(openProfileCreator).toHaveBeenCalledOnce()
+    expect(afterResponse).not.toHaveBeenCalled()
+    await new Promise<void>(resolve => { setImmediate(resolve) })
+    expect(afterResponse).toHaveBeenCalledOnce()
   })
 
   it('reports terminal launch failures without exposing the native cause', async () => {

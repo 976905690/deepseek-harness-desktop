@@ -31,6 +31,10 @@
       "types": "./lib/types/client/index.d.ts",
       "default": "./lib/client.js"
     },
+    "./webserver": {
+      "types": "./lib/types/webserver.d.ts",
+      "default": "./lib/webserver.js"
+    },
     "./windows-pwsh-sandbox": {
       "types": "./lib/types/windows-pwsh-sandbox.d.ts",
       "default": "./lib/windows-pwsh-sandbox.js"
@@ -82,6 +86,7 @@
     "docs/**",
     "lib/**/*.js",
     "lib/**/*.map",
+    "lib/native-ui/**",
     "lib/types/**/*.d.ts",
     "README.md",
     "README.zh.md",
@@ -108,8 +113,8 @@
     }
   },
   "scripts": {
-    "build": "node scripts/generate-mac-app-icon.mjs && node scripts/generate-tray-icons.mjs && node scripts/clean.mjs && tsdown && tsc -p tsconfig.json --emitDeclarationOnly && tsc -p tsconfig.client.json --emitDeclarationOnly",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json --noEmit && tsc -p tsconfig.tests.json --noEmit && tsc -p tsconfig.tests.client.json --noEmit",
+    "build": "node scripts/generate-mac-app-icon.mjs && node scripts/generate-tray-icons.mjs && node scripts/clean.mjs && tsdown && vite build --config vite.native-ui.config.ts && tsc -p tsconfig.json --emitDeclarationOnly && tsc -p tsconfig.client.json --emitDeclarationOnly",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json --noEmit && tsc -p tsconfig.native-ui.json --noEmit && tsc -p tsconfig.tests.json --noEmit && tsc -p tsconfig.tests.client.json --noEmit",
     "test": "vitest run",
     "verify:closure": "node --test scripts/runtime-closure.spec.mjs && node scripts/verify-runtime-closure.mjs",
     "verify:cli": "node scripts/verify-cli-runtime.mjs",
@@ -250,16 +255,30 @@
     "electron": "43.4.0"
   },
   "devDependencies": {
+    "@base-ui/react": "^1.7.0",
     "@electron/asar": "3.4.1",
+    "@fontsource-variable/inter": "^5.3.0",
+    "@tailwindcss/vite": "^4",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.20.0",
     "@types/react": "^18",
+    "@types/react-dom": "^18",
     "@types/semver": "^7.7.1",
+    "@vitejs/plugin-react": "^6",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "electron": "43.4.0",
     "electron-builder": "26.15.7",
+    "lucide-react": "^1.33.0",
+    "react-dom": "18.3.1",
+    "shadcn": "^4.18.0",
     "sharp": "0.35.3",
+    "tailwind-merge": "^3.6.0",
+    "tailwindcss": "^4",
     "tsdown": "0.22.2",
+    "tw-animate-css": "^1.4.0",
     "typescript": "6.0.3",
+    "vite": "8.2.1",
     "vitest": "4.1.8"
   },
   "build": {

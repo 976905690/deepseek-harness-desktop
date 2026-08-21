@@ -11,11 +11,23 @@ export const DESKTOP_PROFILE_CREATE_PATH = '/api/desktop/profiles/create'
 /** Select one compatible profile for the next Desktop generation. */
 export const DESKTOP_PROFILE_SELECT_PATH = '/api/desktop/profiles/select'
 
+/** Delete one inactive, user-created Web Profile. */
+export const DESKTOP_PROFILE_DELETE_PATH = '/api/desktop/profiles/delete'
+
 /** Persist the Market provider selected for the next Desktop generation. */
 export const DESKTOP_MARKET_SELECT_PATH = '/api/desktop/market/select'
 
 /** Open the launcher-owned DSH terminal without accepting command text. */
 export const DESKTOP_TERMINAL_OPEN_PATH = '/api/desktop/terminal/open'
+
+/** Export one local diagnostic archive through the launcher-owned flow. */
+export const DESKTOP_DIAGNOSTICS_EXPORT_PATH = '/api/desktop/diagnostics/export'
+
+/** Open the isolated native Profile creator without accepting a path. */
+export const DESKTOP_PROFILE_CREATE_WINDOW_PATH = '/api/desktop/profiles/create-window'
+
+/** Restore the last successful Profile and its latest healthy configuration. */
+export const DESKTOP_PROFILE_ROLLBACK_PATH = '/api/desktop/profiles/rollback'
 
 /** Renderer-safe projection of one discovered profile. */
 export interface DesktopSettingsProfileView {
@@ -27,6 +39,8 @@ export interface DesktopSettingsProfileView {
   readonly webCapable: boolean
   /** Whether the launcher can select it. */
   readonly selectable: boolean
+  /** Whether the profile can be removed without affecting recovery state. */
+  readonly deletable: boolean
 }
 
 /** Requested and generation-effective Market provider state. */
@@ -71,6 +85,14 @@ export interface DesktopRestartAcceptance {
 /** Successful profile selection handoff. */
 export type DesktopProfileSelectResponse = DesktopRestartAcceptance
 
+/** Exact body accepted by the profile-deletion endpoint. */
+export interface DesktopProfileDeleteRequest {
+  readonly name: string
+}
+
+/** Successful deletion returns a fresh state without the removed profile. */
+export type DesktopProfileDeleteResponse = DesktopSettingsResponse
+
 /** Exact body accepted by the Market-provider endpoint. */
 export interface DesktopMarketSelectRequest {
   readonly provider: DesktopMarketProvider
@@ -85,6 +107,30 @@ export type DesktopTerminalOpenRequest = Readonly<Record<string, never>>
 /** Successful handoff to the launcher-owned terminal action. */
 export interface DesktopTerminalOpenResponse {
   readonly accepted: true
+}
+
+/** Exact empty body accepted by the diagnostic-export endpoint. */
+export type DesktopDiagnosticsExportRequest = Readonly<Record<string, never>>
+
+/** Successful handoff to the launcher-owned diagnostic export flow. */
+export interface DesktopDiagnosticsExportResponse {
+  readonly accepted: true
+}
+
+/** Exact empty body accepted by the native Profile-creator endpoint. */
+export type DesktopProfileCreateWindowRequest = Readonly<Record<string, never>>
+
+/** Successful handoff to the isolated native Profile creator. */
+export interface DesktopProfileCreateWindowResponse {
+  readonly accepted: true
+}
+
+/** Exact empty body accepted by the last-known-good rollback endpoint. */
+export type DesktopProfileRollbackRequest = Readonly<Record<string, never>>
+
+/** Persisted rollback handoff returned before the running Host is quiesced. */
+export interface DesktopProfileRollbackResponse extends DesktopRestartAcceptance {
+  readonly targetProfile: string
 }
 
 /** Stable API failure shape that never contains native paths or raw causes. */
