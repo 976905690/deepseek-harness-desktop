@@ -161,8 +161,8 @@ export class ProfileCreateWindow {
       if (!this.disposed && this.window === window && !window.isDestroyed()) window.show()
     })
     window.on('closed', () => {
-      window.webContents.off('will-navigate', navigate)
-      window.webContents.off('will-redirect', navigate)
+      // Electron destroys webContents before emitting BrowserWindow's `closed`.
+      // Accessing window.webContents here can itself throw during a restart.
       if (this.window === window) this.window = undefined
     })
     void window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(documentHtml(this.options.locale))}`).catch(() => {

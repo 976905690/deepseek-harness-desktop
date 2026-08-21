@@ -73,4 +73,19 @@ describe('ProfileCreateWindow', () => {
     expect(electron.windows[0]?.options).not.toHaveProperty('modal')
     expect(electron.windows[0]?.options).not.toHaveProperty('parent')
   })
+
+  it('does not access destroyed web contents from the closed callback', () => {
+    const creator = new ProfileCreateWindow({ locale: 'en', onSubmit: async () => {} })
+    creator.open()
+    const window = electron.windows[0]
+    const closed = window?.on.mock.calls.find(([event]) => event === 'closed')?.[1] as (() => void) | undefined
+    expect(closed).toBeTypeOf('function')
+    if (window !== undefined) {
+      Object.defineProperty(window, 'webContents', {
+        configurable: true,
+        get: () => { throw new TypeError('Object has been destroyed') },
+      })
+    }
+    expect(() => closed?.()).not.toThrow()
+  })
 })
