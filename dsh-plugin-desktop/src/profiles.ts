@@ -45,14 +45,13 @@ export function apply(ctx: Context): void {
         })),
         {
           label: () => desktopTrayLabel(ctx.desktopRuntime.locale, 'addProfile'),
-          invoke: async () => {
-            const value = await ctx.desktopRuntime.promptText(
-              desktopTrayLabel(ctx.desktopRuntime.locale, 'addProfile'),
-            )
-            const name = value?.trim()
-            if (name === undefined || name.length === 0) return
-            ctx.desktopProfiles.create(name)
-            await ctx.desktopProfiles.select(name)
+          invoke: () => {
+            ctx.desktopRuntime.openProfileCreateWindow({
+              onSubmit: async name => {
+                ctx.desktopProfiles.create(name)
+                await ctx.desktopProfiles.select(name)
+              },
+            })
           },
         },
       ],

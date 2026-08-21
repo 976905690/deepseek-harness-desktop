@@ -1,0 +1,76 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const electron = vi.hoisted(() => {
+  const windows: Array<{
+    options: unknown
+    loadURL: ReturnType<typeof vi.fn>
+    show: ReturnType<typeof vi.fn>
+    focus: ReturnType<typeof vi.fn>
+    close: ReturnType<typeof vi.fn>
+    isDestroyed: ReturnType<typeof vi.fn>
+    once: ReturnType<typeof vi.fn>
+    on: ReturnType<typeof vi.fn>
+    removeMenu: ReturnType<typeof vi.fn>
+    webContents: Record<string, ReturnType<typeof vi.fn>>
+  }> = []
+  class BrowserWindow {
+    readonly webContents = {
+      setWindowOpenHandler: vi.fn(),
+      on: vi.fn(),
+      off: vi.fn(),
+      executeJavaScript: vi.fn(async () => {}),
+    }
+    readonly isDestroyed = vi.fn(() => false)
+    readonly show = vi.fn()
+    readonly focus = vi.fn()
+    readonly close = vi.fn()
+    readonly loadURL = vi.fn(async () => {})
+    readonly once = vi.fn()
+    readonly on = vi.fn()
+    readonly removeMenu = vi.fn()
+    accessibleTitle = ''
+    constructor(readonly options: unknown) {
+      windows.push(this as unknown as typeof windows[number])
+    }
+  }
+  return { BrowserWindow, windows }
+})
+
+vi.mock('electron', () => ({ BrowserWindow: electron.BrowserWindow }))
+
+import {
+  ProfileCreateWindow,
+  parseProfileCreateAction,
+} from '../src/profile-create-window.ts'
+
+describe('ProfileCreateWindow', () => {
+  beforeEach(() => { electron.windows.length = 0 })
+
+  it('parses only local submit and cancel actions', () => {
+    expect(parseProfileCreateAction('dsh-profile-create://submit?name=work')).toEqual({ action: 'submit', name: 'work' })
+    expect(parseProfileCreateAction('dsh-profile-create://cancel')).toEqual({ action: 'cancel' })
+    expect(parseProfileCreateAction('https://example.com/submit?name=work')).toBeUndefined()
+    expect(parseProfileCreateAction('dsh-profile-create://submit?name=work&command=bad')).toBeUndefined()
+  })
+
+  it('creates one isolated window and focuses it on repeated opens', () => {
+    const onSubmit = vi.fn(async () => {})
+    const creator = new ProfileCreateWindow({ locale: 'en', onSubmit })
+    creator.open()
+    creator.open()
+    expect(electron.windows).toHaveLength(1)
+    expect(electron.windows[0]?.show).toHaveBeenCalledOnce()
+    expect(electron.windows[0]?.focus).toHaveBeenCalledOnce()
+    expect(electron.windows[0]?.loadURL).toHaveBeenCalledWith(expect.stringContaining('data:text/html'))
+    expect(electron.windows[0]?.options).toEqual(expect.objectContaining({
+      webPreferences: expect.objectContaining({
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+        webSecurity: true,
+      }),
+    }))
+    expect(electron.windows[0]?.options).not.toHaveProperty('modal')
+    expect(electron.windows[0]?.options).not.toHaveProperty('parent')
+  })
+})

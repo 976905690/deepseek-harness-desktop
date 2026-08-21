@@ -57,6 +57,7 @@ import {
   type WindowsVolumeQuery,
 } from './windows-volume-diagnostics.ts'
 import { ElectronWorkspaceAdmission } from './workspace-admission.ts'
+import { ProfileCreateWindow, type ProfileCreateWindowOptions } from './profile-create-window.ts'
 
 /** Return the presentation mode opposite the active generation. */
 export function nextDesktopShellMode(mode: DesktopShellSpec['mode']): DesktopShellSpec['mode'] {
@@ -110,6 +111,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
   private readonly workspaceAdmission: ElectronWorkspaceAdmission
   private updateCleanupTask: Promise<void> | undefined
   private rendererHealthGate: DesktopRendererHealthGate | undefined
+  private profileCreateWindow: ProfileCreateWindow | undefined
 
   constructor(
     private readonly restart: () => Promise<void>,
@@ -196,6 +198,8 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
         await this.mountTask
       } finally {
         try {
+          this.profileCreateWindow?.close()
+          this.profileCreateWindow = undefined
           await this.generation?.release()
         } finally {
           this.generation = undefined
@@ -263,9 +267,14 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
   }
 
   /** @inheritdoc */
-  async promptText(title: string, defaultValue?: string): Promise<string | null> {
-    this.show()
-    return await this.generation?.promptText(title, defaultValue) ?? null
+  openProfileCreateWindow(options: Omit<ProfileCreateWindowOptions, 'locale'>): void {
+    if (this.profileCreateWindow === undefined) {
+      this.profileCreateWindow = new ProfileCreateWindow({
+        ...options,
+        locale: this.locale,
+      })
+    }
+    this.profileCreateWindow.open()
   }
 
   /** @inheritdoc */
