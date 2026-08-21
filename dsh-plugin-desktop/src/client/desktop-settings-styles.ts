@@ -88,6 +88,12 @@ const CSS = `
   text-underline-offset: 2px;
 }
 .dshDesktopSettingsChoiceLink:hover { text-decoration-thickness: 2px; }
+.dshDesktopSettingsChoiceTitle .dshDesktopSettingsChoiceLink {
+  text-decoration: none;
+}
+.dshDesktopSettingsChoiceTitle .dshDesktopSettingsChoiceLink:hover {
+  opacity: .82;
+}
 .dshDesktopSettingsBadge {
   display: inline-flex;
   align-items: center;
