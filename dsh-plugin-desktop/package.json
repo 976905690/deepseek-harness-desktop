@@ -291,6 +291,14 @@
         "dir"
       ],
       "category": "public.app-category.developer-tools",
+      "extendInfo": {
+        "CFBundleAllowMixedLocalizations": true,
+        "CFBundleDevelopmentRegion": "en",
+        "CFBundleLocalizations": [
+          "en",
+          "zh_CN"
+        ]
+      },
       "hardenedRuntime": true,
       "icon": "build/app-icon-mac.png",
       "mergeASARs": false,
