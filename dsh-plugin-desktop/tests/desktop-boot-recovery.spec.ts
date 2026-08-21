@@ -28,6 +28,8 @@ describe('Desktop early-boot recovery injection', () => {
     expect(DESKTOP_BOOT_TERMINAL_SCRIPT).not.toContain('command')
     expect(DESKTOP_BOOT_TERMINAL_SCRIPT).not.toContain('style.cssText')
     expect(DESKTOP_BOOT_TERMINAL_STYLE).toContain('[data-dsh-desktop-recovery]')
+    expect(DESKTOP_BOOT_TERMINAL_STYLE).toContain('--dsw-alias-button-primary-fill')
+    expect(DESKTOP_BOOT_TERMINAL_STYLE).toContain('border-radius: 18px')
     expect(DESKTOP_BOOT_TERMINAL_STYLE).toContain(':focus-visible')
     expect(DESKTOP_BOOT_TERMINAL_STYLE).toContain('prefers-color-scheme: dark')
     expect(() => Function(DESKTOP_BOOT_RECOVERY_SCRIPT)).not.toThrow()

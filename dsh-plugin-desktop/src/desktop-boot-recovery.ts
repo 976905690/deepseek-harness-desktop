@@ -21,12 +21,14 @@ export const DESKTOP_TERMINAL_OPEN_REQUEST = Object.freeze({
 /** Official boot-page-aligned presentation for the early recovery controls. */
 export const DESKTOP_BOOT_RECOVERY_STYLE = `
 [data-dsh-desktop-recovery] {
-  --dsh-recovery-fg: #0f1115;
-  --dsh-recovery-muted: #61666b;
-  --dsh-recovery-border: rgb(0 0 0 / 14%);
-  --dsh-recovery-hover: rgb(0 0 0 / 6%);
-  --dsh-recovery-primary-bg: #0f1115;
-  --dsh-recovery-primary-fg: #fff;
+  --dsh-recovery-fg: var(--dsw-alias-label-primary, var(--dsh-boot-label-primary, #0f1115));
+  --dsh-recovery-muted: var(--dsw-alias-label-secondary, var(--dsh-boot-label-secondary, #61666b));
+  --dsh-recovery-border: var(--dsw-alias-border-l2, var(--dsh-boot-border, rgb(0 0 0 / 10%)));
+  --dsh-recovery-hover: var(--dsw-alias-interactive-bg-hover, rgb(0 0 0 / 6%));
+  --dsh-recovery-active: var(--dsw-alias-interactive-bg-active, rgb(0 0 0 / 10%));
+  --dsh-recovery-primary-bg: var(--dsw-alias-button-primary-fill, var(--dsh-boot-brand, #0f1115));
+  --dsh-recovery-primary-hover: var(--dsw-alias-button-primary-hover, #303238);
+  --dsh-recovery-primary-fg: var(--dsw-alias-label-primary-foreground, #fff);
   width: min(480px, calc(100vw - 48px));
   margin-top: 16px;
   color: var(--dsh-recovery-fg);
@@ -54,25 +56,33 @@ export const DESKTOP_BOOT_RECOVERY_STYLE = `
 [data-dsh-desktop-recovery] button,
 [data-dsh-desktop-recovery] select {
   min-height: 36px;
-  border: 1px solid var(--dsh-recovery-border);
-  border-radius: 8px;
   background: transparent;
   color: var(--dsh-recovery-fg);
-  font: 500 13px/20px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font: 400 14px/22px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
-[data-dsh-desktop-recovery] button { padding: 7px 13px; cursor: pointer; }
+[data-dsh-desktop-recovery] button {
+  padding: 0 14px;
+  border: 0;
+  border-radius: 18px;
+  cursor: pointer;
+}
 [data-dsh-desktop-recovery] select {
   min-width: 170px;
   flex: 1 1 170px;
+  border: 1px solid var(--dsh-recovery-border);
+  border-radius: 9px;
   padding: 7px 30px 7px 10px;
 }
 [data-dsh-desktop-recovery] button:hover:not(:disabled) { background: var(--dsh-recovery-hover); }
+[data-dsh-desktop-recovery] button:active:not(:disabled) { background: var(--dsh-recovery-active); }
 [data-dsh-desktop-recovery] button[data-primary] {
-  border-color: var(--dsh-recovery-primary-bg);
   background: var(--dsh-recovery-primary-bg);
   color: var(--dsh-recovery-primary-fg);
 }
-[data-dsh-desktop-recovery] button[data-primary]:hover:not(:disabled) { opacity: 0.88; }
+[data-dsh-desktop-recovery] button[data-primary]:hover:not(:disabled),
+[data-dsh-desktop-recovery] button[data-primary]:active:not(:disabled) {
+  background: var(--dsh-recovery-primary-hover);
+}
 [data-dsh-desktop-recovery] button:focus-visible,
 [data-dsh-desktop-recovery] select:focus-visible {
   outline: 2px solid #5b8def;
@@ -106,7 +116,9 @@ body[data-ds-dark-theme] [data-dsh-desktop-recovery] {
   --dsh-recovery-muted: #cfd3d6;
   --dsh-recovery-border: rgb(255 255 255 / 18%);
   --dsh-recovery-hover: rgb(255 255 255 / 9%);
+  --dsh-recovery-active: rgb(255 255 255 / 14%);
   --dsh-recovery-primary-bg: #f9fafb;
+  --dsh-recovery-primary-hover: #dfe3e6;
   --dsh-recovery-primary-fg: #151517;
 }
 @media (prefers-color-scheme: dark) {
@@ -115,7 +127,9 @@ body[data-ds-dark-theme] [data-dsh-desktop-recovery] {
     --dsh-recovery-muted: #cfd3d6;
     --dsh-recovery-border: rgb(255 255 255 / 18%);
     --dsh-recovery-hover: rgb(255 255 255 / 9%);
+    --dsh-recovery-active: rgb(255 255 255 / 14%);
     --dsh-recovery-primary-bg: #f9fafb;
+    --dsh-recovery-primary-hover: #dfe3e6;
     --dsh-recovery-primary-fg: #151517;
   }
 }
