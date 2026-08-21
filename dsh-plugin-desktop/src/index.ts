@@ -41,6 +41,7 @@ import {
   handleDesktopTerminalOpenRequest,
 } from './desktop-settings-route.ts'
 import type {} from './desktop-settings-controller.ts'
+import { desktopBootRecoveryInjections } from './desktop-boot-recovery.ts'
 import type { DesktopShellMode } from './runtime.ts'
 import type {} from './runtime.ts'
 
@@ -161,6 +162,9 @@ export function apply(ctx: Context, config: Config): void {
     },
   )
   const rendererOrigin = `http://127.0.0.1:${String(ctx.webServer.port)}`
+  ctx.on('webserver/index-inject', table => {
+    table.push(...desktopBootRecoveryInjections())
+  })
   const desktopSettings = ctx.get('desktopSettingsController')
   if (desktopSettings !== undefined) {
     const reportSettingsError = (operation: string, cause: unknown): void => {
