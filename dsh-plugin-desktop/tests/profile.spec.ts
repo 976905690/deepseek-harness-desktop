@@ -38,6 +38,7 @@ function installWebClient(
   mkdirSync(packageDir, { recursive: true })
   writeFileSync(join(packageDir, 'package.json'), JSON.stringify({
     name: packageName,
+    version: '1.0.0',
     type: 'module',
     dsh: { client: { platform: 'web' } },
     ...manifest,
@@ -46,11 +47,12 @@ function installWebClient(
   return webDir
 }
 
-function installBundle(home: string, packageName: string, patch: string): string {
+function installBundle(home: string, packageName: string, patch: string, version = '1.0.0'): string {
   const bundleDir = join(home, 'profiles', 'desktop', 'node_modules', packageName)
   mkdirSync(bundleDir, { recursive: true })
   writeFileSync(join(bundleDir, 'package.json'), JSON.stringify({
     name: packageName,
+    version,
     dsh: { bundle: { patch: './cordis.patch.yml' } },
   }) + '\n')
   writeFileSync(join(bundleDir, 'cordis.patch.yml'), patch)
@@ -298,7 +300,7 @@ describe('desktop profile composition', {
       '    - id: dsh-market',
       '      name: dshmarket',
       '',
-    ].join('\n'))
+    ].join('\n'), '99.0.0')
     const profileManifestPath = join(ensureDesktopProfile(home), 'package.json')
     const profileManifest = JSON.parse(readFileSync(profileManifestPath, 'utf8')) as {
       dsh: { profile: { bundles: string[] } }
@@ -321,6 +323,35 @@ describe('desktop profile composition', {
       name: DESKTOP_MARKET_IDENTITIES.dshMarket.packageName,
     }])
     expect(rows.some(row => row.id === DESKTOP_MARKET_IDENTITIES.community.rowId)).toBe(false)
+  })
+
+  it('keeps the newer Desktop dshmarket when a Profile copy is older', () => {
+    const home = temporaryHome()
+    const oldProfileMarketDir = installBundle(home, DESKTOP_MARKET_IDENTITIES.dshMarket.packageName, [
+      '- insert:',
+      '    - id: dsh-market',
+      '      name: dshmarket',
+      '',
+    ].join('\n'), '0.1.0')
+    const profileManifestPath = join(ensureDesktopProfile(home), 'package.json')
+    const profileManifest = JSON.parse(readFileSync(profileManifestPath, 'utf8')) as {
+      dsh: { profile: { bundles: string[] } }
+    }
+    profileManifest.dsh.profile.bundles.push(DESKTOP_MARKET_IDENTITIES.dshMarket.packageName)
+    writeFileSync(profileManifestPath, `${JSON.stringify(profileManifest)}\n`)
+
+    const prepared = prepareDesktopProfile(undefined, home, 'darwin', 'desktop', undefined, {
+      requested: 'dsh-market',
+      effective: 'dsh-market',
+      legacyDefaulted: false,
+    })
+    const selected = prepared.profile.layers.find(layer =>
+      layer.packageName === DESKTOP_MARKET_IDENTITIES.dshMarket.packageName)
+    expect(selected?.packageDir).not.toBe(oldProfileMarketDir)
+    expect(JSON.parse(readFileSync(join(selected!.packageDir, 'package.json'), 'utf8'))).toMatchObject({
+      name: 'dshmarket',
+      version: '1.17.1',
+    })
   })
 
   it('does not let community-management disables suppress a third-party market', () => {

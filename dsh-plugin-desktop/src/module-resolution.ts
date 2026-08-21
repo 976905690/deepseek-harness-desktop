@@ -1,40 +1,24 @@
 /** Profile-relative package resolution for Electron's restricted Node runtime. */
 
-import { createRequire, registerHooks } from 'node:module'
-import { pathToFileURL } from 'node:url'
+import { registerHooks } from 'node:module'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { unpackedAsarPath } from './packaged-runtime-path.ts'
+import {
+  packageNameFromSpecifier,
+  resolveOverlayPackage,
+} from './package-overlay.ts'
 
 const LOADER_ENTRY_URL = import.meta.resolve('@deepseek-ai/cordis-plugin-loader')
-const DESKTOP_ENTRY_URL = new URL('../lib/index.js', import.meta.url).href
-const DESKTOP_PACKAGE_NAME = 'dsh-plugin-desktop'
-const UPSTREAM_PACKAGE_SCOPE = '@deepseek-ai/'
-const DESKTOP_PROVIDER_PACKAGES = new Set(['dsh-community-market'])
-const PROFILE_FIRST_PROVIDER_PACKAGE = 'dshmarket'
-const DESKTOP_REQUIRE = createRequire(DESKTOP_ENTRY_URL)
+const DESKTOP_ENTRY_URL = pathToFileURL(
+  unpackedAsarPath(fileURLToPath(new URL('../lib/index.js', import.meta.url))),
+).href
+const DESKTOP_PACKAGE_URL = pathToFileURL(
+  unpackedAsarPath(fileURLToPath(new URL('../package.json', import.meta.url))),
+).href
 
 /** Return whether a Loader request needs Node package resolution. */
 function isBareSpecifier(specifier: string): boolean {
   return !specifier.startsWith('.') && !specifier.startsWith('/') && !URL.canParse(specifier)
-}
-
-/** Resolve a current Desktop package export without consulting the selected profile. */
-function resolveDesktopSpecifier(specifier: string): string | undefined {
-  const isDesktopPackage =
-    specifier === DESKTOP_PACKAGE_NAME || specifier.startsWith(`${DESKTOP_PACKAGE_NAME}/`)
-  const isUpstreamPackage = specifier.startsWith(UPSTREAM_PACKAGE_SCOPE)
-  const isDesktopProvider = DESKTOP_PROVIDER_PACKAGES.has(specifier)
-  if (!isDesktopPackage && !isUpstreamPackage && !isDesktopProvider) return
-  const resolved = DESKTOP_REQUIRE.resolve(specifier)
-  return pathToFileURL(resolved).href
-}
-
-/** Resolve a bundled package directly when a profile-first provider is absent. */
-function resolveBundledSpecifier(specifier: string): string | undefined {
-  try {
-    return pathToFileURL(DESKTOP_REQUIRE.resolve(specifier)).href
-  } catch (cause) {
-    if ((cause as NodeJS.ErrnoException).code === 'ERR_MODULE_NOT_FOUND') return
-    throw cause
-  }
 }
 
 /**
@@ -43,50 +27,40 @@ function resolveBundledSpecifier(specifier: string): string | undefined {
  * @returns an idempotent hook disposer.
  */
 export function installProfilePackageResolver(profileBaseUrl: string): () => void {
-  // Track only the module graph rooted at packages selected by this profile.
-  const profileModuleUrls = new Set<string>()
+  // Track the module graph rooted at every overlay-selected Loader package.
+  const overlayModuleUrls = new Set<string>()
   const hooks = registerHooks({
     resolve(specifier, context, nextResolve) {
       const fromLoader = context.parentURL === LOADER_ENTRY_URL
-      if (fromLoader) {
-        // dsh-market may be upgraded in the active profile. Prefer that copy,
-        // while retaining the bundled package as a fallback for new profiles.
-        if (specifier === PROFILE_FIRST_PROVIDER_PACKAGE) {
-          try {
-            const resolved = nextResolve(specifier, { ...context, parentURL: profileBaseUrl })
-            profileModuleUrls.add(resolved.url)
-            return resolved
-          } catch (cause) {
-            if ((cause as NodeJS.ErrnoException).code !== 'ERR_MODULE_NOT_FOUND') throw cause
-            const desktopUrl = resolveBundledSpecifier(specifier)
-            if (desktopUrl !== undefined) return { shortCircuit: true, url: desktopUrl }
-            throw cause
-          }
-        }
-        const desktopUrl = resolveDesktopSpecifier(specifier)
-        if (desktopUrl !== undefined) return { shortCircuit: true, url: desktopUrl }
-      }
-      if (fromLoader && isBareSpecifier(specifier)) {
-        const resolved = nextResolve(specifier, { ...context, parentURL: profileBaseUrl })
-        profileModuleUrls.add(resolved.url)
+      const packageName = fromLoader ? packageNameFromSpecifier(specifier) : undefined
+      if (packageName !== undefined) {
+        const overlay = resolveOverlayPackage(packageName, {
+          installPackageUrl: DESKTOP_PACKAGE_URL,
+          profilePackageUrl: profileBaseUrl,
+        })
+        const resolved = nextResolve(specifier, {
+          ...context,
+          parentURL: overlay.selected.source === 'profile' ? profileBaseUrl : DESKTOP_ENTRY_URL,
+        })
+        overlayModuleUrls.add(resolved.url)
         return resolved
       }
-      if (context.parentURL === undefined || !profileModuleUrls.has(context.parentURL)) {
+      if (context.parentURL === undefined || !overlayModuleUrls.has(context.parentURL)) {
         return nextResolve(specifier, context)
       }
       if (!isBareSpecifier(specifier)) {
         const resolved = nextResolve(specifier, context)
-        if (specifier.startsWith('.')) profileModuleUrls.add(resolved.url)
+        if (specifier.startsWith('.')) overlayModuleUrls.add(resolved.url)
         return resolved
       }
       try {
         const resolved = nextResolve(specifier, context)
-        profileModuleUrls.add(resolved.url)
+        overlayModuleUrls.add(resolved.url)
         return resolved
       } catch (cause) {
         if ((cause as NodeJS.ErrnoException).code !== 'ERR_MODULE_NOT_FOUND') throw cause
         const resolved = nextResolve(specifier, { ...context, parentURL: profileBaseUrl })
-        profileModuleUrls.add(resolved.url)
+        overlayModuleUrls.add(resolved.url)
         return resolved
       }
     },

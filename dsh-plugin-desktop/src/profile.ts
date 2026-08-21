@@ -1,6 +1,6 @@
 /** Compatibility profile composition over the official Web bundle and user plugins. */
 
-import { createRequire, findPackageJSON } from 'node:module'
+import { createRequire } from 'node:module'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -12,11 +12,9 @@ import {
   initProfile,
   loadOptionalPatches,
   loadOverlayPatches,
-  loadProfile,
   PROFILE_PATCH_FILENAME,
   PROFILE_TEMPLATES,
   readProfileManifest,
-  resolveBundleDir,
   resolveProfileDir,
   writeProfileManifest,
   type Profile,
@@ -29,6 +27,7 @@ import FileSettingsProvider, {
 } from '@deepseek-ai/dsh-settings-file'
 import { parseDocument } from 'yaml'
 import { unpackedAsarPath } from './packaged-runtime-path.ts'
+import { findOverlayPackage, resolveOverlayPackage } from './package-overlay.ts'
 import type { DesktopShellMode } from './runtime.ts'
 import {
   activeDesktopProfileLayers,
@@ -277,14 +276,12 @@ function marketFailureMessage(cause: unknown): string {
 
 /**
  * Load a profile while resolving disabled third-party bundles only after they have been filtered.
- * The ordinary upstream loader remains the no-state path. The `dshmarket` bundle is also filtered
- * before resolution unless explicitly selected. When dsh-market is selected, an exact profile-local
- * bundle wins; the bundled Desktop package is used only when the profile has no dshmarket bundle.
+ * Every direct bundle uses the same Desktop/Profile SemVer overlay that Loader imports use.
+ * The `dshmarket` bundle is filtered before resolution unless explicitly selected.
  */
 function loadRecoveryFilteredProfile(
   profileName: string,
   profileDir: string,
-  home: string,
   disabledBundles: ReadonlySet<string>,
   marketProvider: DesktopMarketProvider,
 ): RecoveryFilteredProfile {
@@ -302,12 +299,6 @@ function loadRecoveryFilteredProfile(
     throw new Error(`${BIN_NAME}: dsh.profile.bundles must be an array of package names`)
   }
   const bundles = (rawBundles ?? []) as string[]
-  const needsFilteredLoad = disabledBundles.size > 0
-    || marketProvider === DESKTOP_MARKET_IDENTITIES.dshMarket.provider
-    || bundles.some(packageName => MARKET_PACKAGE_NAMES.has(packageName))
-  if (!needsFilteredLoad) {
-    return { profile: loadProfile(BIN_NAME, profileName, INSTALL_ANCHOR, home) }
-  }
   const selectedBundles = bundles.filter(packageName =>
     packageName !== DESKTOP_MARKET_IDENTITIES.community.packageName
     && (marketProvider === DESKTOP_MARKET_IDENTITIES.dshMarket.provider
@@ -319,13 +310,16 @@ function loadRecoveryFilteredProfile(
   }
   const layers: Profile['layers'] = []
   let dshMarketFailure: string | undefined
+  const installPackageUrl = pathToFileURL(INSTALL_ANCHOR).href
+  const profilePackageUrl = pathToFileURL(join(profileDir, 'package.json')).href
   for (const packageName of selectedBundles) {
     const isDshMarket = packageName === DESKTOP_MARKET_IDENTITIES.dshMarket.packageName
     if (!isDshMarket && desktopPluginBundleMutable(packageName) && disabledBundles.has(packageName)) continue
     try {
-      const packageDir = isDshMarket
-        ? resolveDshMarketBundleDir(profileDir)
-        : resolveBundleDir(BIN_NAME, packageName, INSTALL_ANCHOR, profileDir)
+      const packageDir = resolveOverlayPackage(packageName, {
+        installPackageUrl,
+        profilePackageUrl,
+      }).selected.packageDir
       const bundleManifest: unknown = JSON.parse(readFileSync(join(packageDir, 'package.json'), 'utf8'))
       if (isDshMarket && (bundleManifest === null || typeof bundleManifest !== 'object'
         || Array.isArray(bundleManifest)
@@ -408,31 +402,6 @@ function assertUniqueEntryIds(rows: readonly EntryOptions[]): void {
   }
 }
 
-/** Find one package manifest using the selected profile's dependency graph. */
-function packageManifestFromProfile(name: string, profilePackageUrl: string): string | undefined {
-  try {
-    return findPackageJSON(name, profilePackageUrl)
-  } catch (cause) {
-    if ((cause as NodeJS.ErrnoException).code === 'ERR_MODULE_NOT_FOUND') return undefined
-    throw cause
-  }
-}
-
-/** Resolve dsh-market from the active profile first, then use Desktop's bundled fallback. */
-function resolveDshMarketBundleDir(profileDir: string): string {
-  const profileManifest = packageManifestFromProfile(
-    DESKTOP_MARKET_IDENTITIES.dshMarket.packageName,
-    pathToFileURL(join(profileDir, 'package.json')).href,
-  )
-  if (profileManifest !== undefined) return dirname(profileManifest)
-  return resolveBundleDir(
-    BIN_NAME,
-    DESKTOP_MARKET_IDENTITIES.dshMarket.packageName,
-    INSTALL_ANCHOR,
-    profileDir,
-  )
-}
-
 /** Return whether a Loader specifier names an npm package. */
 function isBarePackageSpecifier(name: string): boolean {
   return !name.startsWith('.')
@@ -452,6 +421,7 @@ function omitUnresolvedOptionalEntries(
   profilePackageUrl: string,
 ): { patches: PatchOptions[], skipped: SkippedOptionalEntry[] } {
   const skipped: SkippedOptionalEntry[] = []
+  const installPackageUrl = pathToFileURL(INSTALL_ANCHOR).href
 
   const filterRows = (rows: EntryOptions[]): EntryOptions[] => {
     const filtered: EntryOptions[] = []
@@ -459,7 +429,7 @@ function omitUnresolvedOptionalEntries(
       if (typeof row.name === 'string'
         && isBarePackageSpecifier(row.name)
         && isOptionalClientPackage(row.name)
-        && packageManifestFromProfile(row.name, profilePackageUrl) === undefined) {
+        && findOverlayPackage(row.name, { installPackageUrl, profilePackageUrl }) === undefined) {
         skipped.push({
           ...(typeof row.id === 'string' ? { id: row.id } : {}),
           name: row.name,
@@ -550,16 +520,13 @@ export function validateDshMarketBundlePatches(patches: readonly PatchOptions[])
 
 /** Ensure a Desktop dependency is resolvable through the selected profile fallback. */
 function validateMarketPackage(name: string, profilePackageUrl: string): string | undefined {
-  const manifestPath = packageManifestFromProfile(name, profilePackageUrl)
-  if (manifestPath === undefined) return `${BIN_NAME}: cannot resolve selected Market package ${name}`
   try {
-    const manifest: unknown = JSON.parse(readFileSync(manifestPath, 'utf8'))
-    if (manifest === null || typeof manifest !== 'object' || Array.isArray(manifest)
-      || (manifest as { name?: unknown }).name !== name) {
-      return `${BIN_NAME}: selected Market package ${name} has an invalid manifest`
-    }
+    resolveOverlayPackage(name, {
+      installPackageUrl: pathToFileURL(INSTALL_ANCHOR).href,
+      profilePackageUrl,
+    })
   } catch (cause) {
-    return `${BIN_NAME}: cannot read selected Market package ${name}: ${marketFailureMessage(cause)}`
+    return `${BIN_NAME}: cannot resolve selected Market package ${name}: ${marketFailureMessage(cause)}`
   }
 }
 
@@ -626,7 +593,6 @@ export function prepareDesktopProfile(
   const loadedProfile = loadRecoveryFilteredProfile(
     profileName,
     profileDir,
-    home,
     disabledBundles,
     marketSelection.requested,
   )
