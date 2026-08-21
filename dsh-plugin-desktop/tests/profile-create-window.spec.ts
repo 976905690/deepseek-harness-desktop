@@ -8,6 +8,7 @@ const electron = vi.hoisted(() => {
     focus: ReturnType<typeof vi.fn>
     close: ReturnType<typeof vi.fn>
     isDestroyed: ReturnType<typeof vi.fn>
+    loadFile: ReturnType<typeof vi.fn>
     once: ReturnType<typeof vi.fn>
     on: ReturnType<typeof vi.fn>
     removeMenu: ReturnType<typeof vi.fn>
@@ -24,6 +25,7 @@ const electron = vi.hoisted(() => {
     readonly show = vi.fn()
     readonly focus = vi.fn()
     readonly close = vi.fn()
+    readonly loadFile = vi.fn(async () => {})
     readonly loadURL = vi.fn(async () => {})
     readonly once = vi.fn()
     readonly on = vi.fn()
@@ -61,8 +63,15 @@ describe('ProfileCreateWindow', () => {
     expect(electron.windows).toHaveLength(1)
     expect(electron.windows[0]?.show).toHaveBeenCalledOnce()
     expect(electron.windows[0]?.focus).toHaveBeenCalledOnce()
-    expect(electron.windows[0]?.loadURL).toHaveBeenCalledWith(expect.stringContaining('data:text/html'))
+    expect(electron.windows[0]?.loadFile).toHaveBeenCalledWith(
+      expect.stringContaining('/native-ui/profile-create.html'),
+      { query: { locale: 'en' } },
+    )
     expect(electron.windows[0]?.options).toEqual(expect.objectContaining({
+      width: 480,
+      height: 360,
+      minWidth: 420,
+      minHeight: 330,
       webPreferences: expect.objectContaining({
         contextIsolation: true,
         nodeIntegration: false,

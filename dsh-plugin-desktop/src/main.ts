@@ -1,6 +1,7 @@
 /** DSH Desktop executable: minimal Electron bootstrap around the Host Cordis root. */
 
 import { app, crashReporter, dialog } from 'electron'
+import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -51,6 +52,7 @@ import {
 } from './install-recovery.ts'
 import {
   beginDesktopProfileStartup,
+  assertDesktopProfileName,
   createDesktopWebProfile,
   listDesktopProfiles,
   canDeleteDesktopProfile,
@@ -72,6 +74,7 @@ import { DesktopStartupRecoveryController } from './startup-recovery-controller.
 import {
   DesktopStartupRecoveryWindow,
   type DesktopStartupRecoveryConfigurationPaths,
+  type DesktopStartupRecoveryProfileActions,
   type DesktopStartupFailureStage,
 } from './startup-recovery-window.ts'
 import { routeDesktopStartupFailure } from './startup-failure-routing.ts'
@@ -273,6 +276,10 @@ async function start(): Promise<void> {
   let rolledBackInstallToNotify: DesktopInstallRecoveryTransaction | undefined
   let profileCheckpoint: DesktopProfileCheckpoint | undefined
   let restoreHealthyProfile: (() => Promise<boolean>) | undefined
+  let restoreLastKnownGoodProfile: ((token: string) => Promise<void>) | undefined
+  let startupRecoveryProfileActions: DesktopStartupRecoveryProfileActions | undefined
+  let profileRecoveryActionUsed = false
+  let recoveryTerminalAvailable = false
   let profileRollbackPrepared = false
   let protectedInstallVerificationActive = false
   let startupStage: DesktopStartupFailureStage = 'electron-ready'
@@ -400,6 +407,9 @@ async function start(): Promise<void> {
           crashDumpsDir: app.getPath('crashDumps'),
           signal,
         }),
+        ...(recoveryTerminalAvailable ? { openTerminal: () => { runtime.openTerminal() } } : {}),
+        ...(startupRecoveryProfileActions === undefined ? {} : { profileActions: startupRecoveryProfileActions }),
+        ...(restoreLastKnownGoodProfile === undefined ? {} : { rollbackLastKnownGood: restoreLastKnownGoodProfile }),
       })
       return await startupRecoveryWindow.run()
     } catch (cause) {
@@ -471,6 +481,40 @@ async function start(): Promise<void> {
     profileStartup = beginDesktopProfileStartup(selectionStatePath, homeDir)
     const activeProfileName = profileStartup.profileName
     const activeProfileDir = resolveProfileDir(activeProfileName, homeDir)
+    const recoveryProfileToken = randomUUID()
+    startupRecoveryProfileActions = {
+      token: recoveryProfileToken,
+      list: () => listDesktopProfiles(homeDir).map(profile => ({
+        name: profile.name,
+        current: profile.name === activeProfileName,
+        selectable: profile.webCapable && profile.problem === undefined,
+      })),
+      switchProfile: (name, token) => {
+        if (token !== recoveryProfileToken || profileRecoveryActionUsed) {
+          throw new Error(`${BIN_NAME}: the Profile recovery action is no longer valid`)
+        }
+        profileRecoveryActionUsed = true
+        assertDesktopProfileName(name)
+        const selection = readDesktopProfileState(selectionStatePath)
+        if (selection.active !== activeProfileName) throw new Error(`${BIN_NAME}: active Profile changed before recovery`)
+        const target = listDesktopProfiles(homeDir).find(profile => profile.name === name)
+        if (target === undefined || !target.webCapable || target.problem !== undefined) {
+          throw new Error(`${BIN_NAME}: Profile ${JSON.stringify(name)} is unavailable`)
+        }
+        selectDesktopProfile(selectionStatePath, homeDir, name)
+      },
+      openCreator: () => {
+        runtime.openProfileCreateWindow({
+          onSubmit: async name => {
+            assertDesktopProfileName(name)
+            const selection = readDesktopProfileState(selectionStatePath)
+            if (selection.active !== activeProfileName) throw new Error(`${BIN_NAME}: active Profile changed before recovery`)
+            createDesktopWebProfile(homeDir, name)
+            selectDesktopProfile(selectionStatePath, homeDir, name)
+          },
+        })
+      },
+    }
     try {
       profileCheckpoint = new DesktopProfileCheckpoint({
         userDataDir: app.getPath('userData'),
@@ -619,6 +663,7 @@ async function start(): Promise<void> {
       profileDir: string,
       attemptId: string,
       forceMaterialization = false,
+      showNotice = true,
     ): Promise<boolean> => {
       const inspection = checkpoint.inspectRestore(attemptId)
       if (!inspection.snapshotExists || inspection.restoreAttempted
@@ -658,11 +703,13 @@ async function start(): Promise<void> {
           return false
         }
       }
-      await showProfileCheckpointRestoreNotice(
-        profileName,
-        desktopLocaleFromLanguageTag(app.getLocale()),
-        electronLogger,
-      )
+      if (showNotice) {
+        await showProfileCheckpointRestoreNotice(
+          profileName,
+          desktopLocaleFromLanguageTag(app.getLocale()),
+          electronLogger,
+        )
+      }
       return true
     }
     restoreHealthyProfile = async () => {
@@ -675,9 +722,55 @@ async function start(): Promise<void> {
         generationId,
       )
     }
+    restoreLastKnownGoodProfile = async (token: string) => {
+      if (token !== recoveryProfileToken || profileRecoveryActionUsed) {
+        throw new Error(`${BIN_NAME}: the Profile recovery action is no longer valid`)
+      }
+      profileRecoveryActionUsed = true
+      const selection = readDesktopProfileState(selectionStatePath)
+      if (selection.active !== activeProfileName) throw new Error(`${BIN_NAME}: active Profile changed before recovery`)
+      const targetProfile = selection.lastKnownGood
+      const target = listDesktopProfiles(homeDir).find(profile => profile.name === targetProfile)
+      if (target === undefined || !target.webCapable || target.problem !== undefined) {
+        throw new Error(`${BIN_NAME}: last-known-good Profile is unavailable`)
+      }
+      const targetDir = resolveProfileDir(targetProfile, homeDir)
+      const targetCheckpoint = targetProfile === activeProfileName && profileCheckpoint !== undefined
+        ? profileCheckpoint
+        : new DesktopProfileCheckpoint({
+            userDataDir: app.getPath('userData'),
+            profileDir: targetDir,
+            profileName: targetProfile,
+            provider: 'desktop-profile',
+          })
+      if (!targetCheckpoint.inspectRestore().snapshotExists) {
+        throw new Error(`${BIN_NAME}: no healthy configuration snapshot is available`)
+      }
+      if (!await generation.quiesceForRecovery()) {
+        throw new Error(`${BIN_NAME}: Host could not be stopped safely for Profile recovery`)
+      }
+      const restored = await restoreProfileCheckpoint(
+        targetCheckpoint,
+        targetProfile,
+        targetDir,
+        `manual-${generationId}-${randomUUID()}`,
+        true,
+        false,
+      )
+      if (!restored) throw new Error(`${BIN_NAME}: healthy Profile snapshot was not restored`)
+      selectDesktopProfile(selectionStatePath, homeDir, targetProfile)
+    }
     startupStage = 'host-boot'
     lifecycleRecorder.transitionStartupStage(startupStage)
     const releasePackageResolver = installProfilePackageResolver(prepared.bareModuleBaseUrl)
+    // Configure the launcher-owned terminal before Host boot so the native
+    // recovery window can still open it when profile composition fails.
+    runtime.configureTerminal({
+      profileName: activeProfileName,
+      profileDir: prepared.profile.dir,
+      homeDir: prepared.homeDir,
+    })
+    recoveryTerminalAvailable = true
     const ctx = await boot(
       BIN_NAME,
       prepared.rootConfig,
@@ -870,11 +963,6 @@ async function start(): Promise<void> {
     ctx.on('settings/updated', (namespace, next) => {
       if (namespace !== DESKTOP_SETTINGS_NAMESPACE) return
       fileExporter?.setThreshold((next as DesktopSettings).logLevel)
-    })
-    runtime.configureTerminal({
-      profileName: activeProfileName,
-      profileDir: prepared.profile.dir,
-      homeDir: prepared.homeDir,
     })
     startupStage = 'renderer-startup'
     lifecycleRecorder.transitionStartupStage(startupStage)

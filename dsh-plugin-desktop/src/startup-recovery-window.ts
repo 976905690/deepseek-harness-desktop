@@ -2,6 +2,7 @@
 
 import { app, BrowserWindow, screen, shell } from 'electron'
 import { basename } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { DesktopLocale } from './runtime.ts'
 import { applicationNeedsReveal, revealApplication } from './electron-reveal.ts'
 import {
@@ -12,6 +13,7 @@ import {
 } from './startup-recovery-controller.ts'
 
 const RECOVERY_SCHEME = 'dsh-recovery:'
+const RECOVERY_DOCUMENT = fileURLToPath(new URL('./native-ui/recovery.html', import.meta.url))
 const MAX_FAILURE_DETAIL_LENGTH = 4_000
 const DEFAULT_RECOVERY_WIDTH = 800
 const DEFAULT_RECOVERY_HEIGHT = 760
@@ -57,6 +59,27 @@ export interface DesktopStartupRecoveryWindowOptions {
   readonly failureStage: DesktopStartupFailureStage
   readonly failureDetail: string
   readonly exportDiagnostics: (signal: AbortSignal) => Promise<string>
+  /** Open the launcher-owned terminal even when the Host did not start. */
+  readonly openTerminal?: () => void | Promise<void>
+  /** Main-process validated actions available from the failure generation. */
+  readonly profileActions?: DesktopStartupRecoveryProfileActions
+  /** Restore the last healthy Profile and its declarative checkpoint. */
+  readonly rollbackLastKnownGood?: (token: string) => void | Promise<void>
+}
+
+export interface DesktopStartupRecoveryProfile {
+  readonly name: string
+  readonly current: boolean
+  readonly selectable: boolean
+}
+
+export interface DesktopStartupRecoveryProfileActions {
+  /** Opaque per-window capability token; the main process must re-check it. */
+  readonly token: string
+  readonly list: () => readonly DesktopStartupRecoveryProfile[]
+  readonly switchProfile: (name: string, token: string) => void | Promise<void>
+  /** Open the isolated native creator; it accepts no filesystem path. */
+  readonly openCreator: () => void | Promise<void>
 }
 
 export interface DesktopStartupRecoveryConfigurationPaths {
@@ -142,6 +165,11 @@ export interface DesktopStartupRecoveryViewModel {
   readonly busy: boolean
   readonly restartReady: boolean
   readonly configurationAvailable: boolean
+  readonly profiles?: readonly DesktopStartupRecoveryProfile[]
+  readonly profileActionToken?: string
+  readonly terminalAvailable?: boolean
+  readonly profileCreatorAvailable?: boolean
+  readonly rollbackLastKnownGoodAvailable?: boolean
 }
 
 interface RecoveryCopy {
@@ -327,6 +355,13 @@ function recoveryHref(action: string, id?: string): string {
   return url.href
 }
 
+function recoveryProfileHref(action: string, token: string, name: string): string {
+  const url = new URL(`${RECOVERY_SCHEME}//${action}`)
+  url.searchParams.set('id', token)
+  url.searchParams.set('name', name)
+  return url.href
+}
+
 function button(copy: string, action: string, id?: string, primary = false): string {
   return `<a class="button${primary ? ' primary' : ''}" href="${escapeHtml(recoveryHref(action, id))}">${escapeHtml(copy)}</a>`
 }
@@ -373,12 +408,26 @@ export function renderDesktopStartupRecoveryHtml(model: DesktopStartupRecoveryVi
   const configurationHtml = model.configurationAvailable
     ? `<section class="card"><h2>${escapeHtml(copy.manualConfiguration)}</h2><p>${escapeHtml(copy.manualConfigurationBody)}</p><div class="actions">${button(copy.openProfilePatch, 'open-profile-patch')}${button(copy.openProfileManifest, 'open-profile-manifest')}${button(copy.openProfileDirectory, 'open-profile-directory')}</div></section>`
     : ''
+  const profileRows = model.profiles?.map(profile => {
+    const action = !profile.current && profile.selectable && model.profileActionToken !== undefined
+      ? `<a class="button" href="${escapeHtml(recoveryProfileHref('switch-profile', model.profileActionToken, profile.name))}">${escapeHtml(copy.retry)}</a>`
+      : ''
+    const current = profile.current ? `<span class="pill">${escapeHtml(copy.currentProfile)}</span>` : ''
+    return `<li><div><code>${escapeHtml(profile.name)}</code></div><div class="row-actions">${current}${action}</div></li>`
+  }).join('') ?? ''
+  const profileHtml = model.profiles === undefined
+    ? ''
+    : `<section class="card"><h2>${escapeHtml(copy.currentProfile)}</h2><p>${escapeHtml(copy.lead)}</p>${profileRows.length === 0 ? '' : `<ul>${profileRows}</ul>`}<div class="actions">${model.profileCreatorAvailable ? button('Add Profile', 'open-profile-creator') : ''}</div></section>`
+  const terminalAction = model.terminalAvailable ? button('Open DSH Terminal', 'open-terminal') : ''
+  const rollbackAction = model.rollbackLastKnownGoodAvailable && model.profileActionToken !== undefined
+    ? button('Restore last successful Profile', 'rollback-last-known-good', model.profileActionToken, true)
+    : ''
   const restart = model.restartReady || pending === undefined
     ? button(copy.restart, 'restart', undefined, model.restartReady)
     : ''
   const body = confirmation.length > 0
     ? confirmation
-    : `${pendingHtml}${bundlesHtml}${configurationHtml}<section class="card"><h2>${escapeHtml(copy.diagnostics)}</h2><p>${escapeHtml(diagnosticsText)}</p>${model.diagnostics.filename === undefined ? '' : `<p><code>${escapeHtml(model.diagnostics.filename)}</code></p>`}<p class="muted">${escapeHtml(copy.privacy)}</p><div class="actions">${diagnosticAction}</div></section>`
+    : `${pendingHtml}${bundlesHtml}${profileHtml}${configurationHtml}<section class="card"><h2>${escapeHtml(copy.diagnostics)}</h2><p>${escapeHtml(diagnosticsText)}</p>${model.diagnostics.filename === undefined ? '' : `<p><code>${escapeHtml(model.diagnostics.filename)}</code></p>`}<p class="muted">${escapeHtml(copy.privacy)}</p><div class="actions">${diagnosticAction}${terminalAction}${rollbackAction}</div></section>`
   return `<!doctype html>
 <html lang="${model.locale === 'zh' ? 'zh-CN' : 'en'}">
 <head>
@@ -405,7 +454,7 @@ export function renderDesktopStartupRecoveryHtml(model: DesktopStartupRecoveryVi
 /** Parse only the fixed action origin used by this no-script document. */
 export function parseDesktopStartupRecoveryAction(
   href: string,
-): { readonly action: string; readonly id?: string } | undefined {
+): { readonly action: string; readonly id?: string; readonly name?: string } | undefined {
   let url: URL
   try { url = new URL(href) } catch { return undefined }
   if (url.protocol !== RECOVERY_SCHEME
@@ -428,16 +477,24 @@ export function parseDesktopStartupRecoveryAction(
     'open-profile-patch',
     'open-profile-manifest',
     'open-profile-directory',
+    'open-terminal',
+    'open-profile-creator',
+    'switch-profile',
+    'rollback-last-known-good',
     'restart',
     'quit',
   ])
   if (!allowed.has(action)) return undefined
   const keys = [...url.searchParams.keys()]
-  if (keys.some(key => key !== 'id') || url.searchParams.getAll('id').length > 1) return undefined
+  if (keys.some(key => key !== 'id' && key !== 'name') || url.searchParams.getAll('id').length > 1 || url.searchParams.getAll('name').length > 1) return undefined
   const id = url.searchParams.get('id') ?? undefined
-  const needsId = action.startsWith('preview-') || action.startsWith('confirm-')
+  const needsId = action.startsWith('preview-') || action.startsWith('confirm-') || action === 'switch-profile' || action === 'rollback-last-known-good'
   if (needsId !== (id !== undefined) || id !== undefined && (id.length < 8 || id.length > 160)) return undefined
-  return { action, ...(id === undefined ? {} : { id }) }
+  const name = url.searchParams.get('name') ?? undefined
+  if (action === 'switch-profile') {
+    if (name === undefined || name.length === 0 || Buffer.byteLength(name, 'utf8') > 255 || name.includes('/') || name.includes('\\') || /[\0\r\n]/u.test(name)) return undefined
+  } else if (name !== undefined) return undefined
+  return { action, ...(id === undefined ? {} : { id }), ...(name === undefined ? {} : { name }) }
 }
 
 /** One native recovery window whose renderer has no script, Node, IPC, or network capability. */
@@ -453,6 +510,7 @@ export class DesktopStartupRecoveryWindow {
   private notice: RecoveryNotice | undefined
   private busy = false
   private restartReady = false
+  private profiles: readonly DesktopStartupRecoveryProfile[] | undefined
   private resolveResult: ((result: RecoveryWindowResult) => void) | undefined
   private settled = false
 
@@ -466,6 +524,7 @@ export class DesktopStartupRecoveryWindow {
     } catch (cause) {
       this.snapshotError = cause instanceof Error ? cause.message : String(cause)
     }
+    this.refreshProfiles()
     const window = new BrowserWindow({
       title: COPY[this.options.locale].title,
       ...desktopStartupRecoveryWindowBounds(),
@@ -519,7 +578,7 @@ export class DesktopStartupRecoveryWindow {
     revealApplication(this.window)
   }
 
-  private async handleAction(action: { readonly action: string; readonly id?: string }): Promise<void> {
+  private async handleAction(action: { readonly action: string; readonly id?: string; readonly name?: string }): Promise<void> {
     if (this.busy || this.settled) return
     try {
       if (action.action === 'home') {
@@ -578,6 +637,39 @@ export class DesktopStartupRecoveryWindow {
         await this.startDiagnosticExport().catch(() => {})
       } else if (action.action === 'show-diagnostics' && this.diagnosticPath !== undefined) {
         shell.showItemInFolder(this.diagnosticPath)
+      } else if (action.action === 'open-terminal') {
+        if (this.options.openTerminal === undefined) throw new Error('DSH Terminal is unavailable for this startup stage.')
+        await this.options.openTerminal()
+      } else if (action.action === 'open-profile-creator') {
+        if (this.options.profileActions === undefined) throw new Error('Profile creation is unavailable for this startup stage.')
+        await this.options.profileActions.openCreator()
+      } else if (action.action === 'switch-profile' && action.id !== undefined && action.name !== undefined) {
+        const actions = this.options.profileActions
+        if (actions === undefined) throw new Error('Profile switching is unavailable for this startup stage.')
+        const profileName = action.name
+        const actionToken = action.id
+        await this.runBusy(async () => {
+          await actions.switchProfile(profileName, actionToken)
+          this.notice = {
+            tone: 'success',
+            title: profileName,
+            body: this.options.locale === 'zh'
+              ? '配置选择已保存。请重新启动 DSH Desktop。'
+              : 'Profile selection saved. Restart DSH Desktop to apply it.',
+          }
+          this.restartReady = true
+          this.refreshProfiles()
+        })
+      } else if (action.action === 'rollback-last-known-good' && action.id !== undefined) {
+        if (this.options.rollbackLastKnownGood === undefined) throw new Error('Last-known-good Profile recovery is unavailable for this startup stage.')
+        const actionToken = action.id
+        await this.runBusy(async () => {
+          await this.options.rollbackLastKnownGood?.(actionToken)
+          this.notice = this.options.locale === 'zh'
+            ? { tone: 'success', title: '配置已恢复', body: '已恢复上次成功启动的配置及其快照。请重新启动 DSH Desktop。' }
+            : { tone: 'success', title: 'Profile restored', body: 'The last successful Profile and configuration were restored. Restart DSH Desktop to continue.' }
+          this.restartReady = true
+        })
       } else if (action.action === 'open-profile-patch') {
         await this.openConfigurationPath('profilePatch')
       } else if (action.action === 'open-profile-manifest') {
@@ -614,6 +706,14 @@ export class DesktopStartupRecoveryWindow {
       this.snapshotError = undefined
     } catch (cause) {
       this.snapshotError = cause instanceof Error ? cause.message : String(cause)
+    }
+  }
+
+  private refreshProfiles(): void {
+    try {
+      this.profiles = this.options.profileActions?.list()
+    } catch {
+      this.profiles = undefined
     }
   }
 
@@ -664,7 +764,7 @@ export class DesktopStartupRecoveryWindow {
   private async render(): Promise<void> {
     const window = this.window
     if (window === undefined || window.isDestroyed()) return
-    const html = renderDesktopStartupRecoveryHtml({
+    const model: DesktopStartupRecoveryViewModel = {
       locale: this.options.locale,
       failureStage: this.options.failureStage,
       failureDetail: this.options.failureDetail,
@@ -676,8 +776,14 @@ export class DesktopStartupRecoveryWindow {
       busy: this.busy,
       restartReady: this.restartReady,
       configurationAvailable: this.options.configurationPaths !== undefined,
-    })
-    await window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
+      ...(this.profiles === undefined ? {} : { profiles: this.profiles }),
+      ...(this.options.profileActions === undefined ? {} : { profileActionToken: this.options.profileActions.token }),
+      ...(this.options.openTerminal === undefined ? {} : { terminalAvailable: true }),
+      ...(this.options.profileActions === undefined ? {} : { profileCreatorAvailable: true }),
+      ...(this.options.rollbackLastKnownGood === undefined ? {} : { rollbackLastKnownGoodAvailable: true }),
+    }
+    const state = Buffer.from(JSON.stringify(model), 'utf8').toString('base64url')
+    await window.loadFile(RECOVERY_DOCUMENT, { query: { state } })
   }
 
   private finish(result: RecoveryWindowResult): void {
