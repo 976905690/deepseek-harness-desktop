@@ -357,7 +357,7 @@
       "createStartMenuShortcut": true,
       "differentialPackage": false,
       "shortcutName": "DSH Desktop",
-      "useZip": true,
+      "useZip": false,
       "artifactName": "DSH-Desktop-${version}-${arch}-Setup.${ext}"
     },
     "linux": {
