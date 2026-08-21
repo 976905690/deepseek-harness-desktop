@@ -200,6 +200,11 @@ describe('desktop profile composition', {
     }))
     expect(patches).toContainEqual(expect.objectContaining({
       id: 'webserver',
+      name: '@deepseek-ai/dsh-host-webserver',
+      disabled: true,
+    }))
+    expect(inserted).toContainEqual(expect.objectContaining({
+      id: 'desktop-webserver',
       name: 'dsh-plugin-desktop/webserver',
       config: { host: '127.0.0.1', port: 43_120 },
     }))
@@ -521,7 +526,11 @@ describe('desktop profile composition', {
       disabled: false,
       config: expect.objectContaining({ mode: 'advanced', port: 43_189 }),
     }))
-    expect(prepared.patches.filter(patch => patch.id === 'webserver').at(-1)).toEqual(expect.objectContaining({
+    expect(rows.find(row => row.id === 'webserver')).toEqual(expect.objectContaining({
+      name: '@deepseek-ai/dsh-host-webserver',
+      disabled: true,
+    }))
+    expect(rows.find(row => row.id === 'desktop-webserver')).toEqual(expect.objectContaining({
       name: 'dsh-plugin-desktop/webserver',
       config: { host: '127.0.0.1', port: 43_189 },
     }))

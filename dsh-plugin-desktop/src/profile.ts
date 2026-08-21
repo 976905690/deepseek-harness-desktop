@@ -71,6 +71,7 @@ const DESKTOP_WINDOWS_AGENT_PRESETS_ROW_ID = 'desktop-windows-agent-presets'
 const DESKTOP_WINDOWS_AGENT_PRESETS_PACKAGE = 'dsh-plugin-desktop/windows-agent-presets'
 const DEFAULT_DESKTOP_SHELL_MODE: DesktopShellMode = 'compatibility'
 const DEFAULT_DESKTOP_PORT = DESKTOP_DEFAULT_WEB_PORT
+const DESKTOP_WEB_SERVER_ROW_ID = 'desktop-webserver'
 const DESKTOP_WEB_SERVER_PACKAGE = 'dsh-plugin-desktop/webserver'
 const SETTINGS_FILE_PACKAGE = '@deepseek-ai/dsh-settings-file'
 const DESKTOP_SETTINGS_NAMESPACE = 'dsh-desktop'
@@ -750,7 +751,8 @@ export function prepareDesktopProfile(
       patches.push({ id: AGENT_PRESETS_ROW_ID, config })
     }
   }
-  if (!rows.has('webserver')) {
+  const webserver = rows.get('webserver')
+  if (webserver === undefined) {
     throw new Error(`${BIN_NAME}: desktop profile has no webserver row`)
   }
   if (platform === 'win32') {
@@ -798,13 +800,47 @@ export function prepareDesktopProfile(
       )
     }
   }
+  // Loader patches cannot change an existing row's package identity. Disable the
+  // profile row by its current identity and insert the Desktop-owned provider.
   // Loopback-only binding is a launcher security invariant, not user config.
-  patches.push({
-    id: 'webserver',
-    name: DESKTOP_WEB_SERVER_PACKAGE,
-    disabled: false,
-    config: { host: '127.0.0.1', port },
-  })
+  const webserverConfig = { host: '127.0.0.1', port }
+  if (webserver.name === DESKTOP_WEB_SERVER_PACKAGE) {
+    patches.push({
+      id: 'webserver',
+      name: DESKTOP_WEB_SERVER_PACKAGE,
+      disabled: false,
+      config: webserverConfig,
+    })
+  } else {
+    if (typeof webserver.name !== 'string') {
+      throw new Error(`${BIN_NAME}: desktop profile webserver row has no package identity`)
+    }
+    const replacement = rows.get(DESKTOP_WEB_SERVER_ROW_ID)
+    if (replacement !== undefined && replacement.name !== DESKTOP_WEB_SERVER_PACKAGE) {
+      throw new Error(`${BIN_NAME}: reserved ${DESKTOP_WEB_SERVER_ROW_ID} row has a conflicting package identity`)
+    }
+    patches.push({
+      id: 'webserver',
+      name: webserver.name,
+      disabled: true,
+    })
+    if (replacement === undefined) {
+      patches.push({
+        insert: [{
+          id: DESKTOP_WEB_SERVER_ROW_ID,
+          name: DESKTOP_WEB_SERVER_PACKAGE,
+          config: webserverConfig,
+        }],
+      })
+    } else {
+      patches.push({
+        id: DESKTOP_WEB_SERVER_ROW_ID,
+        name: DESKTOP_WEB_SERVER_PACKAGE,
+        disabled: false,
+        config: webserverConfig,
+      })
+    }
+  }
   if ((telemetryDisabled ?? '') !== '' && rows.has('session-telemetry-otel')) {
     patches.push({ id: 'session-telemetry-otel', disabled: true })
   }
