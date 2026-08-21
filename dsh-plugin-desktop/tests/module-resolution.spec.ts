@@ -138,19 +138,44 @@ describe('installProfilePackageResolver', () => {
     expect(hooks.desktopResolve).toHaveBeenCalledWith('@deepseek-ai/dsh-web-app')
   })
 
-  it.each([
-    ['dshmarket', 'file:///current/node_modules/dshmarket/lib/index.js'],
-    ['dsh-community-market', 'file:///current/node_modules/dsh-community-market/lib/index.js'],
-  ])('resolves Desktop-owned provider %s without consulting the profile', (specifier, url) => {
+  it('resolves the community Market from the Desktop installation without consulting the profile', () => {
     installProfilePackageResolver('file:///C:/Users/test/profile/package.json')
     const nextResolve = vi.fn()
 
     expect(hooks.resolve?.(
-      specifier,
+      'dsh-community-market',
       { parentURL: import.meta.resolve('@deepseek-ai/cordis-plugin-loader') },
       nextResolve,
-    )).toEqual({ shortCircuit: true, url })
+    )).toEqual({
+      shortCircuit: true,
+      url: 'file:///current/node_modules/dsh-community-market/lib/index.js',
+    })
     expect(nextResolve).not.toHaveBeenCalled()
+  })
+
+  it('prefers a profile dsh-market and falls back to the bundled package', async () => {
+    installProfilePackageResolver('file:///C:/Users/test/profile/package.json')
+    const loaderEntryUrl = import.meta.resolve('@deepseek-ai/cordis-plugin-loader')
+    const profileUrl = 'file:///C:/Users/test/profile/node_modules/dshmarket/lib/index.js'
+    const nextResolve = vi.fn((specifier: string, context: { parentURL?: string }) => {
+      if (specifier === 'dshmarket' && context.parentURL === 'file:///C:/Users/test/profile/package.json') {
+        return { url: profileUrl }
+      }
+      throw Object.assign(new Error('missing'), { code: 'ERR_MODULE_NOT_FOUND' })
+    })
+
+    expect(hooks.resolve?.('dshmarket', { parentURL: loaderEntryUrl }, nextResolve)).toEqual({
+      url: profileUrl,
+    })
+    expect(hooks.desktopResolve).not.toHaveBeenCalledWith('dshmarket')
+
+    const fallbackResolve = vi.fn(() => {
+      throw Object.assign(new Error('missing'), { code: 'ERR_MODULE_NOT_FOUND' })
+    })
+    expect(await hooks.resolve?.('dshmarket', { parentURL: loaderEntryUrl }, fallbackResolve)).toEqual({
+      shortCircuit: true,
+      url: 'file:///current/node_modules/dshmarket/lib/index.js',
+    })
   })
 
   it('fails closed when the current Desktop lacks an upstream package export', () => {

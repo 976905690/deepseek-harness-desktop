@@ -76,7 +76,6 @@ const DESKTOP_SETTINGS_NAMESPACE = 'dsh-desktop'
 const UI_LAYOUT_PACKAGE = '@deepseek-ai/dsh-client-ui-layout'
 const UI_SIDEBAR_PACKAGE = '@deepseek-ai/dsh-client-ui-sidebar'
 const UI_CONVERSATION_PACKAGE = '@deepseek-ai/dsh-client-ui-conversation'
-const DSH_MARKET_VERSION = '1.17.1'
 const DEFAULT_DESKTOP_MARKET_SNAPSHOT: DesktopMarketSnapshot = Object.freeze({
   requested: 'disabled',
   effective: 'disabled',
@@ -279,8 +278,8 @@ function marketFailureMessage(cause: unknown): string {
 /**
  * Load a profile while resolving disabled third-party bundles only after they have been filtered.
  * The ordinary upstream loader remains the no-state path. The `dshmarket` bundle is also filtered
- * before resolution unless explicitly selected, then synthesized once from the Desktop dependency
- * closure so a stale profile-local package cannot silently choose the active provider version.
+ * before resolution unless explicitly selected. When dsh-market is selected, an exact profile-local
+ * bundle wins; the bundled Desktop package is used only when the profile has no dshmarket bundle.
  */
 function loadRecoveryFilteredProfile(
   profileName: string,
@@ -309,10 +308,13 @@ function loadRecoveryFilteredProfile(
   if (!needsFilteredLoad) {
     return { profile: loadProfile(BIN_NAME, profileName, INSTALL_ANCHOR, home) }
   }
-  const selectedBundles = bundles.filter(
-    packageName => !MARKET_PACKAGE_NAMES.has(packageName),
+  const selectedBundles = bundles.filter(packageName =>
+    packageName !== DESKTOP_MARKET_IDENTITIES.community.packageName
+    && (marketProvider === DESKTOP_MARKET_IDENTITIES.dshMarket.provider
+      || packageName !== DESKTOP_MARKET_IDENTITIES.dshMarket.packageName),
   )
-  if (marketProvider === DESKTOP_MARKET_IDENTITIES.dshMarket.provider) {
+  if (marketProvider === DESKTOP_MARKET_IDENTITIES.dshMarket.provider
+    && !selectedBundles.includes(DESKTOP_MARKET_IDENTITIES.dshMarket.packageName)) {
     selectedBundles.push(DESKTOP_MARKET_IDENTITIES.dshMarket.packageName)
   }
   const layers: Profile['layers'] = []
@@ -321,20 +323,14 @@ function loadRecoveryFilteredProfile(
     const isDshMarket = packageName === DESKTOP_MARKET_IDENTITIES.dshMarket.packageName
     if (!isDshMarket && desktopPluginBundleMutable(packageName) && disabledBundles.has(packageName)) continue
     try {
-      const packageDir = resolveBundleDir(BIN_NAME, packageName, INSTALL_ANCHOR, profileDir)
-      const installationManifest = isDshMarket
-        ? packageManifestFromProfile(packageName, pathToFileURL(INSTALL_ANCHOR).href)
-        : undefined
-      if (isDshMarket && (installationManifest === undefined
-        || dirname(installationManifest) !== packageDir)) {
-        throw new Error(`${BIN_NAME}: selected dshmarket bundle is not owned by this Desktop installation`)
-      }
+      const packageDir = isDshMarket
+        ? resolveDshMarketBundleDir(profileDir)
+        : resolveBundleDir(BIN_NAME, packageName, INSTALL_ANCHOR, profileDir)
       const bundleManifest: unknown = JSON.parse(readFileSync(join(packageDir, 'package.json'), 'utf8'))
       if (isDshMarket && (bundleManifest === null || typeof bundleManifest !== 'object'
         || Array.isArray(bundleManifest)
-        || (bundleManifest as { name?: unknown }).name !== DESKTOP_MARKET_IDENTITIES.dshMarket.packageName
-        || (bundleManifest as { version?: unknown }).version !== DSH_MARKET_VERSION)) {
-        throw new Error(`${BIN_NAME}: selected dshmarket bundle must be ${DSH_MARKET_VERSION}`)
+        || (bundleManifest as { name?: unknown }).name !== DESKTOP_MARKET_IDENTITIES.dshMarket.packageName)) {
+        throw new Error(`${BIN_NAME}: selected dshmarket bundle has an invalid package identity`)
       }
       const declared = bundleManifest !== null && typeof bundleManifest === 'object'
         ? (bundleManifest as { dsh?: { bundle?: { patch?: unknown } } }).dsh?.bundle?.patch
@@ -420,6 +416,21 @@ function packageManifestFromProfile(name: string, profilePackageUrl: string): st
     if ((cause as NodeJS.ErrnoException).code === 'ERR_MODULE_NOT_FOUND') return undefined
     throw cause
   }
+}
+
+/** Resolve dsh-market from the active profile first, then use Desktop's bundled fallback. */
+function resolveDshMarketBundleDir(profileDir: string): string {
+  const profileManifest = packageManifestFromProfile(
+    DESKTOP_MARKET_IDENTITIES.dshMarket.packageName,
+    pathToFileURL(join(profileDir, 'package.json')).href,
+  )
+  if (profileManifest !== undefined) return dirname(profileManifest)
+  return resolveBundleDir(
+    BIN_NAME,
+    DESKTOP_MARKET_IDENTITIES.dshMarket.packageName,
+    INSTALL_ANCHOR,
+    profileDir,
+  )
 }
 
 /** Return whether a Loader specifier names an npm package. */
@@ -588,14 +599,30 @@ export function prepareDesktopProfile(
   profileName: string = DESKTOP_PROFILE_NAME,
   pluginStatePath?: string,
   marketSelection: DesktopMarketSnapshot = DEFAULT_DESKTOP_MARKET_SNAPSHOT,
+  recoveryStatePath?: string,
 ): PreparedDesktopProfile {
   const profileDir = profileName === DESKTOP_PROFILE_NAME
     ? ensureDesktopProfile(home)
     : resolveProfileDir(profileName, home)
   healProfilesModuleFallback(INSTALL_ANCHOR, home)
-  const disabledBundles = pluginStatePath === undefined
+  // `plugin-management` is the community market's user-facing scope. Startup
+  // recovery has its own state file so switching to another provider cannot
+  // reapply a stale community-market disable, while a recovery disable always
+  // remains effective regardless of the selected provider. Keep the legacy
+  // five-argument call compatible for tests/older embedders.
+  const managedDisabledBundles = pluginStatePath === undefined
     ? new Set<string>()
     : readDesktopDisabledBundles(pluginStatePath, profileName)
+  const recoveryDisabledBundles = recoveryStatePath === undefined
+    ? (marketSelection.requested === DESKTOP_MARKET_IDENTITIES.community.provider
+      ? new Set<string>()
+      : new Set(managedDisabledBundles))
+    : readDesktopDisabledBundles(recoveryStatePath, profileName)
+  const disabledBundles = new Set(recoveryDisabledBundles)
+  if (recoveryStatePath === undefined
+    || marketSelection.requested === DESKTOP_MARKET_IDENTITIES.community.provider) {
+    for (const packageName of managedDisabledBundles) disabledBundles.add(packageName)
+  }
   const loadedProfile = loadRecoveryFilteredProfile(
     profileName,
     profileDir,

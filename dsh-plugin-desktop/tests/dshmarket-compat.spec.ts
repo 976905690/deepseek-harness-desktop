@@ -59,7 +59,7 @@ describe('dsh-market Desktop install compatibility', () => {
   it.each([
     '@liustack/modlens',
     '@liustack/modlens@latest',
-  ])('resolves npm latest target %s and enters the recoverable install boundary', async (target) => {
+  ])('resolves npm latest target %s and enters the external Market install boundary', async (target) => {
     for (const name of ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy']) {
       vi.stubEnv(name, '')
     }
@@ -68,18 +68,14 @@ describe('dsh-market Desktop install compatibility', () => {
       { status: 200, headers: { 'content-type': 'application/json' } },
     ))
     const runPlugin = vi.fn(() => completedHandle())
-    const runPluginInstall = vi.fn(async (
+    const runExternalMarketPluginInstall = vi.fn((
       _args: readonly string[],
       _invokingDir: string,
-      _recovery: {
-        readonly packageName: string
-        readonly packageVersion: string
-        readonly receiptId: string
-      },
+      _signal?: AbortSignal,
     ) => completedHandle())
     const createRuntime = await runtimeFactory()
     const runtime = createRuntime(
-      { runPlugin, runPluginInstall },
+      { runPlugin, runExternalMarketPluginInstall },
       '/private/dsh-profile',
       '/private/dsh-invoking',
     )
@@ -90,35 +86,23 @@ describe('dsh-market Desktop install compatibility', () => {
       cancelled: false,
     })
     expect(runPlugin).not.toHaveBeenCalled()
-    expect(runPluginInstall).toHaveBeenCalledOnce()
-    expect(runPluginInstall.mock.calls[0]?.[0]).toEqual([
+    expect(runExternalMarketPluginInstall).toHaveBeenCalledOnce()
+    expect(runExternalMarketPluginInstall.mock.calls[0]?.[0]).toEqual([
       'add',
       '--reporter=ndjson',
       '@liustack/modlens@3.18.1',
     ])
-    expect(runPluginInstall.mock.calls[0]?.[2]).toMatchObject({
-      packageName: '@liustack/modlens',
-      packageVersion: '3.18.1',
-      receiptId: expect.stringMatching(/^dsh-market:[0-9a-f-]{36}$/u),
-    })
+    expect(runExternalMarketPluginInstall.mock.calls[0]?.[1]).toBe('/private/dsh-invoking')
 
     await runtime.dispose()
   })
 
   it('keeps non-add operations on the ordinary managed command boundary', async () => {
     const runPlugin = vi.fn(() => completedHandle())
-    const runPluginInstall = vi.fn(async (
-      _args: readonly string[],
-      _invokingDir: string,
-      _recovery: {
-        readonly packageName: string
-        readonly packageVersion: string
-        readonly receiptId: string
-      },
-    ) => completedHandle())
+    const runExternalMarketPluginInstall = vi.fn(() => completedHandle())
     const createRuntime = await runtimeFactory()
     const runtime = createRuntime(
-      { runPlugin, runPluginInstall },
+      { runPlugin, runExternalMarketPluginInstall },
       '/private/dsh-profile',
       '/private/dsh-invoking',
     )
@@ -129,8 +113,32 @@ describe('dsh-market Desktop install compatibility', () => {
       cancelled: false,
     })
     expect(runPlugin).toHaveBeenCalledOnce()
-    expect(runPluginInstall).not.toHaveBeenCalled()
+    expect(runExternalMarketPluginInstall).not.toHaveBeenCalled()
 
+    await runtime.dispose()
+  })
+
+  it('allows dshmarket itself to be upgraded through the external Market boundary', async () => {
+    const runPlugin = vi.fn(() => completedHandle())
+    const runExternalMarketPluginInstall = vi.fn(() => completedHandle())
+    const createRuntime = await runtimeFactory()
+    const runtime = createRuntime(
+      { runPlugin, runExternalMarketPluginInstall },
+      '/private/dsh-profile',
+      '/private/dsh-invoking',
+    )
+
+    await expect(runtime.runPlugin('desktop', ['add', 'dshmarket@1.18.0'])).resolves.toMatchObject({
+      exitCode: 0,
+      timedOut: false,
+      cancelled: false,
+    })
+    expect(runPlugin).not.toHaveBeenCalled()
+    expect(runExternalMarketPluginInstall).toHaveBeenCalledWith(
+      ['add', '--reporter=ndjson', 'dshmarket@1.18.0'],
+      '/private/dsh-invoking',
+      expect.any(AbortSignal),
+    )
     await runtime.dispose()
   })
 })

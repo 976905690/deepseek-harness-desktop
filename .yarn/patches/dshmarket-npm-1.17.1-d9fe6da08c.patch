@@ -2,11 +2,10 @@ diff --git a/lib/dsh-cli.js b/lib/dsh-cli.js
 index 2bdfb2a1acc678c3e995e4f70ccba8ce95bc24b8..6d15dbfcc1dd40f9e6cef06cac1b59881e4c885b 100644
 --- a/lib/dsh-cli.js
 +++ b/lib/dsh-cli.js
-@@ -7,6 +7,7 @@
+@@ -7,6 +7,6 @@
   * the agent's sandboxed executor and denies writes to the profile directory.
   */
  import { spawn } from 'node:child_process';
-+import { randomUUID } from 'node:crypto';
  import { existsSync } from 'node:fs';
  import { homedir } from 'node:os';
  import { dirname, isAbsolute, join, resolve } from 'node:path';
@@ -44,7 +43,7 @@ index 2bdfb2a1acc678c3e995e4f70ccba8ce95bc24b8..6d15dbfcc1dd40f9e6cef06cac1b5988
  export function createDesktopPluginRuntime(service, activeProfileDir, invokingDir = process.cwd(), timeoutMs = INSTALL_TIMEOUT_MS) {
      if (!isAbsolute(activeProfileDir) || activeProfileDir.includes('\0')) {
          throw new Error('dsh-market: Desktop profile directory must be an absolute path without NUL');
-@@ -575,7 +596,24 @@ export function createDesktopPluginRuntime(service, activeProfileDir, invokingDi
+@@ -575,7 +596,21 @@ export function createDesktopPluginRuntime(service, activeProfileDir, invokingDi
          const abort = new AbortController();
          let handle;
          try {
@@ -54,15 +53,12 @@ index 2bdfb2a1acc678c3e995e4f70ccba8ce95bc24b8..6d15dbfcc1dd40f9e6cef06cac1b5988
 +                if (identity === null) {
 +                    throw new Error('dsh-market: DSH Desktop managed installation requires an npm package with an exact published version');
 +                }
-+                const options = prepared.args.slice(1).filter(argument => argument !== prepared.target);
-+                if (options.some(argument => !argument.startsWith('-'))) {
++                const packageTargets = prepared.args.slice(1).filter(argument => !argument.startsWith('-'));
++                if (packageTargets.length !== 1 || packageTargets[0] !== prepared.target) {
 +                    throw new Error('dsh-market: DSH Desktop managed installation accepts exactly one npm package target');
 +                }
-+                handle = await service.runPluginInstall(['add', ...options, identity.target], invokingDir, {
-+                    packageName: identity.packageName,
-+                    packageVersion: identity.packageVersion,
-+                    receiptId: `dsh-market:${randomUUID()}`,
-+                }, abort.signal);
++                const options = prepared.args.slice(1).filter(argument => argument.startsWith('-'));
++                handle = service.runExternalMarketPluginInstall(['add', ...options, identity.target], invokingDir, abort.signal);
 +            }
 +            else {
 +                handle = service.runPlugin(prepared.args, invokingDir, abort.signal);
@@ -74,15 +70,11 @@ diff --git a/lib/types/dsh-cli.d.ts b/lib/types/dsh-cli.d.ts
 index 9e3ba5e405ec80f8efd5513e220d9ea9a9046ae5..a9a6f858bbdec88b0c415cc841054f57e30d275c 100644
 --- a/lib/types/dsh-cli.d.ts
 +++ b/lib/types/dsh-cli.d.ts
-@@ -131,6 +131,11 @@ export interface DesktopPnpmLike {
+@@ -131,6 +131,7 @@ export interface DesktopPnpmLike {
          }>;
          cancel(): void;
      };
-+    runPluginInstall(args: readonly string[], invokingDir: string, recovery: {
-+        readonly packageName: string;
-+        readonly packageVersion: string;
-+        readonly receiptId: string;
-+    }, signal?: AbortSignal): Promise<ReturnType<DesktopPnpmLike['runPlugin']>>;
++    runExternalMarketPluginInstall(args: readonly string[], invokingDir: string, signal?: AbortSignal): ReturnType<DesktopPnpmLike['runPlugin']>;
  }
  /** Desktop runtime also owns cleanup of any operation started by this fiber. */
  export interface DesktopPluginRuntime extends PluginCommandRuntime {
@@ -90,9 +82,8 @@ diff --git a/src/dsh-cli.ts b/src/dsh-cli.ts
 index 0cc2535e43e371e72700301e783694e0b7c2e4c7..b0f09a897428af80791cc88e9088f2c50bdcf6cb 100644
 --- a/src/dsh-cli.ts
 +++ b/src/dsh-cli.ts
-@@ -10,4 +10,5 @@
+@@ -10,4 +10,4 @@
  import { spawn } from 'node:child_process'
-+import { randomUUID } from 'node:crypto'
  import type { ChildProcess, SpawnOptions } from 'node:child_process'
  import { existsSync } from 'node:fs'
  import { homedir } from 'node:os'
@@ -101,20 +92,15 @@ index 0cc2535e43e371e72700301e783694e0b7c2e4c7..b0f09a897428af80791cc88e9088f2c5
  import { pluginArgsFor } from './pnpm-compat.ts'
  import { profileDir } from './profile.ts'
 +import { fetchNpmLatest } from './updates.ts'
-@@ -252,4 +254,37 @@ export interface DesktopPnpmLike {
+@@ -252,4 +254,32 @@ export interface DesktopPnpmLike {
      }>
      cancel(): void
    }
-+  runPluginInstall(
++  runExternalMarketPluginInstall(
 +    args: readonly string[],
 +    invokingDir: string,
-+    recovery: {
-+      readonly packageName: string
-+      readonly packageVersion: string
-+      readonly receiptId: string
-+    },
 +    signal?: AbortSignal,
-+  ): Promise<ReturnType<DesktopPnpmLike['runPlugin']>>
++  ): ReturnType<DesktopPnpmLike['runPlugin']>
 +}
 +
 +const DESKTOP_NPM_NAME_RE = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/u
@@ -139,7 +125,7 @@ index 0cc2535e43e371e72700301e783694e0b7c2e4c7..b0f09a897428af80791cc88e9088f2c5
 +    target: `${exactName}@${packageVersion}`,
 +  }
  }
-@@ -685,7 +720,28 @@ export function createDesktopPluginRuntime(
+@@ -685,7 +720,24 @@ export function createDesktopPluginRuntime(
      const abort = new AbortController()
      let handle: ReturnType<DesktopPnpmLike['runPlugin']>
      try {
@@ -149,18 +135,14 @@ index 0cc2535e43e371e72700301e783694e0b7c2e4c7..b0f09a897428af80791cc88e9088f2c5
 +        if (identity === null) {
 +          throw new Error('dsh-market: DSH Desktop managed installation requires an npm package with an exact published version')
 +        }
-+        const options = prepared.args.slice(1).filter(argument => argument !== prepared.target)
-+        if (options.some(argument => !argument.startsWith('-'))) {
++        const packageTargets = prepared.args.slice(1).filter(argument => !argument.startsWith('-'))
++        if (packageTargets.length !== 1 || packageTargets[0] !== prepared.target) {
 +          throw new Error('dsh-market: DSH Desktop managed installation accepts exactly one npm package target')
 +        }
-+        handle = await service.runPluginInstall(
++        const options = prepared.args.slice(1).filter(argument => argument.startsWith('-'))
++        handle = service.runExternalMarketPluginInstall(
 +          ['add', ...options, identity.target],
 +          invokingDir,
-+          {
-+            packageName: identity.packageName,
-+            packageVersion: identity.packageVersion,
-+            receiptId: `dsh-market:${randomUUID()}`,
-+          },
 +          abort.signal,
 +        )
 +      } else {

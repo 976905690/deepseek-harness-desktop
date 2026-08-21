@@ -7,7 +7,8 @@ const LOADER_ENTRY_URL = import.meta.resolve('@deepseek-ai/cordis-plugin-loader'
 const DESKTOP_ENTRY_URL = new URL('../lib/index.js', import.meta.url).href
 const DESKTOP_PACKAGE_NAME = 'dsh-plugin-desktop'
 const UPSTREAM_PACKAGE_SCOPE = '@deepseek-ai/'
-const DESKTOP_PROVIDER_PACKAGES = new Set(['dsh-community-market', 'dshmarket'])
+const DESKTOP_PROVIDER_PACKAGES = new Set(['dsh-community-market'])
+const PROFILE_FIRST_PROVIDER_PACKAGE = 'dshmarket'
 const DESKTOP_REQUIRE = createRequire(DESKTOP_ENTRY_URL)
 
 /** Return whether a Loader request needs Node package resolution. */
@@ -26,6 +27,16 @@ function resolveDesktopSpecifier(specifier: string): string | undefined {
   return pathToFileURL(resolved).href
 }
 
+/** Resolve a bundled package directly when a profile-first provider is absent. */
+function resolveBundledSpecifier(specifier: string): string | undefined {
+  try {
+    return pathToFileURL(DESKTOP_REQUIRE.resolve(specifier)).href
+  } catch (cause) {
+    if ((cause as NodeJS.ErrnoException).code === 'ERR_MODULE_NOT_FOUND') return
+    throw cause
+  }
+}
+
 /**
  * Resolve Cordis Loader bare imports from the selected persistent profile.
  * @param profileBaseUrl - file URL inside the profile that owns plugin dependencies.
@@ -38,6 +49,20 @@ export function installProfilePackageResolver(profileBaseUrl: string): () => voi
     resolve(specifier, context, nextResolve) {
       const fromLoader = context.parentURL === LOADER_ENTRY_URL
       if (fromLoader) {
+        // dsh-market may be upgraded in the active profile. Prefer that copy,
+        // while retaining the bundled package as a fallback for new profiles.
+        if (specifier === PROFILE_FIRST_PROVIDER_PACKAGE) {
+          try {
+            const resolved = nextResolve(specifier, { ...context, parentURL: profileBaseUrl })
+            profileModuleUrls.add(resolved.url)
+            return resolved
+          } catch (cause) {
+            if ((cause as NodeJS.ErrnoException).code !== 'ERR_MODULE_NOT_FOUND') throw cause
+            const desktopUrl = resolveBundledSpecifier(specifier)
+            if (desktopUrl !== undefined) return { shortCircuit: true, url: desktopUrl }
+            throw cause
+          }
+        }
         const desktopUrl = resolveDesktopSpecifier(specifier)
         if (desktopUrl !== undefined) return { shortCircuit: true, url: desktopUrl }
       }

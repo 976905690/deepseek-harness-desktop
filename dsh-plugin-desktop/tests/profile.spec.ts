@@ -46,7 +46,7 @@ function installWebClient(
   return webDir
 }
 
-function installBundle(home: string, packageName: string, patch: string): void {
+function installBundle(home: string, packageName: string, patch: string): string {
   const bundleDir = join(home, 'profiles', 'desktop', 'node_modules', packageName)
   mkdirSync(bundleDir, { recursive: true })
   writeFileSync(join(bundleDir, 'package.json'), JSON.stringify({
@@ -54,6 +54,7 @@ function installBundle(home: string, packageName: string, patch: string): void {
     dsh: { bundle: { patch: './cordis.patch.yml' } },
   }) + '\n')
   writeFileSync(join(bundleDir, 'cordis.patch.yml'), patch)
+  return bundleDir
 }
 
 afterEach(() => {
@@ -292,6 +293,18 @@ describe('desktop profile composition', {
 
   it('loads the exact dshmarket dependency as a direct bundle only after explicit selection', () => {
     const home = temporaryHome()
+    const profileMarketDir = installBundle(home, DESKTOP_MARKET_IDENTITIES.dshMarket.packageName, [
+      '- insert:',
+      '    - id: dsh-market',
+      '      name: dshmarket',
+      '',
+    ].join('\n'))
+    const profileManifestPath = join(ensureDesktopProfile(home), 'package.json')
+    const profileManifest = JSON.parse(readFileSync(profileManifestPath, 'utf8')) as {
+      dsh: { profile: { bundles: string[] } }
+    }
+    profileManifest.dsh.profile.bundles.push(DESKTOP_MARKET_IDENTITIES.dshMarket.packageName)
+    writeFileSync(profileManifestPath, JSON.stringify(profileManifest) + '\n')
     const prepared = prepareDesktopProfile(undefined, home, 'darwin', 'desktop', undefined, {
       requested: 'dsh-market',
       effective: 'dsh-market',
@@ -300,11 +313,91 @@ describe('desktop profile composition', {
     const rows = composeEntries([prepared.patches])
 
     expect(prepared.market.effective).toBe('dsh-market')
+    expect(prepared.profile.layers.find(layer =>
+      layer.packageName === DESKTOP_MARKET_IDENTITIES.dshMarket.packageName)?.packageDir,
+    ).toBe(profileMarketDir)
     expect(rows.filter(row => row.id === DESKTOP_MARKET_IDENTITIES.dshMarket.rowId)).toEqual([{
       id: DESKTOP_MARKET_IDENTITIES.dshMarket.rowId,
       name: DESKTOP_MARKET_IDENTITIES.dshMarket.packageName,
     }])
     expect(rows.some(row => row.id === DESKTOP_MARKET_IDENTITIES.community.rowId)).toBe(false)
+  })
+
+  it('does not let community-management disables suppress a third-party market', () => {
+    const home = temporaryHome()
+    const packageName = 'third-party-plugin'
+    installBundle(home, packageName, '- insert:\n    - id: third-party-marker\n      name: cordis:example\n')
+    const profileManifestPath = join(ensureDesktopProfile(home), 'package.json')
+    const profileManifest = JSON.parse(readFileSync(profileManifestPath, 'utf8')) as {
+      dsh: { profile: { bundles: string[] } }
+    }
+    profileManifest.dsh.profile.bundles.push(packageName)
+    writeFileSync(profileManifestPath, JSON.stringify(profileManifest) + '\n')
+    const managementStatePath = join(home, 'user-data', 'plugin-management', 'state.json')
+    const recoveryStatePath = join(home, 'user-data', 'startup-recovery', 'state.json')
+    mkdirSync(dirname(managementStatePath), { recursive: true })
+    writeFileSync(managementStatePath, JSON.stringify({
+      version: 1,
+      profiles: [{ profileName: 'desktop', disabledBundles: [packageName] }],
+    }) + '\n')
+
+    const external = prepareDesktopProfile(
+      undefined,
+      home,
+      'darwin',
+      'desktop',
+      managementStatePath,
+      { requested: 'dsh-market', effective: 'dsh-market', legacyDefaulted: false },
+      recoveryStatePath,
+    )
+    expect(composeEntries([external.patches])).toContainEqual(expect.objectContaining({
+      id: 'third-party-marker',
+    }))
+
+    const community = prepareDesktopProfile(
+      undefined,
+      home,
+      'darwin',
+      'desktop',
+      managementStatePath,
+      { requested: 'community-market', effective: 'community-market', legacyDefaulted: false },
+      recoveryStatePath,
+    )
+    expect(composeEntries([community.patches])).not.toContainEqual(expect.objectContaining({
+      id: 'third-party-marker',
+    }))
+  })
+
+  it('keeps a startup-recovery disable effective for every market provider', () => {
+    const home = temporaryHome()
+    const packageName = 'third-party-plugin'
+    installBundle(home, packageName, '- insert:\n    - id: third-party-marker\n      name: cordis:example\n')
+    const profileManifestPath = join(ensureDesktopProfile(home), 'package.json')
+    const profileManifest = JSON.parse(readFileSync(profileManifestPath, 'utf8')) as {
+      dsh: { profile: { bundles: string[] } }
+    }
+    profileManifest.dsh.profile.bundles.push(packageName)
+    writeFileSync(profileManifestPath, JSON.stringify(profileManifest) + '\n')
+    const managementStatePath = join(home, 'user-data', 'plugin-management', 'state.json')
+    const recoveryStatePath = join(home, 'user-data', 'startup-recovery', 'state.json')
+    mkdirSync(dirname(recoveryStatePath), { recursive: true })
+    writeFileSync(recoveryStatePath, JSON.stringify({
+      version: 1,
+      profiles: [{ profileName: 'desktop', disabledBundles: [packageName] }],
+    }) + '\n')
+
+    const prepared = prepareDesktopProfile(
+      undefined,
+      home,
+      'darwin',
+      'desktop',
+      managementStatePath,
+      { requested: 'dsh-market', effective: 'dsh-market', legacyDefaulted: false },
+      recoveryStatePath,
+    )
+    expect(composeEntries([prepared.patches])).not.toContainEqual(expect.objectContaining({
+      id: 'third-party-marker',
+    }))
   })
 
   it('filters an unselected dshmarket bundle before resolving or parsing its patch', () => {
