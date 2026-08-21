@@ -40,6 +40,7 @@ const manifest = JSON.parse(readFileSync(new URL('package.json', packageRoot), '
       icon?: unknown
       mergeASARs?: unknown
       notarize?: unknown
+      signIgnore?: unknown
       target?: unknown
       x64ArchFiles?: unknown
     }
@@ -573,6 +574,7 @@ describe('published package surface', () => {
     ])
     expect(manifest.build?.mac?.icon).toBe('build/app-icon-mac.png')
     expect(manifest.build?.mac?.mergeASARs).toBe(false)
+    expect(manifest.build?.mac?.signIgnore).toEqual(['\\.(?:pak|dat|wasm)$'])
     expect(manifest.build?.win?.icon).toBe('build/app-icon.png')
     expect(manifest.build?.win?.target).toEqual([{
       target: 'nsis',
@@ -641,6 +643,7 @@ describe('published package surface', () => {
       hardenedRuntime: true,
       mergeASARs: false,
       notarize: true,
+      signIgnore: ['\\.(?:pak|dat|wasm)$'],
       target: ['dir'],
       x64ArchFiles: expect.stringContaining('node-pty/prebuilds/darwin-*'),
     }))
