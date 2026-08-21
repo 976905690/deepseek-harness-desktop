@@ -10,6 +10,7 @@ import {
   handleDesktopProfileCreateRequest,
   handleDesktopProfileSelectRequest,
   handleDesktopSettingsRequest,
+  handleDesktopTerminalOpenRequest,
   desktopSettingsRouteConstants,
 } from '../src/desktop-settings-route.ts'
 import type { DesktopProfileSummary } from '../src/profile-manager.ts'
@@ -62,6 +63,7 @@ function bootstrap(
     readMarket: () => market(),
     selectMarket: async provider => market(provider),
     scheduleRestart: () => {},
+    openTerminal: () => {},
     ...overrides,
   }
 }
@@ -231,6 +233,14 @@ describe('desktop settings controller', () => {
     await expect(controller.selectMarket('community-market')).rejects.toThrow('state is read-only')
     expect(scheduleRestart).not.toHaveBeenCalled()
   })
+
+  it('opens the launcher-owned terminal and returns a stable acceptance', () => {
+    const openTerminal = vi.fn()
+    const controller = new DesktopSettingsController(bootstrap({ openTerminal }))
+
+    expect(controller.openTerminal()).toEqual({ accepted: true })
+    expect(openTerminal).toHaveBeenCalledOnce()
+  })
 })
 
 describe('desktop settings HTTP boundary', () => {
@@ -395,6 +405,47 @@ describe('desktop settings HTTP boundary', () => {
     expect(scheduleRestart).not.toHaveBeenCalled()
     await new Promise<void>(resolve => { setImmediate(resolve) })
     expect(scheduleRestart).toHaveBeenCalledTimes(2)
+  })
+
+  it('opens the terminal only for an exact same-origin empty request', async () => {
+    const openTerminal = vi.fn()
+    const controller = new DesktopSettingsController(bootstrap({ openTerminal }))
+    const accepted = response()
+
+    await handleDesktopTerminalOpenRequest(
+      jsonRequest({}), accepted, ORIGIN, controller,
+    )
+
+    expect(accepted.statusCode).toBe(200)
+    expect(JSON.parse(accepted.body)).toEqual({ accepted: true })
+    expect(openTerminal).toHaveBeenCalledOnce()
+
+    for (const req of [
+      jsonRequest({ command: 'dsh plugin add untrusted' }),
+      jsonRequest({}, { headers: { origin: 'https://example.com' } }),
+    ]) {
+      const rejected = response()
+      await handleDesktopTerminalOpenRequest(req, rejected, ORIGIN, controller)
+      expect(rejected.statusCode).toBe(req.headers.origin === ORIGIN ? 400 : 403)
+    }
+    expect(openTerminal).toHaveBeenCalledOnce()
+  })
+
+  it('reports terminal launch failures without exposing the native cause', async () => {
+    const reportError = vi.fn()
+    const controller = new DesktopSettingsController(bootstrap({
+      openTerminal: () => { throw new Error('open -a Terminal failed at /private/path') },
+    }))
+    const res = response()
+
+    await handleDesktopTerminalOpenRequest(
+      jsonRequest({}), res, ORIGIN, controller, reportError,
+    )
+
+    expect(res.statusCode).toBe(500)
+    expect(JSON.parse(res.body)).toEqual({ error: 'terminal could not be opened' })
+    expect(res.body).not.toContain('/private')
+    expect(reportError).toHaveBeenCalledWith('open terminal', expect.any(Error))
   })
 
   it('reports stable operation errors without exposing native causes', async () => {

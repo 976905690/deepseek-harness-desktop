@@ -14,6 +14,9 @@ export const DESKTOP_PROFILE_SELECT_PATH = '/api/desktop/profiles/select'
 /** Persist the Market provider selected for the next Desktop generation. */
 export const DESKTOP_MARKET_SELECT_PATH = '/api/desktop/market/select'
 
+/** Open the launcher-owned DSH terminal without accepting command text. */
+export const DESKTOP_TERMINAL_OPEN_PATH = '/api/desktop/terminal/open'
+
 /** Renderer-safe projection of one discovered profile. */
 export interface DesktopSettingsProfileView {
   /** Profile name accepted by the launcher. */
@@ -75,6 +78,14 @@ export interface DesktopMarketSelectRequest {
 
 /** Successful Market selection handoff. */
 export type DesktopMarketSelectResponse = DesktopRestartAcceptance
+
+/** Exact empty body accepted by the terminal endpoint. */
+export type DesktopTerminalOpenRequest = Readonly<Record<string, never>>
+
+/** Successful handoff to the launcher-owned terminal action. */
+export interface DesktopTerminalOpenResponse {
+  readonly accepted: true
+}
 
 /** Stable API failure shape that never contains native paths or raw causes. */
 export interface DesktopSettingsErrorResponse {

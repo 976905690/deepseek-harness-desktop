@@ -13,7 +13,9 @@ import {
   prepareDesktopProfile,
   readDesktopShellMode,
   shippedPresetRoot,
+  validateDshMarketBundlePatches,
 } from '../src/profile.ts'
+import { DESKTOP_MARKET_IDENTITIES } from '../src/desktop-market.ts'
 
 const homes: string[] = []
 
@@ -255,6 +257,96 @@ describe('desktop profile composition', {
     expect(rows.find(row => row.id === 'desktop-profiles')).toEqual(expect.objectContaining({
       name: 'dsh-plugin-desktop/profiles',
     }))
+  })
+
+  it('keeps both Market providers absent until the user explicitly enables one', () => {
+    const home = temporaryHome()
+    const prepared = prepareDesktopProfile(undefined, home, 'darwin')
+    const rows = composeEntries([prepared.patches])
+
+    expect(prepared.market).toEqual({
+      requested: 'disabled',
+      effective: 'disabled',
+      legacyDefaulted: true,
+    })
+    expect(rows.some(row => row.id === DESKTOP_MARKET_IDENTITIES.community.rowId
+      || row.id === DESKTOP_MARKET_IDENTITIES.dshMarket.rowId)).toBe(false)
+  })
+
+  it('inserts the community Market as one canonical row only after explicit selection', () => {
+    const home = temporaryHome()
+    const prepared = prepareDesktopProfile(undefined, home, 'darwin', 'desktop', undefined, {
+      requested: 'community-market',
+      effective: 'community-market',
+      legacyDefaulted: false,
+    })
+    const rows = composeEntries([prepared.patches])
+
+    expect(prepared.market.effective).toBe('community-market')
+    expect(rows.filter(row => row.id === DESKTOP_MARKET_IDENTITIES.community.rowId)).toEqual([{
+      id: DESKTOP_MARKET_IDENTITIES.community.rowId,
+      name: DESKTOP_MARKET_IDENTITIES.community.packageName,
+    }])
+    expect(rows.some(row => row.id === DESKTOP_MARKET_IDENTITIES.dshMarket.rowId)).toBe(false)
+  })
+
+  it('loads the exact dshmarket dependency as a direct bundle only after explicit selection', () => {
+    const home = temporaryHome()
+    const prepared = prepareDesktopProfile(undefined, home, 'darwin', 'desktop', undefined, {
+      requested: 'dsh-market',
+      effective: 'dsh-market',
+      legacyDefaulted: false,
+    })
+    const rows = composeEntries([prepared.patches])
+
+    expect(prepared.market.effective).toBe('dsh-market')
+    expect(rows.filter(row => row.id === DESKTOP_MARKET_IDENTITIES.dshMarket.rowId)).toEqual([{
+      id: DESKTOP_MARKET_IDENTITIES.dshMarket.rowId,
+      name: DESKTOP_MARKET_IDENTITIES.dshMarket.packageName,
+    }])
+    expect(rows.some(row => row.id === DESKTOP_MARKET_IDENTITIES.community.rowId)).toBe(false)
+  })
+
+  it('filters an unselected dshmarket bundle before resolving or parsing its patch', () => {
+    const home = temporaryHome()
+    const dir = ensureDesktopProfile(home)
+    const manifestPath = join(dir, 'package.json')
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+      dsh: { profile: { bundles: string[] } }
+    }
+    manifest.dsh.profile.bundles.push(DESKTOP_MARKET_IDENTITIES.dshMarket.packageName)
+    writeFileSync(manifestPath, JSON.stringify(manifest, undefined, 2) + '\n')
+    installBundle(home, DESKTOP_MARKET_IDENTITIES.dshMarket.packageName, 'not: [valid yaml')
+
+    const prepared = prepareDesktopProfile(undefined, home, 'darwin')
+    const rows = composeEntries([prepared.patches])
+
+    expect(prepared.market.effective).toBe('disabled')
+    expect(rows.some(row => row.id === DESKTOP_MARKET_IDENTITIES.dshMarket.rowId)).toBe(false)
+  })
+
+  it('fails a conflicting provider identity closed without blocking the core profile', () => {
+    const home = temporaryHome()
+    writeFileSync(join(home, 'cordis.patch.yml'), `- insert:\n    - id: community-market\n      name: dsh-community-market\n`)
+
+    const prepared = prepareDesktopProfile(undefined, home, 'darwin', 'desktop', undefined, {
+      requested: 'community-market',
+      effective: 'community-market',
+      legacyDefaulted: false,
+    })
+    const rows = composeEntries([prepared.patches])
+
+    expect(prepared.market.effective).toBe('disabled')
+    expect(prepared.marketFailure).toContain('conflicting Market provider Loader identity')
+    expect(rows.some(row => row.id === DESKTOP_MARKET_IDENTITIES.community.rowId
+      || row.id === DESKTOP_MARKET_IDENTITIES.dshMarket.rowId)).toBe(false)
+    expect(rows.some(row => row.id === 'webserver')).toBe(true)
+  })
+
+  it('rejects a non-canonical dshmarket bundle patch before it reaches the Loader', () => {
+    expect(() => validateDshMarketBundlePatches([{
+      insert: [{ id: 'dsh-market', name: 'unexpected-market' }],
+    }])).toThrow('must insert exactly the canonical dsh-market row')
   })
 
   it('boots a selected Web profile without overriding its compatibility UI rows', () => {

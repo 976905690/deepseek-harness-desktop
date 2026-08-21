@@ -147,6 +147,11 @@ function parseMarketRequest(value: unknown): DesktopMarketSelectRequest | undefi
   return { provider: value.provider }
 }
 
+function isEmptyRequest(value: unknown): boolean {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    && Object.keys(value).length === 0
+}
+
 async function parsePostBody(
   req: IncomingMessage,
   res: ServerResponse,
@@ -287,6 +292,29 @@ export async function handleDesktopMarketSelectRequest(
   } catch (cause) {
     reportError('select Market provider', cause)
     finishJson(res, 500, error('Market selection could not be saved'))
+  }
+}
+
+/** Open the launcher-owned DSH terminal from an exact empty request. */
+export async function handleDesktopTerminalOpenRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  expectedOrigin: string,
+  controller: DesktopSettingsController,
+  reportError: (operation: string, cause: unknown) => void = () => {},
+): Promise<void> {
+  if (req.method !== 'POST') return finishJson(res, 405, error('method not allowed'), 'POST')
+  if (!isSameOriginLoopbackRequest(req, expectedOrigin, true)) {
+    return finishJson(res, 403, error('forbidden'))
+  }
+  const value = await parsePostBody(req, res)
+  if (value === INVALID_BODY) return
+  if (!isEmptyRequest(value)) return finishJson(res, 400, error('invalid terminal request'))
+  try {
+    finishJson(res, 200, controller.openTerminal())
+  } catch (cause) {
+    reportError('open terminal', cause)
+    finishJson(res, 500, error('terminal could not be opened'))
   }
 }
 

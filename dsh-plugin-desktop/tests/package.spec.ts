@@ -128,12 +128,16 @@ describe('published package surface', () => {
     expect(manifest.dsh?.client).toEqual({
       platform: 'web',
       inject: [
+        '@deepseek-ai/dsh-api-remotes',
+        '@deepseek-ai/dsh-client-connection',
+        '@deepseek-ai/dsh-client-locale',
         '@deepseek-ai/dsh-client-runtime',
+        '@deepseek-ai/dsh-client-ui-settings',
         '@deepseek-ai/dsh-client-ui-theme',
       ],
     })
     expect(readFileSync(new URL('cordis.patch.yml', packageRoot), 'utf8')).toContain('name: dsh-plugin-desktop')
-    expect(readFileSync(new URL('cordis.patch.yml', packageRoot), 'utf8')).toContain('name: dsh-community-market')
+    expect(readFileSync(new URL('cordis.patch.yml', packageRoot), 'utf8')).not.toContain('name: dsh-community-market')
     expect(readFileSync(new URL('cordis.patch.yml', packageRoot), 'utf8')).toContain('name: dsh-plugin-desktop/terminal')
     expect(readFileSync(new URL('cordis.patch.yml', packageRoot), 'utf8')).toContain('name: dsh-plugin-desktop/pnpm')
     expect(readFileSync(new URL('cordis.patch.yml', packageRoot), 'utf8')).toContain('name: dsh-plugin-desktop/profiles')
@@ -142,8 +146,11 @@ describe('published package surface', () => {
     expect(readFileSync(new URL('cordis.patch.yml', packageRoot), 'utf8')).toContain('name: dsh-plugin-desktop/updates')
   })
 
-  it('keeps unaudited marketplace packages out of the published runtime', () => {
-    expect(manifest.dependencies).not.toHaveProperty('dshmarket')
+  it('pins both selectable Market providers in the published runtime', () => {
+    expect(manifest.dependencies).toMatchObject({
+      'dsh-community-market': '0.1.0-dev.0',
+      dshmarket: '1.17.1',
+    })
     expect(manifest.optionalDependencies ?? {}).not.toHaveProperty('dshmarket')
   })
 

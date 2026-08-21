@@ -60,6 +60,12 @@ import {
 import { DesktopProfileService } from './profile-service.ts'
 import { DesktopActionsService } from './desktop-actions.ts'
 import { DesktopPluginsService } from './desktop-plugins.ts'
+import {
+  desktopMarketSnapshotWithEffective,
+  readDesktopMarketStateForUserData,
+  selectDesktopMarketProvider,
+} from './desktop-market.ts'
+import DesktopSettingsController from './desktop-settings-controller.ts'
 import { DesktopStartupRecoveryController } from './startup-recovery-controller.ts'
 import {
   DesktopStartupRecoveryWindow,
@@ -489,13 +495,21 @@ async function start(): Promise<void> {
     }
     startupStage = 'profile-composition'
     lifecycleRecorder.transitionStartupStage(startupStage)
+    const marketUserDataDir = app.getPath('userData')
+    const marketSelection = readDesktopMarketStateForUserData(marketUserDataDir)
     const prepared = prepareDesktopProfile(
       process.env.DSH_TELEMETRY_DISABLED,
       homeDir,
       process.platform,
       activeProfileName,
       pluginManagementStatePath,
+      marketSelection,
     )
+    if (prepared.marketFailure !== undefined) {
+      electronLogger.error(
+        `${BIN_NAME}: requested Market provider ${prepared.market.requested} was disabled for this generation: ${prepared.marketFailure}`,
+      )
+    }
     startupStage = 'runtime-bootstrap'
     lifecycleRecorder.transitionStartupStage(startupStage)
     const dshBootstrapPath = fileURLToPath(new URL('./desktop-cli.js', import.meta.url))
@@ -576,6 +590,38 @@ async function start(): Promise<void> {
           persistSelection: name => { selectDesktopProfile(selectionStatePath, homeDir, name) },
           requestRestart: () => runtime.requestRestart(),
         })
+        let pendingSettingsRestart: ReturnType<typeof setImmediate> | undefined
+        const scheduleSettingsRestart = (): void => {
+          pendingSettingsRestart ??= setImmediate(() => {
+            pendingSettingsRestart = undefined
+            void runtime.requestRestart().catch((cause: unknown) => {
+              hostCtx.logger.error(
+                `${BIN_NAME}: failed to restart after Desktop setting change: ${cause instanceof Error ? cause.message : String(cause)}`,
+              )
+            })
+          })
+        }
+        hostCtx.effect(() => () => {
+          if (pendingSettingsRestart !== undefined) clearImmediate(pendingSettingsRestart)
+          pendingSettingsRestart = undefined
+        }, 'dsh-plugin-desktop: pending Desktop settings restart')
+        const readMarket = () => desktopMarketSnapshotWithEffective(
+          readDesktopMarketStateForUserData(marketUserDataDir),
+          prepared.market.effective,
+        )
+        hostCtx.provide('desktopSettingsController', new DesktopSettingsController({
+          profiles: hostCtx.desktopProfiles,
+          persistProfileSelection: name => {
+            selectDesktopProfile(selectionStatePath, homeDir, name)
+          },
+          readMarket,
+          selectMarket: async provider => desktopMarketSnapshotWithEffective(
+            await selectDesktopMarketProvider(marketUserDataDir, provider),
+            prepared.market.effective,
+          ),
+          scheduleRestart: scheduleSettingsRestart,
+          openTerminal: () => { runtime.openTerminal() },
+        }))
         provideCmdline(hostCtx, {
           args: ['--host', '127.0.0.1', '--port', String(prepared.port)],
           exit: requestQuit,
@@ -622,7 +668,15 @@ async function start(): Promise<void> {
         )
         if (notified && installRecovery !== undefined) {
           try {
-            await installRecovery.markRollbackNotified(rolledBackInstallToNotify.transactionId)
+            const transaction = rolledBackInstallToNotify
+            if (transaction.receiptId.startsWith('dsh-market:')) {
+              // dsh-market has no receipt ledger to reconcile. Its Desktop
+              // compatibility receipt exists only to bind the recovery WAL,
+              // so the launcher owns cleanup after the user sees the result.
+              await installRecovery.clear(transaction.transactionId)
+            } else {
+              await installRecovery.markRollbackNotified(transaction.transactionId)
+            }
             rolledBackInstallToNotify = undefined
           } catch (cause) {
             electronLogger.error(

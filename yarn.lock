@@ -7360,6 +7360,7 @@ __metadata:
     "@types/react": "npm:^18"
     adm-zip: "npm:^0.6.0"
     dsh-community-market: "npm:0.1.0-dev.0"
+    dshmarket: "npm:1.17.1"
     electron: "npm:43.4.0"
     electron-builder: "npm:26.15.7"
     koffi: "npm:3.1.5"
@@ -7378,6 +7379,38 @@ __metadata:
     dsh-plugin-desktop: lib/bin.js
   languageName: unknown
   linkType: soft
+
+"dshmarket@npm:1.17.1":
+  version: 1.17.1
+  resolution: "dshmarket@npm:1.17.1"
+  dependencies:
+    js-yaml: "npm:^4.1.0"
+    undici: "npm:^7.29.0"
+  peerDependencies:
+    "@deepseek-ai/cordis": ^4.0.1
+    "@deepseek-ai/dsh-settings": ^0.1.0-rc.7
+  peerDependenciesMeta:
+    "@deepseek-ai/dsh-settings":
+      optional: true
+  checksum: 10c0/b5c32d516b41ff6c603dada84cbbe7ed1753cb9c800b9df3d373f9fffa3f55f0767d05bbb5c727637c0ad58a0d576ecab62955297c27ef527fbae9de4861cf56
+  languageName: node
+  linkType: hard
+
+"dshmarket@patch:dshmarket@npm%3A1.17.1#./.yarn/patches/dshmarket-npm-1.17.1-d9fe6da08c.patch::locator=deepseek-harness-desktop%40workspace%3A.":
+  version: 1.17.1
+  resolution: "dshmarket@patch:dshmarket@npm%3A1.17.1#./.yarn/patches/dshmarket-npm-1.17.1-d9fe6da08c.patch::version=1.17.1&hash=a6d905&locator=deepseek-harness-desktop%40workspace%3A."
+  dependencies:
+    js-yaml: "npm:^4.1.0"
+    undici: "npm:^7.29.0"
+  peerDependencies:
+    "@deepseek-ai/cordis": ^4.0.1
+    "@deepseek-ai/dsh-settings": ^0.1.0-rc.7
+  peerDependenciesMeta:
+    "@deepseek-ai/dsh-settings":
+      optional: true
+  checksum: 10c0/0fdca2cf3d17c3cb994ed01363c2e7dfd1ccd40075642bd2e0a81c3c51b69ee80d4fe66426fe804b85b7303e14824c98d6bc0299e3419b808fd6cc27a39029d5
+  languageName: node
+  linkType: hard
 
 "dts-resolver@npm:^3.0.0":
   version: 3.0.0
@@ -11409,7 +11442,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"undici@npm:^7.24.4, undici@npm:^7.25.0":
+"undici@npm:^7.24.4, undici@npm:^7.25.0, undici@npm:^7.29.0":
   version: 7.29.0
   resolution: "undici@npm:7.29.0"
   checksum: 10c0/85ea96e91e7f3de24de678cbbc54230fdd641a3b0643005f2aef044af1f1a2db8fbecb88b28e6fa78bb41ffeafda4479b57075b6b6ab92beac4b7b5ab53f9b10

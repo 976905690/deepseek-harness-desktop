@@ -94,7 +94,11 @@
   "dsh": {
     "client": {
       "inject": [
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-locale",
         "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-settings",
         "@deepseek-ai/dsh-client-ui-theme"
       ],
       "platform": "web"
@@ -234,6 +238,7 @@
     "@deepseek-ai/schemastery": "^3.18.1",
     "adm-zip": "^0.6.0",
     "dsh-community-market": "0.1.0-dev.0",
+    "dshmarket": "1.17.1",
     "koffi": "3.1.5",
     "node-addon-require-builtin": "^0.1.4",
     "pnpm": "11.7.0",

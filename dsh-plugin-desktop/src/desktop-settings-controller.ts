@@ -13,6 +13,7 @@ import type {
   DesktopSettingsMarketView,
   DesktopSettingsProfileView,
   DesktopSettingsResponse,
+  DesktopTerminalOpenResponse,
 } from './desktop-settings-contract.ts'
 
 /** Launcher capabilities used without exposing their filesystem roots. */
@@ -27,6 +28,8 @@ export interface DesktopSettingsControllerBootstrap {
   selectMarket(provider: DesktopMarketProvider): Promise<DesktopMarketSnapshot>
   /** Queue an orderly restart after a response confirms persisted selection. */
   scheduleRestart(): void
+  /** Open the launcher-owned DSH terminal. */
+  openTerminal(): void
 }
 
 /** A persisted response plus work that must run only after `res.end()`. */
@@ -117,6 +120,19 @@ export class DesktopSettingsController {
       response: Object.freeze({ accepted: true, restartRequired }),
       ...(restartRequired ? { afterResponse: () => { this.bootstrap.scheduleRestart() } } : {}),
     })
+  }
+
+  /** Open the native terminal through the launcher-owned action. */
+  openTerminal(): DesktopTerminalOpenResponse {
+    this.bootstrap.openTerminal()
+    return Object.freeze({ accepted: true })
+  }
+}
+
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    /** Launcher-owned controller behind the private loopback settings API. */
+    desktopSettingsController: DesktopSettingsController
   }
 }
 
