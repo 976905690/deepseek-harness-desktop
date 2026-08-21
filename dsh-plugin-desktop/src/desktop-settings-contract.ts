@@ -20,6 +20,15 @@ export const DESKTOP_MARKET_SELECT_PATH = '/api/desktop/market/select'
 /** Open the launcher-owned DSH terminal without accepting command text. */
 export const DESKTOP_TERMINAL_OPEN_PATH = '/api/desktop/terminal/open'
 
+/** Export one local diagnostic archive through the launcher-owned flow. */
+export const DESKTOP_DIAGNOSTICS_EXPORT_PATH = '/api/desktop/diagnostics/export'
+
+/** Open the isolated native Profile creator without accepting a path. */
+export const DESKTOP_PROFILE_CREATE_WINDOW_PATH = '/api/desktop/profiles/create-window'
+
+/** Restore the last successful Profile and its latest healthy configuration. */
+export const DESKTOP_PROFILE_ROLLBACK_PATH = '/api/desktop/profiles/rollback'
+
 /** Renderer-safe projection of one discovered profile. */
 export interface DesktopSettingsProfileView {
   /** Profile name accepted by the launcher. */
@@ -98,6 +107,30 @@ export type DesktopTerminalOpenRequest = Readonly<Record<string, never>>
 /** Successful handoff to the launcher-owned terminal action. */
 export interface DesktopTerminalOpenResponse {
   readonly accepted: true
+}
+
+/** Exact empty body accepted by the diagnostic-export endpoint. */
+export type DesktopDiagnosticsExportRequest = Readonly<Record<string, never>>
+
+/** Successful handoff to the launcher-owned diagnostic export flow. */
+export interface DesktopDiagnosticsExportResponse {
+  readonly accepted: true
+}
+
+/** Exact empty body accepted by the native Profile-creator endpoint. */
+export type DesktopProfileCreateWindowRequest = Readonly<Record<string, never>>
+
+/** Successful handoff to the isolated native Profile creator. */
+export interface DesktopProfileCreateWindowResponse {
+  readonly accepted: true
+}
+
+/** Exact empty body accepted by the last-known-good rollback endpoint. */
+export type DesktopProfileRollbackRequest = Readonly<Record<string, never>>
+
+/** Persisted rollback handoff returned before the running Host is quiesced. */
+export interface DesktopProfileRollbackResponse extends DesktopRestartAcceptance {
+  readonly targetProfile: string
 }
 
 /** Stable API failure shape that never contains native paths or raw causes. */

@@ -6,9 +6,12 @@ import DesktopSettingsController, {
   type DesktopSettingsControllerBootstrap,
 } from '../src/desktop-settings-controller.ts'
 import {
+  handleDesktopDiagnosticsExportRequest,
   handleDesktopMarketSelectRequest,
   handleDesktopProfileCreateRequest,
+  handleDesktopProfileCreateWindowRequest,
   handleDesktopProfileDeleteRequest,
+  handleDesktopProfileRollbackRequest,
   handleDesktopProfileSelectRequest,
   handleDesktopSettingsRequest,
   handleDesktopTerminalOpenRequest,
@@ -67,6 +70,11 @@ function bootstrap(
     selectMarket: async provider => market(provider),
     scheduleRestart: () => {},
     openTerminal: () => {},
+    exportDiagnostics: async () => {},
+    openProfileCreator: () => {},
+    prepareProfileRollback: () => ({
+      response: { accepted: true, restartRequired: true, targetProfile: 'desktop' },
+    }),
     ...overrides,
   }
 }
@@ -266,6 +274,31 @@ describe('desktop settings controller', () => {
 
     expect(controller.openTerminal()).toEqual({ accepted: true })
     expect(openTerminal).toHaveBeenCalledOnce()
+  })
+
+  it('hands native diagnostics, Profile creation, and rollback to launcher capabilities', async () => {
+    const exportDiagnostics = vi.fn(async () => {})
+    const openProfileCreator = vi.fn()
+    const afterResponse = vi.fn()
+    const prepareProfileRollback = vi.fn(() => ({
+      response: { accepted: true as const, restartRequired: true as const, targetProfile: 'desktop' },
+      afterResponse,
+    }))
+    const controller = new DesktopSettingsController(bootstrap({
+      exportDiagnostics,
+      openProfileCreator,
+      prepareProfileRollback,
+    }))
+
+    await expect(controller.exportDiagnostics()).resolves.toEqual({ accepted: true })
+    expect(controller.openProfileCreator()).toEqual({ accepted: true })
+    expect(controller.rollbackProfile()).toEqual({
+      response: { accepted: true, restartRequired: true, targetProfile: 'desktop' },
+      afterResponse,
+    })
+    expect(exportDiagnostics).toHaveBeenCalledOnce()
+    expect(openProfileCreator).toHaveBeenCalledOnce()
+    expect(prepareProfileRollback).toHaveBeenCalledOnce()
   })
 })
 
@@ -478,6 +511,41 @@ describe('desktop settings HTTP boundary', () => {
       expect(rejected.statusCode).toBe(req.headers.origin === ORIGIN ? 400 : 403)
     }
     expect(openTerminal).toHaveBeenCalledOnce()
+  })
+
+  it('exports diagnostics, opens the native creator, and starts rollback only after response', async () => {
+    const exportDiagnostics = vi.fn(async () => {})
+    const openProfileCreator = vi.fn()
+    const afterResponse = vi.fn()
+    const controller = new DesktopSettingsController(bootstrap({
+      exportDiagnostics,
+      openProfileCreator,
+      prepareProfileRollback: () => ({
+        response: { accepted: true, restartRequired: true, targetProfile: 'desktop' },
+        afterResponse,
+      }),
+    }))
+    const diagnosticResponse = response()
+    const creatorResponse = response()
+    const rollbackResponse = response()
+
+    await handleDesktopDiagnosticsExportRequest(jsonRequest({}), diagnosticResponse, ORIGIN, controller)
+    await handleDesktopProfileCreateWindowRequest(jsonRequest({}), creatorResponse, ORIGIN, controller)
+    await handleDesktopProfileRollbackRequest(jsonRequest({}), rollbackResponse, ORIGIN, controller)
+
+    expect(diagnosticResponse.statusCode).toBe(200)
+    expect(creatorResponse.statusCode).toBe(200)
+    expect(rollbackResponse.statusCode).toBe(202)
+    expect(JSON.parse(rollbackResponse.body)).toEqual({
+      accepted: true,
+      restartRequired: true,
+      targetProfile: 'desktop',
+    })
+    expect(exportDiagnostics).toHaveBeenCalledOnce()
+    expect(openProfileCreator).toHaveBeenCalledOnce()
+    expect(afterResponse).not.toHaveBeenCalled()
+    await new Promise<void>(resolve => { setImmediate(resolve) })
+    expect(afterResponse).toHaveBeenCalledOnce()
   })
 
   it('reports terminal launch failures without exposing the native cause', async () => {

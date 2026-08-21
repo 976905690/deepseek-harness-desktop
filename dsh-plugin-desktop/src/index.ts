@@ -27,17 +27,23 @@ import {
   handleDesktopDirectoryValidationRequest,
 } from './directory-picker-route.ts'
 import {
+  DESKTOP_DIAGNOSTICS_EXPORT_PATH,
   DESKTOP_MARKET_SELECT_PATH,
   DESKTOP_PROFILE_CREATE_PATH,
+  DESKTOP_PROFILE_CREATE_WINDOW_PATH,
   DESKTOP_PROFILE_DELETE_PATH,
+  DESKTOP_PROFILE_ROLLBACK_PATH,
   DESKTOP_PROFILE_SELECT_PATH,
   DESKTOP_SETTINGS_PATH,
   DESKTOP_TERMINAL_OPEN_PATH,
 } from './desktop-settings-contract.ts'
 import {
+  handleDesktopDiagnosticsExportRequest,
   handleDesktopMarketSelectRequest,
   handleDesktopProfileCreateRequest,
+  handleDesktopProfileCreateWindowRequest,
   handleDesktopProfileDeleteRequest,
+  handleDesktopProfileRollbackRequest,
   handleDesktopProfileSelectRequest,
   handleDesktopSettingsRequest,
   handleDesktopTerminalOpenRequest,
@@ -178,10 +184,13 @@ export function apply(ctx: Context, config: Config): void {
     const settingsRoutes = [
       [DESKTOP_SETTINGS_PATH, handleDesktopSettingsRequest],
       [DESKTOP_PROFILE_CREATE_PATH, handleDesktopProfileCreateRequest],
+      [DESKTOP_PROFILE_CREATE_WINDOW_PATH, handleDesktopProfileCreateWindowRequest],
       [DESKTOP_PROFILE_DELETE_PATH, handleDesktopProfileDeleteRequest],
+      [DESKTOP_PROFILE_ROLLBACK_PATH, handleDesktopProfileRollbackRequest],
       [DESKTOP_PROFILE_SELECT_PATH, handleDesktopProfileSelectRequest],
       [DESKTOP_MARKET_SELECT_PATH, handleDesktopMarketSelectRequest],
       [DESKTOP_TERMINAL_OPEN_PATH, handleDesktopTerminalOpenRequest],
+      [DESKTOP_DIAGNOSTICS_EXPORT_PATH, handleDesktopDiagnosticsExportRequest],
     ] as const
     for (const [path, handler] of settingsRoutes) {
       ctx.effect(

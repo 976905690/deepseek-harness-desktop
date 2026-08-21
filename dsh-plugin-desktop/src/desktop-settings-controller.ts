@@ -8,8 +8,11 @@ import type { DesktopProfileSummary } from './profile-manager.ts'
 import type { DesktopProfiles } from './profile-service.ts'
 import type {
   DesktopMarketSelectResponse,
+  DesktopDiagnosticsExportResponse,
   DesktopProfileCreateResponse,
+  DesktopProfileCreateWindowResponse,
   DesktopProfileDeleteResponse,
+  DesktopProfileRollbackResponse,
   DesktopProfileSelectResponse,
   DesktopSettingsMarketView,
   DesktopSettingsProfileView,
@@ -32,6 +35,12 @@ export interface DesktopSettingsControllerBootstrap {
   scheduleRestart(): void
   /** Open the launcher-owned DSH terminal. */
   openTerminal(): void
+  /** Export diagnostics through the launcher-owned privacy flow. */
+  exportDiagnostics(): void | Promise<void>
+  /** Open the isolated native Profile creator. */
+  openProfileCreator(): void
+  /** Prepare a last-known-good rollback without quiescing the Host yet. */
+  prepareProfileRollback(): DesktopSettingsPostResponse<DesktopProfileRollbackResponse>
 }
 
 /** A persisted response plus work that must run only after `res.end()`. */
@@ -142,6 +151,23 @@ export class DesktopSettingsController {
   openTerminal(): DesktopTerminalOpenResponse {
     this.bootstrap.openTerminal()
     return Object.freeze({ accepted: true })
+  }
+
+  /** Export diagnostics through the native confirmation and reveal flow. */
+  async exportDiagnostics(): Promise<DesktopDiagnosticsExportResponse> {
+    await this.bootstrap.exportDiagnostics()
+    return Object.freeze({ accepted: true })
+  }
+
+  /** Open the native creator that creates, selects, and restarts safely. */
+  openProfileCreator(): DesktopProfileCreateWindowResponse {
+    this.bootstrap.openProfileCreator()
+    return Object.freeze({ accepted: true })
+  }
+
+  /** Hand off a validated rollback that starts only after the HTTP response. */
+  rollbackProfile(): DesktopSettingsPostResponse<DesktopProfileRollbackResponse> {
+    return this.bootstrap.prepareProfileRollback()
   }
 }
 
