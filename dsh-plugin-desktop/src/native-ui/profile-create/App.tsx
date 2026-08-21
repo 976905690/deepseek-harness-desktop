@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import { Alert, AlertDescription } from '../components/ui/alert.tsx'
 import { Button } from '../components/ui/button.tsx'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card.tsx'
 import { Input } from '../components/ui/input.tsx'
 import { Label } from '../components/ui/label.tsx'
 
@@ -73,16 +72,16 @@ export function ProfileCreateApp(): JSX.Element {
     }
     submit(trimmed)
   }
-  return <main className="min-h-screen p-6"><Card className="mx-auto w-full max-w-md">
-    <CardHeader><CardTitle>{copy.heading}</CardTitle><CardDescription>{copy.description}</CardDescription></CardHeader>
-    <CardContent className="space-y-2">
+  return <main className="min-h-screen overflow-hidden p-6"><section className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-md flex-col">
+    <header className="mb-5"><h1 className="text-lg leading-none font-semibold tracking-tight">{copy.heading}</h1><p className="mt-2 text-sm text-muted-foreground">{copy.description}</p></header>
+    <div className="space-y-2">
       <Label htmlFor="profile-name">{copy.label}</Label>
       <Input autoFocus id="profile-name" maxLength={255} onChange={event => { setName(event.target.value); setError('') }} onKeyDown={event => { if (event.key === 'Enter') onSubmit() }} placeholder={copy.placeholder} value={name} />
       {error.length > 0 ? <Alert aria-live="polite" variant="destructive"><AlertDescription>{error}</AlertDescription></Alert> : null}
-    </CardContent>
-    <CardFooter className="justify-end gap-2">
+    </div>
+    <footer className="mt-auto flex justify-end gap-2 pt-5">
       <Button onClick={() => { window.location.assign(`${SCHEME}//cancel`) }} type="button" variant="outline"><X />{copy.cancel}</Button>
       <Button onClick={onSubmit} type="button"><Plus />{copy.start}</Button>
-    </CardFooter>
-  </Card></main>
+    </footer>
+  </section></main>
 }

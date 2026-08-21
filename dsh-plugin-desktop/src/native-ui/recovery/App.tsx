@@ -123,6 +123,7 @@ interface Copy {
   readonly privacy: string
   readonly manualConfiguration: string
   readonly manualConfigurationBody: string
+  readonly openSettingsDocument: string
   readonly openProfilePatch: string
   readonly openProfileManifest: string
   readonly openProfileDirectory: string
@@ -183,6 +184,7 @@ const COPY: Record<Locale, Copy> = {
     privacy: 'Diagnostic archives may contain local paths, logs, system information, and crash-memory fragments. Review them before sharing.',
     manualConfiguration: 'Configuration files',
     manualConfigurationBody: 'Open only the active Profile paths selected by DSH Desktop.',
+    openSettingsDocument: 'Open configuration file',
     openProfilePatch: 'Edit patch',
     openProfileManifest: 'Edit manifest',
     openProfileDirectory: 'Open folder',
@@ -241,6 +243,7 @@ const COPY: Record<Locale, Copy> = {
     privacy: '诊断包可能包含本地路径、日志、系统信息和崩溃内存片段，分享前请先检查。',
     manualConfiguration: '配置文件',
     manualConfigurationBody: '只打开由 DSH Desktop 确认的当前配置路径。',
+    openSettingsDocument: '打开配置文件',
     openProfilePatch: '编辑补丁',
     openProfileManifest: '编辑清单',
     openProfileDirectory: '打开目录',
@@ -358,6 +361,7 @@ function RecoveryContent({ state, copy }: { readonly state: RecoveryState; reado
     {state.configurationAvailable ? <Card>
       <CardHeader><CardTitle>{copy.manualConfiguration}</CardTitle><CardDescription>{copy.manualConfigurationBody}</CardDescription></CardHeader>
       <CardFooter className="flex-wrap gap-2 pt-6">
+        <Action action="open-settings-document" icon={<FilePenLine />}>{copy.openSettingsDocument}</Action>
         <Action action="open-profile-patch" icon={<FilePenLine />}>{copy.openProfilePatch}</Action>
         <Action action="open-profile-manifest" icon={<FilePenLine />}>{copy.openProfileManifest}</Action>
         <Action action="open-profile-directory" icon={<FolderOpen />}>{copy.openProfileDirectory}</Action>

@@ -1,7 +1,9 @@
 /** Host-independent Electron recovery window for profile startup failures. */
 
 import { app, BrowserWindow, screen, shell } from 'electron'
-import { basename } from 'node:path'
+import { execFile } from 'node:child_process'
+import { mkdir, writeFile } from 'node:fs/promises'
+import { basename, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { DesktopLocale } from './runtime.ts'
 import { applicationNeedsReveal, revealApplication } from './electron-reveal.ts'
@@ -83,6 +85,7 @@ export interface DesktopStartupRecoveryProfileActions {
 }
 
 export interface DesktopStartupRecoveryConfigurationPaths {
+  readonly settingsDocument: string
   readonly profilePatch: string
   readonly profileManifest: string
   readonly profileDirectory: string
@@ -216,6 +219,7 @@ interface RecoveryCopy {
   readonly diagnosticsRequired: string
   readonly manualConfiguration: string
   readonly manualConfigurationBody: string
+  readonly openSettingsDocument: string
   readonly openProfilePatch: string
   readonly openProfileManifest: string
   readonly openProfileDirectory: string
@@ -276,6 +280,7 @@ const COPY: Record<DesktopLocale, RecoveryCopy> = {
     diagnosticsRequired: 'Diagnostics were not saved, so configuration recovery was not started.',
     manualConfiguration: 'Edit configuration manually',
     manualConfigurationBody: 'Use the system editor for patch overrides or the plugin manifest for duplicate bundle entries. This recovery page cannot choose an arbitrary path.',
+    openSettingsDocument: 'Open configuration file',
     openProfilePatch: 'Edit configuration patch',
     openProfileManifest: 'Edit plugin manifest',
     openProfileDirectory: 'Open configuration folder',
@@ -334,6 +339,7 @@ const COPY: Record<DesktopLocale, RecoveryCopy> = {
     diagnosticsRequired: '诊断信息尚未保存，因此没有开始恢复配置。',
     manualConfiguration: '手动编辑配置',
     manualConfigurationBody: '配置覆盖错误请编辑补丁文件；插件重复加载请编辑插件加载清单。恢复页面不能选择任意路径。',
+    openSettingsDocument: '打开配置文件',
     openProfilePatch: '编辑配置补丁',
     openProfileManifest: '编辑插件加载清单',
     openProfileDirectory: '打开配置目录',
@@ -406,7 +412,7 @@ export function renderDesktopStartupRecoveryHtml(model: DesktopStartupRecoveryVi
     ? button(copy.showDiagnostics, 'show-diagnostics')
     : button(copy.saveDiagnostics, 'export-diagnostics')
   const configurationHtml = model.configurationAvailable
-    ? `<section class="card"><h2>${escapeHtml(copy.manualConfiguration)}</h2><p>${escapeHtml(copy.manualConfigurationBody)}</p><div class="actions">${button(copy.openProfilePatch, 'open-profile-patch')}${button(copy.openProfileManifest, 'open-profile-manifest')}${button(copy.openProfileDirectory, 'open-profile-directory')}</div></section>`
+    ? `<section class="card"><h2>${escapeHtml(copy.manualConfiguration)}</h2><p>${escapeHtml(copy.manualConfigurationBody)}</p><div class="actions">${button(copy.openSettingsDocument, 'open-settings-document')}${button(copy.openProfilePatch, 'open-profile-patch')}${button(copy.openProfileManifest, 'open-profile-manifest')}${button(copy.openProfileDirectory, 'open-profile-directory')}</div></section>`
     : ''
   const profileRows = model.profiles?.map(profile => {
     const action = !profile.current && profile.selectable && model.profileActionToken !== undefined
@@ -474,6 +480,7 @@ export function parseDesktopStartupRecoveryAction(
     'confirm-retry',
     'export-diagnostics',
     'show-diagnostics',
+    'open-settings-document',
     'open-profile-patch',
     'open-profile-manifest',
     'open-profile-directory',
@@ -670,6 +677,8 @@ export class DesktopStartupRecoveryWindow {
             : { tone: 'success', title: 'Profile restored', body: 'The last successful Profile and configuration were restored. Restart DSH Desktop to continue.' }
           this.restartReady = true
         })
+      } else if (action.action === 'open-settings-document') {
+        await this.openConfigurationPath('settingsDocument')
       } else if (action.action === 'open-profile-patch') {
         await this.openConfigurationPath('profilePatch')
       } else if (action.action === 'open-profile-manifest') {
@@ -809,6 +818,23 @@ export class DesktopStartupRecoveryWindow {
   ): Promise<void> {
     const path = this.options.configurationPaths?.[kind]
     if (path === undefined) throw new Error('Desktop profile configuration is unavailable for this startup stage.')
+    if (kind === 'settingsDocument') {
+      await mkdir(dirname(path), { recursive: true, mode: 0o700 })
+      try {
+        await writeFile(path, '', { flag: 'wx', mode: 0o600 })
+      } catch (cause) {
+        if ((cause as NodeJS.ErrnoException).code !== 'EEXIST') throw cause
+      }
+    }
+    if (kind === 'settingsDocument' && process.platform === 'darwin') {
+      await new Promise<void>((resolve, reject) => {
+        execFile('/usr/bin/open', ['-t', path], { windowsHide: true }, cause => {
+          if (cause === null) resolve()
+          else reject(cause)
+        })
+      })
+      return
+    }
     const error = await shell.openPath(path)
     if (error.length > 0) throw new Error(error)
   }

@@ -528,6 +528,7 @@ async function start(): Promise<void> {
       )
     }
     startupRecoveryConfigurationPaths = {
+      settingsDocument: join(homeDir, 'settings.yaml'),
       profilePatch: join(activeProfileDir, PROFILE_PATCH_FILENAME),
       profileManifest: join(activeProfileDir, 'package.json'),
       profileDirectory: activeProfileDir,
@@ -606,6 +607,15 @@ async function start(): Promise<void> {
       pluginManagementStatePath,
       marketSelection,
       startupRecoveryStatePath,
+      {
+        onSettingsDocumentResolved: settingsDocument => {
+          if (startupRecoveryConfigurationPaths === undefined) return
+          startupRecoveryConfigurationPaths = {
+            ...startupRecoveryConfigurationPaths,
+            settingsDocument,
+          }
+        },
+      },
     )
     if (profileCheckpoint === undefined) {
       try {

@@ -204,10 +204,18 @@ export interface PreparedDesktopProfile {
   mode: DesktopShellMode
   /** Persisted loopback Web port applied to every startup consumer. */
   port: number
+  /** Resolved file-backed settings document used by this generation. */
+  settingsDocument: string
   /** Requested provider and the fail-closed provider effective for this generation. */
   market: DesktopMarketSnapshot
   /** Internal boot diagnostic when the requested provider was disabled. */
   marketFailure?: string
+}
+
+/** Optional observations emitted before profile preparation can fail. */
+export interface DesktopProfilePreparationHooks {
+  /** Receive the trusted settings path before its contents are parsed. */
+  onSettingsDocumentResolved?: (path: string) => void
 }
 
 /** User patch entry skipped to keep a profile bootable. */
@@ -569,6 +577,7 @@ export function prepareDesktopProfile(
   pluginStatePath?: string,
   marketSelection: DesktopMarketSnapshot = DEFAULT_DESKTOP_MARKET_SNAPSHOT,
   recoveryStatePath?: string,
+  hooks: DesktopProfilePreparationHooks = {},
 ): PreparedDesktopProfile {
   const profileDir = profileName === DESKTOP_PROFILE_NAME
     ? ensureDesktopProfile(home)
@@ -691,6 +700,8 @@ export function prepareDesktopProfile(
     dshHome: home,
     ...rowConfig(settings),
   } as SettingsFileConfig)
+  const settingsDocument = resolveSettingsFileSpec(settingsConfig).filename
+  hooks.onSettingsDocumentResolved?.(settingsDocument)
   const { mode, port } = readDesktopStartupSettings(settingsConfig)
   patches.push({
     id: 'settings',
@@ -819,6 +830,7 @@ export function prepareDesktopProfile(
     skippedOptionalEntries,
     mode,
     port,
+    settingsDocument,
     market: desktopMarketSnapshotWithEffective(marketSelection, effectiveMarket),
     ...(marketFailure === undefined ? {} : { marketFailure }),
   }
