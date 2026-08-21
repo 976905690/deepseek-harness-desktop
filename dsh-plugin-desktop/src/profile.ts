@@ -28,6 +28,7 @@ import FileSettingsProvider, {
 import { parseDocument } from 'yaml'
 import { unpackedAsarPath } from './packaged-runtime-path.ts'
 import { findOverlayPackage, resolveOverlayPackage } from './package-overlay.ts'
+import { DESKTOP_DEFAULT_WEB_PORT } from './desktop-port.ts'
 import type { DesktopShellMode } from './runtime.ts'
 import {
   activeDesktopProfileLayers,
@@ -69,7 +70,8 @@ const UPSTREAM_AGENT_PRESETS_PACKAGE = '@deepseek-ai/dsh-agent-presets'
 const DESKTOP_WINDOWS_AGENT_PRESETS_ROW_ID = 'desktop-windows-agent-presets'
 const DESKTOP_WINDOWS_AGENT_PRESETS_PACKAGE = 'dsh-plugin-desktop/windows-agent-presets'
 const DEFAULT_DESKTOP_SHELL_MODE: DesktopShellMode = 'compatibility'
-const DEFAULT_DESKTOP_PORT = 0
+const DEFAULT_DESKTOP_PORT = DESKTOP_DEFAULT_WEB_PORT
+const DESKTOP_WEB_SERVER_PACKAGE = 'dsh-plugin-desktop/webserver'
 const SETTINGS_FILE_PACKAGE = '@deepseek-ai/dsh-settings-file'
 const DESKTOP_SETTINGS_NAMESPACE = 'dsh-desktop'
 const UI_LAYOUT_PACKAGE = '@deepseek-ai/dsh-client-ui-layout'
@@ -788,6 +790,7 @@ export function prepareDesktopProfile(
   // Loopback-only binding is a launcher security invariant, not user config.
   patches.push({
     id: 'webserver',
+    name: DESKTOP_WEB_SERVER_PACKAGE,
     disabled: false,
     config: { host: '127.0.0.1', port },
   })
