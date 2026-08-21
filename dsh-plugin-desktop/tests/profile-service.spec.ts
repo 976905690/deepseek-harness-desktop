@@ -98,6 +98,16 @@ describe('desktop profile service', () => {
     expect(events).toEqual(['persist:work', 'restart'])
   })
 
+  it('treats an accepted restart as successful when teardown disposes the old service', async () => {
+    let dispose!: () => Promise<unknown>
+    const requestRestart = vi.fn(async () => { await dispose() })
+    const mounted = await mount(createBootstrap({ requestRestart }))
+    dispose = mounted.dispose
+
+    await expect(mounted.service.select('work')).resolves.toBeUndefined()
+    expect(requestRestart).toHaveBeenCalledOnce()
+  })
+
   it('does not restart after persistence fails and permits a later valid selection', async () => {
     const persistSelection = vi.fn(async (name: string) => {
       if (name === 'broken') throw new Error('profile is unavailable')
