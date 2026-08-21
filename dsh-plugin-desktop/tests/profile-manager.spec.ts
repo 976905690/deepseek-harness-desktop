@@ -170,10 +170,12 @@ describe('desktop profile deletion', () => {
     writeFileSync(statePath, `${JSON.stringify(state)}\n`)
   }
 
-  it('protects built-ins, selected profiles, missing profiles, and symlinks', () => {
+  it('protects only the current, missing, and unsafe profiles', () => {
     const home = temporaryRoot()
     const statePath = join(home, 'state', 'profiles.json')
     writeSelection(home, statePath)
+    writeProfile(home, 'desktop', ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'])
+    writeProfile(home, 'web', ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'])
     writeProfile(home, 'work', ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'])
     const link = join(home, 'profiles', 'link')
     let linked = false
@@ -184,10 +186,32 @@ describe('desktop profile deletion', () => {
     const options = { home, selectionStatePath: statePath, currentProfileName: 'desktop' }
 
     expect(canDeleteDesktopProfile(options, 'desktop')).toBe(false)
-    expect(canDeleteDesktopProfile(options, 'web')).toBe(false)
+    expect(canDeleteDesktopProfile(options, 'web')).toBe(true)
     expect(canDeleteDesktopProfile(options, 'missing')).toBe(false)
     if (linked) expect(canDeleteDesktopProfile(options, 'link')).toBe(false)
     expect(canDeleteDesktopProfile(options, 'work')).toBe(true)
+  })
+
+  it('allows inactive desktop and web profiles to be deleted', async () => {
+    const home = temporaryRoot()
+    const statePath = join(home, 'state', 'profiles.json')
+    writeSelection(home, statePath, {
+      version: 1,
+      active: 'work',
+      lastKnownGood: 'work',
+    })
+    writeProfile(home, 'desktop', ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'])
+    writeProfile(home, 'web', ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'])
+    writeProfile(home, 'work', ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'])
+    const options = { home, selectionStatePath: statePath, currentProfileName: 'work' }
+
+    expect(canDeleteDesktopProfile(options, 'work')).toBe(false)
+    expect(canDeleteDesktopProfile(options, 'desktop')).toBe(true)
+    expect(canDeleteDesktopProfile(options, 'web')).toBe(true)
+    await deleteDesktopProfile(options, 'desktop')
+    await deleteDesktopProfile(options, 'web')
+    expect(existsSync(join(home, 'profiles', 'desktop'))).toBe(false)
+    expect(existsSync(join(home, 'profiles', 'web'))).toBe(false)
   })
 
   it('renames, cleans, and removes an inactive profile', async () => {

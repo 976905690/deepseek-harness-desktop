@@ -281,14 +281,8 @@ function selectableProfile(home: string, name: string): DesktopProfileSummary {
 
 function deletionTarget(options: DesktopProfileDeletionOptions, name: string): string {
   assertDesktopProfileName(name)
-  if (name === DEFAULT_PROFILE_NAME || name === WEB_PROFILE_NAME) {
-    throw new Error(`${BIN_NAME}: built-in profile ${JSON.stringify(name)} cannot be deleted`)
-  }
-  const state = readDesktopProfileState(options.selectionStatePath)
-  const protectedNames = new Set([options.currentProfileName, state.active, state.lastKnownGood])
-  if (state.pending !== undefined) protectedNames.add(state.pending)
-  if (protectedNames.has(name)) {
-    throw new Error(`${BIN_NAME}: profile ${JSON.stringify(name)} is selected or reserved for recovery`)
+  if (name === options.currentProfileName) {
+    throw new Error(`${BIN_NAME}: current profile ${JSON.stringify(name)} cannot be deleted`)
   }
   const target = resolveProfileDir(name, options.home)
   let item
