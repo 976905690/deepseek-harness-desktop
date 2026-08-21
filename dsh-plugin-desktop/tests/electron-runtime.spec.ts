@@ -1095,6 +1095,14 @@ describe('Electron desktop runtime', () => {
     profile?.submenu?.[0]?.click?.()
     await vi.waitFor(() => { expect(invoke).toHaveBeenCalledOnce() })
 
+    const application = (electron.applicationMenuTemplates.at(-1) as Array<{
+      label?: string
+      submenu?: Array<{ label?: string, submenu?: unknown }>
+    }>).find(item => item.label === 'DSH Desktop')
+    expect(application?.submenu).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: 'Profile: desktop' }),
+    ]))
+
     await release()
   })
 

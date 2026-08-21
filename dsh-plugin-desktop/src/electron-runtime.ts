@@ -225,6 +225,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
         platform: this.platformStrategy,
         spec,
         preloadPath: desktopPreloadPath(),
+        buildApplicationMenuItems: () => this.buildApplicationMenuItems(),
         isQuitting: () => this.quitting,
         buildTrayTemplate: () => this.buildTrayTemplate(spec),
         stopRendererBootMonitoring: () => { this.stopRendererBootMonitoring() },
@@ -282,16 +283,20 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
     const key = Symbol()
     this.trayItems.set(key, item)
     this.rebuildTrayMenu()
+    this.rebuildApplicationMenu()
     let active = true
     return {
       refresh: () => {
-        if (active) this.rebuildTrayMenu()
+        if (!active) return
+        this.rebuildTrayMenu()
+        this.rebuildApplicationMenu()
       },
       dispose: () => {
         if (!active) return
         active = false
         this.trayItems.delete(key)
         this.rebuildTrayMenu()
+        this.rebuildApplicationMenu()
       },
     }
   }
@@ -402,6 +407,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
     if (locale === this.currentLocale) return
     this.currentLocale = locale
     this.rebuildTrayMenu()
+    this.rebuildApplicationMenu()
   }
 
   /** @inheritdoc */
@@ -743,5 +749,21 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
     const spec = this.scheduled
     if (spec === undefined) return
     this.generation?.refreshTrayMenu()
+  }
+
+  /** Rebuild the macOS application menu from the same native, Host-owned commands as the tray. */
+  private rebuildApplicationMenu(): void {
+    this.platformStrategy.refreshApplicationMenu(this.buildApplicationMenuItems())
+  }
+
+  /** Keep the app menu renderer-free by reusing trusted native tray contributions. */
+  private buildApplicationMenuItems(): Electron.MenuItemConstructorOptions[] {
+    const tools = this.contributedTrayItems('tools')
+    const profiles = this.contributedTrayItems('profiles')
+    const items: Electron.MenuItemConstructorOptions[] = []
+    if (tools.length > 0) items.push(...tools)
+    if (tools.length > 0 && profiles.length > 0) items.push({ type: 'separator' })
+    if (profiles.length > 0) items.push(...profiles)
+    return items
   }
 }
