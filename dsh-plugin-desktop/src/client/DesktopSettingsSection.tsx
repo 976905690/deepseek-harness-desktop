@@ -69,17 +69,25 @@ function Choice({
   action: () => void
   status?: ReactNode
 }) {
-  const actionDisabled = (selected && reselectable !== true) || disabled === true
+  const actionable = disabled !== true && (!selected || reselectable === true)
+  const choose = (): void => {
+    if (actionable) action()
+  }
   return (
-    <button
-      type="button"
+    <div
       role="radio"
       className="dshDesktopSettingsChoice"
       data-selected={selected ? 'true' : undefined}
+      data-actionable={actionable ? 'true' : undefined}
       aria-checked={selected}
-      aria-disabled={actionDisabled ? 'true' : undefined}
-      disabled={actionDisabled}
-      onClick={action}
+      aria-disabled={disabled === true ? 'true' : undefined}
+      tabIndex={disabled === true ? -1 : 0}
+      onClick={choose}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return
+        event.preventDefault()
+        choose()
+      }}
     >
       <span className="dshDesktopSettingsChoiceCopy">
         <span className="dshDesktopSettingsChoiceTitle">
@@ -88,7 +96,21 @@ function Choice({
         </span>
         <span className="dshDesktopSettingsChoiceBody">{body}</span>
       </span>
-    </button>
+    </div>
+  )
+}
+
+function RepositoryLink({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <a
+      className="dshDesktopSettingsChoiceLink"
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={event => { event.stopPropagation() }}
+    >
+      {children}
+    </a>
   )
 }
 
@@ -136,6 +158,30 @@ const MARKET_OPTIONS: readonly {
   { id: 'community-market', title: 'communityMarket', body: 'communityMarketBody' },
   { id: 'dsh-market', title: 'dshMarket', body: 'dshMarketBody' },
 ]
+
+const COMMUNITY_MARKET_URL = 'https://github.com/anywhere-labs/deepseek-harness-desktop/tree/master/dsh-community-market'
+const DSH_MARKET_URL = 'https://github.com/dsh-market/dsh-market'
+const AWESOME_DSH_PLUGIN_URL = 'https://github.com/awesome-dsh-plugin/awesome-dsh-plugin'
+
+function marketTitle(option: (typeof MARKET_OPTIONS)[number], t: Translate): ReactNode {
+  if (option.id === 'community-market') {
+    return <RepositoryLink href={COMMUNITY_MARKET_URL}>{t(option.title)}</RepositoryLink>
+  }
+  if (option.id === 'dsh-market') {
+    return <RepositoryLink href={DSH_MARKET_URL}>{t(option.title)}</RepositoryLink>
+  }
+  return t(option.title)
+}
+
+function marketBody(option: (typeof MARKET_OPTIONS)[number], t: Translate): ReactNode {
+  if (option.id !== 'dsh-market') return t(option.body)
+  return (
+    <>
+      {t(option.body)}{' '}
+      <RepositoryLink href={AWESOME_DSH_PLUGIN_URL}>awesome-dsh-plugin</RepositoryLink>
+    </>
+  )
+}
 
 /** Render the Desktop settings page. */
 export function DesktopSettingsSection({
@@ -321,8 +367,8 @@ export function DesktopSettingsSection({
             {MARKET_OPTIONS.map(option => (
               <Choice
                 key={option.id}
-                title={t(option.title)}
-                body={t(option.body)}
+                title={marketTitle(option, t)}
+                body={marketBody(option, t)}
                 selected={view.market.requested === option.id}
                 reselectable={view.market.requested === option.id && view.market.requested !== view.market.effective}
                 disabled={busy !== undefined || restart !== 'none'}

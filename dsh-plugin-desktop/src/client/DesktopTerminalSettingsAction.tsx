@@ -34,7 +34,7 @@ export function DesktopTerminalSettingsAction({ api, t }: DesktopTerminalSetting
       )}
       <button
         type="button"
-        className="dshDesktopSettingsButton"
+        className="dshDesktopSettingsHeaderButton"
         disabled={opening}
         onClick={open}
       >

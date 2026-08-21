@@ -47,13 +47,15 @@ const CSS = `
   background: var(--dsw-alias-bg-layer-1);
 }
 .dshDesktopSettingsChoice {
+  box-sizing: border-box;
   width: 100%;
   color: inherit;
-  cursor: pointer;
+  cursor: default;
   text-align: left;
   font: inherit;
 }
-.dshDesktopSettingsChoice:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
+.dshDesktopSettingsChoice[data-actionable="true"] { cursor: pointer; }
+.dshDesktopSettingsChoice[data-actionable="true"]:hover { background: var(--dsw-alias-interactive-bg-hover); }
 .dshDesktopSettingsChoice:focus-visible {
   outline: 2px solid var(--dsw-alias-brand-primary);
   outline-offset: 2px;
@@ -62,8 +64,7 @@ const CSS = `
   border-color: var(--dsw-alias-brand-primary);
   box-shadow: 0 0 0 1px var(--dsw-alias-brand-primary);
 }
-.dshDesktopSettingsChoice:disabled { cursor: default; }
-.dshDesktopSettingsChoice:disabled:not([data-selected="true"]) { opacity: .58; }
+.dshDesktopSettingsChoice[aria-disabled="true"]:not([data-selected="true"]) { opacity: .58; }
 .dshDesktopSettingsChoiceCopy { display: block; flex: 1; min-width: 0; }
 .dshDesktopSettingsChoiceTitle {
   display: flex;
@@ -80,6 +81,13 @@ const CSS = `
   font-size: 12px;
   line-height: 1.5;
 }
+.dshDesktopSettingsChoiceLink {
+  color: var(--dsw-alias-brand-primary);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+.dshDesktopSettingsChoiceLink:hover { text-decoration-thickness: 2px; }
 .dshDesktopSettingsBadge {
   display: inline-flex;
   align-items: center;
@@ -142,6 +150,23 @@ const CSS = `
   align-items: center;
   gap: 8px;
 }
+.dshDesktopSettingsHeaderButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 14px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+}
+.dshDesktopSettingsHeaderButton:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
+.dshDesktopSettingsHeaderButton:disabled { cursor: not-allowed; opacity: .4; }
 .dshDesktopSettingsTerminalError {
   max-width: 260px;
   color: var(--dsw-alias-state-error-primary);
