@@ -1,15 +1,18 @@
 diff --git a/lib/client.js b/lib/client.js
-index 928d9f0a6d2e1f1af6b6aa627f76a6efcb9c6fdb..1a2cd164a90df92f17369e550d61078887583fd7 100644
+index 928d9f0..4edb6e2 100644
 --- a/lib/client.js
 +++ b/lib/client.js
-@@ -52,3 +52,3 @@
+@@ -49,16 +49,17 @@ window.__ModuleLoader__.load({
+ 		const zh = {
+ 			"view.trajectory": "轨迹",
+ 			"toolbar.aria": "轨迹工具栏",
 -			"toolbar.duration": "Duration",
 -			"toolbar.useActualDuration": "Use actual duration",
 -			"toolbar.useEqualWidth": "Use equal-width operations",
 +			"toolbar.duration": "耗时",
 +			"toolbar.useActualDuration": "使用实际耗时",
 +			"toolbar.useEqualWidth": "使用等宽操作",
-@@ -56,6 +56,7 @@
+ 			"toolbar.actualTime": "实际时间",
 -			"toolbar.turns": "Turns",
 -			"toolbar.expandTurns": "Expand turns",
 -			"toolbar.collapseTurns": "Collapse turns",
@@ -23,15 +26,38 @@ index 928d9f0a6d2e1f1af6b6aa627f76a6efcb9c6fdb..1a2cd164a90df92f17369e550d610788
 +			"toolbar.expandCalls": "展开调用",
 +			"toolbar.collapseCalls": "折叠调用",
 +			"toolbar.thinking": "思考",
-@@ -78,0 +80 @@
+ 			"toolbar.search": "搜索轨迹",
+ 			"toolbar.searchPlaceholder": "搜索"
+ 		};
+@@ -76,9 +77,14 @@ window.__ModuleLoader__.load({
+ 			"toolbar.calls": "Calls",
+ 			"toolbar.expandCalls": "Expand calls",
+ 			"toolbar.collapseCalls": "Collapse calls",
 +			"toolbar.thinking": "Thinking",
-@@ -81,0 +84,4 @@
+ 			"toolbar.search": "Search trajectory",
+ 			"toolbar.searchPlaceholder": "Search"
+ 		};
 +		let currentTrajectoryT = (key) => en[key] ?? key;
 +		function trajectoryLabel(key) {
 +			return currentTrajectoryT(key);
 +		}
-@@ -4076 +4082 @@
+ 		//#endregion
+ 		//#region lib/types/client/trajectory-definition-common.js
+ 		/**
+@@ -4073,7 +4079,7 @@ window.__ModuleLoader__.load({
+ 								onClick: () => {
+ 									onThinkingExpandedChange(!thinkingExpanded);
+ 								},
 -								children: ["Thinking", (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronRightOutline14, {
 +								children: [trajectoryLabel("toolbar.thinking"), (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronRightOutline14, {
-@@ -7007,0 +7014 @@
+ 									className: TrajectoryTable_module_css_default.thinkingChevron,
+ 									size: 12
+ 								})]
+@@ -7005,6 +7011,7 @@ window.__ModuleLoader__.load({
+ 			};
+ 		}
+ 		function TrajectoryView({ useSession, useDuration, loadOlder, setActualDuration, inspect, onInspectDone, t }) {
 +			currentTrajectoryT = t;
+ 			const [collapsedTurns, setCollapsedTurns] = (0, react.useState)(EMPTY_TURN_IDS);
+ 			const [collapsedAssistants, setCollapsedAssistants] = (0, react.useState)(EMPTY_RECORD_IDS);
+ 			const [timelineSelection, setTimelineSelection] = (0, react.useState)(null);
