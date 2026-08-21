@@ -360,6 +360,30 @@ export function readDesktopDisabledBundles(
   return new Set(profile?.disabledBundles ?? [])
 }
 
+/** Remove only the Desktop disable markers belonging to one deleted profile. */
+export async function clearDesktopProfilePluginState(
+  statePath: string,
+  profileName: string,
+): Promise<void> {
+  assertDesktopProfileName(profileName)
+  if (!isAbsolute(statePath) || statePath.includes('\0')) {
+    throw new Error(`${BIN_NAME}: plugin-management state path must be absolute and contain no NUL`)
+  }
+  await ensurePrivateStateDirectory(statePath)
+  await withFileLock(statePath, async () => {
+    const state = readState(statePath)
+    if (!state.profiles.some(profile => profile.profileName === profileName)) return
+    const next = parseState({
+      version: STATE_VERSION,
+      profiles: state.profiles.filter(profile => profile.profileName !== profileName),
+    })
+    await writeFileAtomic(statePath, renderState(next), {
+      mode: STATE_FILE_MODE,
+      dirMode: STATE_DIRECTORY_MODE,
+    })
+  })
+}
+
 /**
  * Read the active profile's direct bundle declarations without resolving or
  * parsing any bundle patch. This remains available when a bundle itself is

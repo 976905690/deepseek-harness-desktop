@@ -20,8 +20,9 @@ import {
 const VIEW: DesktopSettingsView = {
   current: 'desktop',
   profiles: [
-    { name: 'desktop', exists: true, webCapable: true, selectable: true },
-    { name: 'headless', exists: true, webCapable: false, selectable: false },
+    { name: 'desktop', exists: true, webCapable: true, selectable: true, deletable: false },
+    { name: 'headless', exists: true, webCapable: false, selectable: false, deletable: false },
+    { name: 'work', exists: true, webCapable: true, selectable: true, deletable: true },
   ],
   market: { requested: 'disabled', effective: 'disabled', legacyDefaulted: true },
 }
@@ -54,7 +55,7 @@ describe('Desktop settings API', () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       const path = String(input)
       if (path === desktopSettingsPaths.terminalOpen) return json({ accepted: true })
-      return path === desktopSettingsPaths.settings || path === desktopSettingsPaths.profileCreate
+      return path === desktopSettingsPaths.settings || path === desktopSettingsPaths.profileCreate || path === desktopSettingsPaths.profileDelete
         ? json(VIEW)
         : json({ accepted: true, restartRequired: true })
     })
@@ -63,6 +64,7 @@ describe('Desktop settings API', () => {
     await expect(api.read()).resolves.toEqual(VIEW)
     await expect(api.createProfile('work')).resolves.toEqual(VIEW)
     await expect(api.selectProfile('work')).resolves.toEqual({ accepted: true, restartRequired: true })
+    await expect(api.deleteProfile('work')).resolves.toEqual(VIEW)
     await expect(api.selectMarket('community-market')).resolves.toEqual({ accepted: true, restartRequired: true })
     await expect(api.openTerminal()).resolves.toBeUndefined()
 
@@ -70,6 +72,7 @@ describe('Desktop settings API', () => {
       desktopSettingsPaths.settings,
       desktopSettingsPaths.profileCreate,
       desktopSettingsPaths.profileSelect,
+      desktopSettingsPaths.profileDelete,
       desktopSettingsPaths.marketSelect,
       desktopSettingsPaths.terminalOpen,
     ])
@@ -80,9 +83,12 @@ describe('Desktop settings API', () => {
       body: JSON.stringify({ name: 'work' }),
     })
     expect(fetcher.mock.calls[3]?.[1]).toMatchObject({
-      body: JSON.stringify({ provider: 'community-market' }),
+      body: JSON.stringify({ name: 'work' }),
     })
     expect(fetcher.mock.calls[4]?.[1]).toMatchObject({
+      body: JSON.stringify({ provider: 'community-market' }),
+    })
+    expect(fetcher.mock.calls[5]?.[1]).toMatchObject({
       method: 'POST',
       body: JSON.stringify({}),
     })

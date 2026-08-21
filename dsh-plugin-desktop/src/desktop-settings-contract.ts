@@ -11,6 +11,9 @@ export const DESKTOP_PROFILE_CREATE_PATH = '/api/desktop/profiles/create'
 /** Select one compatible profile for the next Desktop generation. */
 export const DESKTOP_PROFILE_SELECT_PATH = '/api/desktop/profiles/select'
 
+/** Delete one inactive, user-created Web Profile. */
+export const DESKTOP_PROFILE_DELETE_PATH = '/api/desktop/profiles/delete'
+
 /** Persist the Market provider selected for the next Desktop generation. */
 export const DESKTOP_MARKET_SELECT_PATH = '/api/desktop/market/select'
 
@@ -27,6 +30,8 @@ export interface DesktopSettingsProfileView {
   readonly webCapable: boolean
   /** Whether the launcher can select it. */
   readonly selectable: boolean
+  /** Whether the profile can be removed without affecting recovery state. */
+  readonly deletable: boolean
 }
 
 /** Requested and generation-effective Market provider state. */
@@ -70,6 +75,14 @@ export interface DesktopRestartAcceptance {
 
 /** Successful profile selection handoff. */
 export type DesktopProfileSelectResponse = DesktopRestartAcceptance
+
+/** Exact body accepted by the profile-deletion endpoint. */
+export interface DesktopProfileDeleteRequest {
+  readonly name: string
+}
+
+/** Successful deletion returns a fresh state without the removed profile. */
+export type DesktopProfileDeleteResponse = DesktopSettingsResponse
 
 /** Exact body accepted by the Market-provider endpoint. */
 export interface DesktopMarketSelectRequest {

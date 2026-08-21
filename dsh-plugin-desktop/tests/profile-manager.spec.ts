@@ -6,16 +6,19 @@ import {
   readFileSync,
   readdirSync,
   rmSync,
+  symlinkSync,
   statSync,
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   assertDesktopProfileName,
   beginDesktopProfileStartup,
+  canDeleteDesktopProfile,
   createDesktopWebProfile,
+  deleteDesktopProfile,
   listDesktopProfiles,
   markDesktopProfileFailed,
   markDesktopProfileHealthy,
@@ -153,6 +156,83 @@ describe('desktop profile discovery', () => {
       webCapable: false,
       problem: expect.any(String),
     }))
+  })
+})
+
+describe('desktop profile deletion', () => {
+  function writeSelection(home: string, statePath: string, state: Record<string, unknown> = {
+    version: 1,
+    active: 'desktop',
+    lastKnownGood: 'desktop',
+  }): void {
+    mkdirSync(join(home, 'profiles'), { recursive: true })
+    mkdirSync(join(statePath, '..'), { recursive: true })
+    writeFileSync(statePath, `${JSON.stringify(state)}\n`)
+  }
+
+  it('protects built-ins, selected profiles, missing profiles, and symlinks', () => {
+    const home = temporaryRoot()
+    const statePath = join(home, 'state', 'profiles.json')
+    writeSelection(home, statePath)
+    writeProfile(home, 'work', ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'])
+    const link = join(home, 'profiles', 'link')
+    let linked = false
+    try {
+      symlinkSync(join(home, 'profiles', 'work'), link, 'dir')
+      linked = true
+    } catch { /* Windows may require an elevated symlink privilege. */ }
+    const options = { home, selectionStatePath: statePath, currentProfileName: 'desktop' }
+
+    expect(canDeleteDesktopProfile(options, 'desktop')).toBe(false)
+    expect(canDeleteDesktopProfile(options, 'web')).toBe(false)
+    expect(canDeleteDesktopProfile(options, 'missing')).toBe(false)
+    if (linked) expect(canDeleteDesktopProfile(options, 'link')).toBe(false)
+    expect(canDeleteDesktopProfile(options, 'work')).toBe(true)
+  })
+
+  it('renames, cleans, and removes an inactive profile', async () => {
+    const home = temporaryRoot()
+    const statePath = join(home, 'state', 'profiles.json')
+    writeSelection(home, statePath)
+    writeProfile(home, 'work', ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'])
+    const clearDisabledState = vi.fn(async () => {})
+    const clearCheckpoint = vi.fn(() => {})
+
+    await deleteDesktopProfile({
+      home,
+      selectionStatePath: statePath,
+      currentProfileName: 'desktop',
+      clearDisabledState,
+      clearCheckpoint,
+    }, 'work')
+
+    expect(existsSync(join(home, 'profiles', 'work'))).toBe(false)
+    expect(readdirSync(join(home, 'profiles')).some(name => name.includes('.work.deleting-'))).toBe(false)
+    expect(clearDisabledState).toHaveBeenCalledOnce()
+    expect(clearCheckpoint).toHaveBeenCalledOnce()
+  })
+
+  it('rejects a recovery transaction and restores the directory after cleanup failure', async () => {
+    const home = temporaryRoot()
+    const statePath = join(home, 'state', 'profiles.json')
+    writeSelection(home, statePath)
+    const profileDir = writeProfile(home, 'work', ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'])
+    await expect(deleteDesktopProfile({
+      home,
+      selectionStatePath: statePath,
+      currentProfileName: 'desktop',
+      installRecovery: { read: async () => ({ profileName: 'work' }) },
+    }, 'work')).rejects.toThrow('pending install recovery')
+    expect(existsSync(profileDir)).toBe(true)
+
+    await expect(deleteDesktopProfile({
+      home,
+      selectionStatePath: statePath,
+      currentProfileName: 'desktop',
+      clearDisabledState: () => { throw new Error('state locked') },
+    }, 'work')).rejects.toThrow('state locked')
+    expect(existsSync(profileDir)).toBe(true)
+    expect(readdirSync(join(home, 'profiles')).some(name => name.includes('.work.deleting-'))).toBe(false)
   })
 })
 

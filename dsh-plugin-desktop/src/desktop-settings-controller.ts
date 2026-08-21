@@ -9,6 +9,7 @@ import type { DesktopProfiles } from './profile-service.ts'
 import type {
   DesktopMarketSelectResponse,
   DesktopProfileCreateResponse,
+  DesktopProfileDeleteResponse,
   DesktopProfileSelectResponse,
   DesktopSettingsMarketView,
   DesktopSettingsProfileView,
@@ -20,6 +21,7 @@ import type {
 export interface DesktopSettingsControllerBootstrap {
   /** Generation-scoped profile service. */
   readonly profiles: Pick<DesktopProfiles, 'current' | 'list' | 'create'>
+    & Partial<Pick<DesktopProfiles, 'canDelete' | 'delete'>>
   /** Persist one already-validated profile as pending without restarting. */
   persistProfileSelection(name: string): void | Promise<void>
   /** Read the latest persisted request and the startup-effective provider. */
@@ -41,12 +43,14 @@ export interface DesktopSettingsPostResponse<T extends object> {
 /** Remove paths, bundle identities, and parser diagnostics from a profile. */
 export function projectDesktopSettingsProfile(
   profile: DesktopProfileSummary,
+  deletable = false,
 ): DesktopSettingsProfileView {
   return Object.freeze({
     name: profile.name,
     exists: profile.exists,
     webCapable: profile.webCapable,
     selectable: profile.webCapable && profile.problem === undefined,
+    deletable,
   })
 }
 
@@ -80,7 +84,10 @@ export class DesktopSettingsController {
     return Object.freeze({
       current: this.bootstrap.profiles.current.name,
       profiles: Object.freeze(
-        this.bootstrap.profiles.list().map(projectDesktopSettingsProfile),
+        this.bootstrap.profiles.list().map(profile => projectDesktopSettingsProfile(
+          profile,
+          this.bootstrap.profiles.canDelete?.(profile.name) ?? false,
+        )),
       ),
       market: projectMarket(this.bootstrap.readMarket(), this.effectiveMarket),
     })
@@ -89,6 +96,15 @@ export class DesktopSettingsController {
   /** Create one safe profile without selecting it or requesting restart. */
   createProfile(name: string): DesktopProfileCreateResponse {
     this.bootstrap.profiles.create(name)
+    return this.read()
+  }
+
+  /** Delete one inactive user profile and return the fresh settings state. */
+  async deleteProfile(name: string): Promise<DesktopProfileDeleteResponse> {
+    if (this.bootstrap.profiles.delete === undefined) {
+      throw new Error('dsh-plugin-desktop: profile deletion is unavailable')
+    }
+    await this.bootstrap.profiles.delete(name)
     return this.read()
   }
 

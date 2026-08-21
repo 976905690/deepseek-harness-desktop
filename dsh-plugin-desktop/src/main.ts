@@ -53,13 +53,15 @@ import {
   beginDesktopProfileStartup,
   createDesktopWebProfile,
   listDesktopProfiles,
+  canDeleteDesktopProfile,
+  deleteDesktopProfile,
   readDesktopProfileState,
   selectDesktopProfile,
   type DesktopProfileStartup,
 } from './profile-manager.ts'
 import { DesktopProfileService } from './profile-service.ts'
 import { DesktopActionsService } from './desktop-actions.ts'
-import { DesktopPluginsService } from './desktop-plugins.ts'
+import { clearDesktopProfilePluginState, DesktopPluginsService } from './desktop-plugins.ts'
 import {
   desktopMarketSnapshotWithEffective,
   readDesktopMarketStateForUserData,
@@ -80,7 +82,7 @@ import {
   prepareDesktopProfile,
   type SkippedOptionalEntry,
 } from './profile.ts'
-import { DesktopProfileCheckpoint } from './profile-checkpoint.ts'
+import { clearDesktopProfileCheckpoint, DesktopProfileCheckpoint } from './profile-checkpoint.ts'
 import { materializeProfile, ProfileMaterializationError } from './profile-materializer.ts'
 import type { DesktopPnpmBootstrap } from './pnpm.ts'
 import {
@@ -707,6 +709,19 @@ async function start(): Promise<void> {
           },
           create: name => createDesktopWebProfile(homeDir, name),
           list: () => listDesktopProfiles(homeDir),
+          canDelete: name => canDeleteDesktopProfile({
+            home: homeDir,
+            selectionStatePath,
+            currentProfileName: activeProfileName,
+          }, name),
+          delete: name => deleteDesktopProfile({
+            home: homeDir,
+            selectionStatePath,
+            currentProfileName: activeProfileName,
+            ...(installRecovery === undefined ? {} : { installRecovery }),
+            clearDisabledState: () => clearDesktopProfilePluginState(pluginManagementStatePath, name),
+            clearCheckpoint: () => clearDesktopProfileCheckpoint(app.getPath('userData'), resolveProfileDir(name, homeDir)),
+          }, name),
           persistSelection: name => { selectDesktopProfile(selectionStatePath, homeDir, name) },
           requestRestart: () => runtime.requestRestart(),
         })

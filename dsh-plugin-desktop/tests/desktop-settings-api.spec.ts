@@ -8,6 +8,7 @@ import DesktopSettingsController, {
 import {
   handleDesktopMarketSelectRequest,
   handleDesktopProfileCreateRequest,
+  handleDesktopProfileDeleteRequest,
   handleDesktopProfileSelectRequest,
   handleDesktopSettingsRequest,
   handleDesktopTerminalOpenRequest,
@@ -58,6 +59,8 @@ function bootstrap(
       current: { name: DESKTOP.name, dir: DESKTOP.dir },
       list: () => [DESKTOP, WORK, BROKEN],
       create: () => WORK,
+      canDelete: () => false,
+      delete: async () => {},
     },
     persistProfileSelection: async () => {},
     readMarket: () => market(),
@@ -124,9 +127,9 @@ describe('desktop settings controller', () => {
     expect(controller.read()).toEqual({
       current: 'desktop',
       profiles: [
-        { name: 'desktop', exists: true, webCapable: true, selectable: true },
-        { name: 'work', exists: true, webCapable: true, selectable: true },
-        { name: 'broken', exists: true, webCapable: false, selectable: false },
+        { name: 'desktop', exists: true, webCapable: true, selectable: true, deletable: false },
+        { name: 'work', exists: true, webCapable: true, selectable: true, deletable: false },
+        { name: 'broken', exists: true, webCapable: false, selectable: false, deletable: false },
       ],
       market: { requested: 'disabled', effective: 'disabled', legacyDefaulted: false },
     })
@@ -151,14 +154,37 @@ describe('desktop settings controller', () => {
     expect(controller.createProfile('work')).toEqual({
       current: 'desktop',
       profiles: [
-        { name: 'desktop', exists: true, webCapable: true, selectable: true },
-        { name: 'work', exists: true, webCapable: true, selectable: true },
+        { name: 'desktop', exists: true, webCapable: true, selectable: true, deletable: false },
+        { name: 'work', exists: true, webCapable: true, selectable: true, deletable: false },
       ],
       market: { requested: 'disabled', effective: 'disabled', legacyDefaulted: false },
     })
     expect(create).toHaveBeenCalledWith('work')
     expect(persistProfileSelection).not.toHaveBeenCalled()
     expect(scheduleRestart).not.toHaveBeenCalled()
+  })
+
+  it('deletes an eligible profile and returns the fresh projection', async () => {
+    const remove = vi.fn(async () => {})
+    const controller = new DesktopSettingsController(bootstrap({
+      profiles: {
+        current: { name: DESKTOP.name, dir: DESKTOP.dir },
+        list: () => [DESKTOP, WORK],
+        create: () => WORK,
+        canDelete: name => name === WORK.name,
+        delete: remove,
+      },
+    }))
+
+    await expect(controller.deleteProfile('work')).resolves.toEqual({
+      current: 'desktop',
+      profiles: [
+        { name: 'desktop', exists: true, webCapable: true, selectable: true, deletable: false },
+        { name: 'work', exists: true, webCapable: true, selectable: true, deletable: true },
+      ],
+      market: { requested: 'disabled', effective: 'disabled', legacyDefaulted: false },
+    })
+    expect(remove).toHaveBeenCalledWith('work')
   })
 
   it('persists a fresh selectable profile and defers restart until after response', async () => {
@@ -293,12 +319,35 @@ describe('desktop settings HTTP boundary', () => {
     expect(JSON.parse(res.body)).toEqual({
       current: 'desktop',
       profiles: [
-        { name: 'desktop', exists: true, webCapable: true, selectable: true },
-        { name: 'work', exists: true, webCapable: true, selectable: true },
+        { name: 'desktop', exists: true, webCapable: true, selectable: true, deletable: false },
+        { name: 'work', exists: true, webCapable: true, selectable: true, deletable: false },
       ],
       market: { requested: 'disabled', effective: 'disabled', legacyDefaulted: false },
     })
     expect(create).toHaveBeenCalledWith('work')
+  })
+
+  it('deletes a profile through the exact mutation endpoint', async () => {
+    const remove = vi.fn(async () => {})
+    const controller = new DesktopSettingsController(bootstrap({
+      profiles: {
+        current: { name: DESKTOP.name, dir: DESKTOP.dir },
+        list: () => [DESKTOP, WORK],
+        create: () => WORK,
+        canDelete: name => name === WORK.name,
+        delete: remove,
+      },
+    }))
+    const res = response()
+
+    await handleDesktopProfileDeleteRequest(jsonRequest({ name: 'work' }), res, ORIGIN, controller)
+
+    expect(res.statusCode).toBe(200)
+    expect(remove).toHaveBeenCalledWith('work')
+    expect(JSON.parse(res.body).profiles).toEqual([
+      { name: 'desktop', exists: true, webCapable: true, selectable: true, deletable: false },
+      { name: 'work', exists: true, webCapable: true, selectable: true, deletable: true },
+    ])
   })
 
   it.each([

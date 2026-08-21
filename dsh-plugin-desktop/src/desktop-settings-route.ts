@@ -8,6 +8,7 @@ import type { DesktopSettingsPostResponse } from './desktop-settings-controller.
 import type {
   DesktopMarketSelectRequest,
   DesktopProfileCreateRequest,
+  DesktopProfileDeleteRequest,
   DesktopProfileSelectRequest,
   DesktopSettingsErrorResponse,
 } from './desktop-settings-contract.ts'
@@ -261,6 +262,30 @@ export async function handleDesktopProfileSelectRequest(
   } catch (cause) {
     reportError('select profile', cause)
     finishJson(res, 409, error('profile could not be selected'))
+  }
+}
+
+/** Delete one inactive user profile and return a fresh settings projection. */
+export async function handleDesktopProfileDeleteRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  expectedOrigin: string,
+  controller: DesktopSettingsController,
+  reportError: (operation: string, cause: unknown) => void = () => {},
+): Promise<void> {
+  if (req.method !== 'POST') return finishJson(res, 405, error('method not allowed'), 'POST')
+  if (!isSameOriginLoopbackRequest(req, expectedOrigin, true)) {
+    return finishJson(res, 403, error('forbidden'))
+  }
+  const value = await parsePostBody(req, res)
+  if (value === INVALID_BODY) return
+  const request = parseProfileRequest(value) as DesktopProfileDeleteRequest | undefined
+  if (request === undefined) return finishJson(res, 400, error('invalid profile deletion request'))
+  try {
+    finishJson(res, 200, await controller.deleteProfile(request.name))
+  } catch (cause) {
+    reportError('delete profile', cause)
+    finishJson(res, 409, error('profile could not be deleted'))
   }
 }
 

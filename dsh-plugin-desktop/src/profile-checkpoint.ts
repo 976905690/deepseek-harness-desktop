@@ -532,5 +532,24 @@ export function createDesktopProfileCheckpoint(options: ProfileCheckpointOptions
   return new DesktopProfileCheckpoint(options)
 }
 
+/** Remove the latest health checkpoint for one profile without touching others. */
+export function clearDesktopProfileCheckpoint(userDataDir: string, profileDir: string): void {
+  const userData = realDirectory('userDataDir', userDataDir)
+  const profile = assertAbsolute('profileDir', profileDir)
+  const profileIdentity = hash(profile)
+  const snapshotDirectory = join(userData, SNAPSHOT_ROOT, hash(profileIdentity), LATEST_DIRECTORY)
+  let item
+  try {
+    item = lstatSync(snapshotDirectory)
+  } catch (cause) {
+    if (isENOENT(cause)) return
+    throw cause
+  }
+  if (item.isSymbolicLink() || !item.isDirectory()) {
+    fail('profile checkpoint latest directory has unsafe type')
+  }
+  rmSync(snapshotDirectory, { recursive: true, force: false })
+}
+
 /** Compatibility aliases for embedders that call this a health checkpoint. */
 export { DesktopProfileCheckpoint as HealthProfileCheckpoint, DesktopProfileCheckpoint as ProfileHealthCheckpoint }

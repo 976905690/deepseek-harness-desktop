@@ -43,7 +43,7 @@ export type DesktopSettingsSectionProps =
   & InjectFace<DesktopSettingsSectionInjected>
 
 type Translate = DesktopSettingsSectionProps['t']
-type BusyOperation = 'load' | 'create-profile' | 'select-profile' | 'select-market' | 'mode' | 'notification'
+type BusyOperation = 'load' | 'create-profile' | 'select-profile' | 'delete-profile' | 'select-market' | 'mode' | 'notification'
 type RestartState = 'none' | 'restarting' | 'required'
 
 function useScope<T>(scope: SettingsScope<T>) {
@@ -55,6 +55,7 @@ function useScope<T>(scope: SettingsScope<T>) {
 function Choice({
   title,
   body,
+  aside,
   selected,
   reselectable,
   disabled,
@@ -63,6 +64,7 @@ function Choice({
 }: {
   title: ReactNode
   body: ReactNode
+  aside?: ReactNode
   selected: boolean
   reselectable?: boolean
   disabled?: boolean
@@ -96,6 +98,7 @@ function Choice({
         </span>
         <span className="dshDesktopSettingsChoiceBody">{body}</span>
       </span>
+      {aside}
     </div>
   )
 }
@@ -200,6 +203,7 @@ export function DesktopSettingsSection({
   const [loadFailed, setLoadFailed] = useState(false)
   const [operationFailed, setOperationFailed] = useState(false)
   const [restart, setRestart] = useState<RestartState>('none')
+  const [pendingProfileDelete, setPendingProfileDelete] = useState<string>()
 
   const load = useCallback(async () => {
     setBusy('load')
@@ -262,6 +266,13 @@ export function DesktopSettingsSection({
     })
   }
 
+  const deleteProfile = (name: string): void => {
+    void run('delete-profile', async () => {
+      setView(await api.deleteProfile(name))
+      setPendingProfileDelete(undefined)
+    })
+  }
+
   const selectMarket = (provider: DesktopMarketProvider): void => {
     void run('select-market', async () => {
       const response = await api.selectMarket(provider)
@@ -315,6 +326,42 @@ export function DesktopSettingsSection({
             <div className="dshDesktopSettingsList" role="radiogroup" aria-labelledby="dsh-desktop-profile-title">
               {view.profiles.map((profile) => {
                 const current = profile.name === view.current
+                const deleteAction = profile.deletable && !current && busy === undefined && restart === 'none'
+                  ? (
+                    <div className="dshDesktopSettingsChoiceAside" onClick={event => { event.stopPropagation() }}>
+                      {pendingProfileDelete === profile.name ? (
+                        <div className="dshDesktopSettingsDeleteConfirm" role="group" aria-label={t('confirmDeleteProfile')}>
+                          <span className="dshDesktopSettingsDeleteWarning">{t('deleteProfileWarning')}</span>
+                          <span className="dshDesktopSettingsDeleteActions">
+                            <button
+                              type="button"
+                              className="dshDesktopSettingsButton dshDesktopSettingsButtonDanger"
+                              disabled={busy !== undefined}
+                              onClick={() => { deleteProfile(profile.name) }}
+                            >
+                              {busy === 'delete-profile' ? t('deletingProfile') : t('confirmDeleteProfile')}
+                            </button>
+                            <button
+                              type="button"
+                              className="dshDesktopSettingsButton dshDesktopSettingsButtonSecondary"
+                              disabled={busy !== undefined}
+                              onClick={() => { setPendingProfileDelete(undefined) }}
+                            >
+                              {t('cancelDeleteProfile')}
+                            </button>
+                          </span>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className="dshDesktopSettingsButton dshDesktopSettingsButtonSecondary"
+                          onClick={() => { setPendingProfileDelete(profile.name) }}
+                        >
+                          {t('deleteProfile')}
+                        </button>
+                      )}
+                    </div>
+                  ) : undefined
                 return (
                   <Choice
                     key={profile.name}
@@ -324,6 +371,7 @@ export function DesktopSettingsSection({
                     disabled={!profile.selectable || busy !== undefined || restart !== 'none'}
                     action={() => { selectProfile(profile.name) }}
                     status={current ? t('activeProfile') : undefined}
+                    aside={deleteAction}
                   />
                 )
               })}

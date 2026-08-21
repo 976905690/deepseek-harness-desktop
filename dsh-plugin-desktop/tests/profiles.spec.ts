@@ -32,6 +32,8 @@ describe('desktop profiles Host plugin', () => {
         { name: 'headless', dir: '/profiles/headless', exists: true, bundles: [], webCapable: false },
       ],
       select: async selected => { events.push(`select:${selected}`) },
+      canDelete: () => false,
+      delete: async () => {},
     }
     const ctx = {
       desktopRuntime: runtime,

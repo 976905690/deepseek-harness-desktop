@@ -29,6 +29,7 @@ import {
 import {
   DESKTOP_MARKET_SELECT_PATH,
   DESKTOP_PROFILE_CREATE_PATH,
+  DESKTOP_PROFILE_DELETE_PATH,
   DESKTOP_PROFILE_SELECT_PATH,
   DESKTOP_SETTINGS_PATH,
   DESKTOP_TERMINAL_OPEN_PATH,
@@ -36,6 +37,7 @@ import {
 import {
   handleDesktopMarketSelectRequest,
   handleDesktopProfileCreateRequest,
+  handleDesktopProfileDeleteRequest,
   handleDesktopProfileSelectRequest,
   handleDesktopSettingsRequest,
   handleDesktopTerminalOpenRequest,
@@ -176,6 +178,7 @@ export function apply(ctx: Context, config: Config): void {
     const settingsRoutes = [
       [DESKTOP_SETTINGS_PATH, handleDesktopSettingsRequest],
       [DESKTOP_PROFILE_CREATE_PATH, handleDesktopProfileCreateRequest],
+      [DESKTOP_PROFILE_DELETE_PATH, handleDesktopProfileDeleteRequest],
       [DESKTOP_PROFILE_SELECT_PATH, handleDesktopProfileSelectRequest],
       [DESKTOP_MARKET_SELECT_PATH, handleDesktopMarketSelectRequest],
       [DESKTOP_TERMINAL_OPEN_PATH, handleDesktopTerminalOpenRequest],
