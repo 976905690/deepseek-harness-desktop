@@ -77,6 +77,24 @@ describe('desktop profile service', () => {
     expect(list).toHaveBeenCalledTimes(2)
   })
 
+  it('creates a profile through the launcher without selecting it', async () => {
+    const create = vi.fn(() => WORK)
+    const mounted = await mount(createBootstrap({ create }))
+
+    expect(mounted.service.create('work')).toEqual(WORK)
+    expect(create).toHaveBeenCalledWith('work')
+    expect(mounted.service.current.name).toBe('desktop')
+  })
+
+  it('rejects profile creation through a retained service after disposal', async () => {
+    const create = vi.fn(() => WORK)
+    const mounted = await mount(createBootstrap({ create }))
+    await mounted.dispose()
+
+    expect(() => mounted.service.create('work')).toThrow('desktopProfiles service disposed')
+    expect(create).not.toHaveBeenCalled()
+  })
+
   it('does nothing when the current profile is selected', async () => {
     const persistSelection = vi.fn()
     const requestRestart = vi.fn()
