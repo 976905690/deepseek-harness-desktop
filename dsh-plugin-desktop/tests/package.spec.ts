@@ -29,6 +29,7 @@ const manifest = JSON.parse(readFileSync(new URL('package.json', packageRoot), '
   build?: {
     productName?: unknown
     appId?: unknown
+    asar?: unknown
     asarUnpack?: unknown
     afterPack?: unknown
     electronFuses?: unknown
@@ -372,6 +373,7 @@ describe('published package surface', () => {
     expect(config).toContain("diagnostics: 'src/diagnostics.ts'")
     expect(config).toContain("notifications: 'src/notifications.ts'")
     expect(config).toContain("'diagnostic-export-worker': 'src/diagnostic-export-worker.ts'")
+    expect(config).toContain('codeSplitting: false')
     expect(config).toContain("entry: { preload: 'src/preload.ts' }")
     expect(config).toContain("entryFileNames: 'preload.cjs'")
     expect(config).toContain("terminal: 'src/terminal.ts'")
@@ -567,12 +569,18 @@ describe('published package surface', () => {
     expect(manifest.version).toBe(workspaceManifest.version)
     expect(manifest.build?.productName).toBe('DSH Desktop')
     expect(manifest.build?.appId).toBe('ai.deepseek.dsh.desktop')
+    expect(manifest.build?.asar).toEqual({ smartUnpack: false })
     expect(manifest.build?.asarUnpack).toEqual([
-      'package.json',
-      'cordis.patch.yml',
-      'build/**',
-      'lib/**',
-      'node_modules/**',
+      'lib/diagnostic-export-worker.js',
+      'node_modules/@deepseek-ai/dsh/config/agent-presets/**',
+      'node_modules/@deepseek-ai/node-addon-landlock-run-linux-*/**',
+      'node_modules/@img/sharp-*/**',
+      'node_modules/@img/sharp-libvips-*/**',
+      'node_modules/@koromix/koffi-*/**',
+      'node_modules/@vscode/ripgrep-*/**',
+      'node_modules/node-addon-require-builtin-*/**',
+      'node_modules/node-pty/prebuilds/**',
+      'node_modules/pnpm/dist/vendor/**',
     ])
     expect(manifest.build?.electronFuses).toEqual({ runAsNode: true })
     expect(manifest.build?.toolsets).toEqual({ nsis: '1.2.1' })

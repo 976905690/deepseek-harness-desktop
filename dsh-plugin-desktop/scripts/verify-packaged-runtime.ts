@@ -1,9 +1,8 @@
 /** Fail-loud verification of the runtime entries sealed into Electron's app.asar. */
 
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
-import { isAbsolute, join, relative, sep } from 'node:path'
+import { join } from 'node:path'
 import { Worker } from 'node:worker_threads'
 import { listPackage } from '@electron/asar'
 import AdmZip from 'adm-zip'
@@ -57,39 +56,12 @@ export const REQUIRED_PACKAGED_RUNTIME_ENTRIES = [
   'node_modules/pnpm/bin/pnpm.mjs',
 ] as const
 
-/** Physical entries required because profile fallback symlinks cannot target ASAR paths. */
+/** Platform-independent files consumed by an API that requires a physical path. */
 export const REQUIRED_UNPACKED_RUNTIME_ENTRIES = [
-  'package.json',
-  'cordis.patch.yml',
-  'build/app-icon.png',
-  'build/app-icon-mac.png',
-  'build/tray-iconTemplate.png',
-  'build/tray-icon-blue.png',
-  'lib/main.js',
-  'lib/client.js',
-  'lib/native-ui/profile-create.html',
-  'lib/native-ui/recovery.html',
-  'lib/index.js',
-  'lib/profile.js',
-  'lib/profile-manager.js',
-  'lib/profile-service.js',
-  'lib/pnpm.js',
-  'lib/profiles.js',
-  'lib/diagnostics.js',
   'lib/diagnostic-export-worker.js',
-  'lib/terminal.js',
-  'lib/update-download.js',
-  'lib/updates.js',
-  'lib/windows-agent-presets.js',
-  'lib/windows-pwsh-sandbox.js',
-  'node_modules/@deepseek-ai/dsh/package.json',
   'node_modules/@deepseek-ai/dsh/config/agent-presets/cordis/agent.cordis.yml',
   'node_modules/@deepseek-ai/dsh/config/agent-presets/cordis/skills/cordis-plugin-development/SKILL.md',
   'node_modules/@deepseek-ai/dsh/config/agent-presets/cordis/skills/editing-cordis-compositions/SKILL.md',
-  'node_modules/@deepseek-ai/dsh/lib/bin.js',
-  'node_modules/@deepseek-ai/dsh-app-boot/lib/index.js',
-  'node_modules/@deepseek-ai/dsh-web-frontend/dist/index.html',
-  'node_modules/pnpm/bin/pnpm.mjs',
 ] as const
 
 /** Prebuilt Node-API modules required when the Windows package skips native source rebuilds. */
@@ -98,6 +70,17 @@ export const REQUIRED_WINDOWS_X64_NODE_PTY_ENTRIES = [
   'node_modules/node-pty/prebuilds/win32-x64/conpty_console_list.node',
   'node_modules/node-pty/prebuilds/win32-x64/conpty/OpenConsole.exe',
   'node_modules/node-pty/prebuilds/win32-x64/conpty/conpty.dll',
+] as const
+
+/** Other native executables and libraries required by the Windows x64 package. */
+export const REQUIRED_WINDOWS_X64_NATIVE_ENTRIES = [
+  'node_modules/@img/sharp-win32-x64/lib/libvips-42.dll',
+  'node_modules/@img/sharp-win32-x64/lib/libvips-cpp-8.18.3.dll',
+  'node_modules/@img/sharp-win32-x64/lib/sharp-win32-x64-0.35.3.node',
+  'node_modules/@koromix/koffi-win32-x64/win32_x64/koffi.node',
+  'node_modules/@vscode/ripgrep-win32-x64/bin/rg.exe',
+  'node_modules/node-addon-require-builtin-win32-x64-msvc/prebuilt/win32-x64-msvc-napi-v9.node',
+  'node_modules/pnpm/dist/vendor/fastlist-0.3.0-x64.exe',
 ] as const
 
 /** Native and build-only trees that must not inflate a Windows x64 installation. */
@@ -122,34 +105,11 @@ export const REQUIRED_MACOS_UNIVERSAL_ENTRIES = [
   ...MACOS_UNIVERSAL_NATIVE_ENTRIES.map(entry => entry.path),
 ] as const
 
-/** Package exports that profile fallback links must resolve from the physical application tree. */
-export const REQUIRED_UNPACKED_PACKAGE_SPECIFIERS = [
-  'dsh-plugin-desktop',
-  'dsh-plugin-desktop/profile',
-  'dsh-plugin-desktop/client',
-  'dsh-plugin-desktop/terminal',
-  'dsh-plugin-desktop/pnpm',
-  'dsh-plugin-desktop/profile-service',
-  'dsh-plugin-desktop/profiles',
-  'dsh-plugin-desktop/diagnostics',
-  'dsh-plugin-desktop/notifications',
-  'dsh-plugin-desktop/updates',
-  'dsh-plugin-desktop/windows-agent-presets',
-  'dsh-plugin-desktop/windows-pwsh-sandbox',
-  'dsh-plugin-desktop/package.json',
-  '@deepseek-ai/dsh-base/package.json',
-  '@deepseek-ai/schemastery/package.json',
-  '@deepseek-ai/dsh-web-app/package.json',
-] as const
-
 /** Injectable archive listing seam used by focused tests. */
 export type ArchiveLister = (archivePath: string, options: { isPack: boolean }) => readonly string[]
 
 /** Injectable physical-file probe used by focused tests. */
 export type FileProbe = (filename: string) => boolean
-
-/** Injectable Node package resolver used by focused tests. */
-export type PackageResolver = (specifier: string) => string
 
 /** Inputs understood by the bundled diagnostics Worker. */
 export interface PackagedDiagnosticWorkerData {
@@ -324,60 +284,49 @@ export function verifyPackagedAsar(
 }
 
 /**
- * Require every ASAR header entry to have a physical counterpart.
- *
- * The Desktop packaging contract unpacks every included application file so
- * profile fallback links and Node ESM resolution never target virtual paths.
- * Checking the complete header closes the gap left by a curated entry list:
- * a collector regression cannot silently omit transitive packages such as
- * yaml, zod, or typebox from app.asar.unpacked.
+ * Return whether one archive entry is allowed to exist beside app.asar.
+ * Parent directories are included because Electron Builder materializes them
+ * while unpacking a whitelisted descendant.
  */
-export function verifyUnpackedArchiveMirror(
+export function allowedUnpackedRuntimeEntry(entry: string): boolean {
+  const exact = new Set<string>([
+    ...REQUIRED_UNPACKED_RUNTIME_ENTRIES,
+    ...REQUIRED_WINDOWS_X64_NODE_PTY_ENTRIES,
+    ...REQUIRED_WINDOWS_X64_NATIVE_ENTRIES,
+    ...REQUIRED_MACOS_UNIVERSAL_ENTRIES,
+  ])
+  const prefixes = [
+    'node_modules/@deepseek-ai/dsh/config/agent-presets/',
+    'node_modules/@deepseek-ai/node-addon-landlock-run-linux-',
+    'node_modules/@img/sharp-',
+    'node_modules/@img/sharp-libvips-',
+    'node_modules/@koromix/koffi-',
+    'node_modules/@vscode/ripgrep-',
+    'node_modules/node-addon-require-builtin-',
+    'node_modules/node-pty/prebuilds/',
+    'node_modules/pnpm/dist/vendor/',
+  ]
+  if (exact.has(entry) || prefixes.some(prefix => entry.startsWith(prefix))) return true
+  const directory = entry.length === 0 ? '' : `${entry}/`
+  return [...exact].some(path => path.startsWith(directory))
+    || prefixes.some(prefix => prefix.startsWith(directory))
+}
+
+/** Reject ordinary JavaScript and resources leaking back into app.asar.unpacked. */
+export function verifyUnpackedRuntimeScope(
   archiveEntries: ReadonlySet<string>,
   unpackedRoot: string,
   exists: FileProbe = existsSync,
 ): void {
-  const missing = [...archiveEntries]
-    .filter(entry => entry.length > 0 && !exists(join(unpackedRoot, entry)))
-  if (missing.length > 0) {
+  const unexpected = [...archiveEntries].filter(entry =>
+    entry.length > 0
+    && exists(join(unpackedRoot, entry))
+    && !allowedUnpackedRuntimeEntry(entry),
+  )
+  if (unexpected.length > 0) {
     throw new Error(
-      `dsh-plugin-desktop: unpacked runtime at ${unpackedRoot} is missing ASAR-declared physical entries: ${missing.join(', ')}`,
+      `dsh-plugin-desktop: unpacked runtime at ${unpackedRoot} contains non-whitelisted physical entries: ${unexpected.join(', ')}`,
     )
-  }
-}
-
-/**
- * Verify package exports resolve through the physical tree instead of the build workspace.
- * @param unpackedRoot - absolute path to app.asar.unpacked.
- * @param resolvePackage - package resolver anchored at the physical root manifest.
- * @returns Nothing; failure rejects missing exports and paths outside app.asar.unpacked.
- */
-export function verifyUnpackedPackageResolution(
-  unpackedRoot: string,
-  resolvePackage: PackageResolver = createRequire(join(unpackedRoot, 'package.json')).resolve,
-): void {
-  for (const specifier of REQUIRED_UNPACKED_PACKAGE_SPECIFIERS) {
-    let resolvedPath: string
-    try {
-      resolvedPath = resolvePackage(specifier)
-    } catch (cause) {
-      throw new Error(
-        `dsh-plugin-desktop: packaged runtime at ${unpackedRoot} cannot resolve required package export ${specifier}`,
-        { cause },
-      )
-    }
-
-    const relativePath = relative(unpackedRoot, resolvedPath)
-    if (
-      !isAbsolute(resolvedPath)
-      || relativePath === '..'
-      || relativePath.startsWith(`..${sep}`)
-      || isAbsolute(relativePath)
-    ) {
-      throw new Error(
-        `dsh-plugin-desktop: required package export ${specifier} resolved outside ${unpackedRoot}: ${resolvedPath}`,
-      )
-    }
   }
 }
 
@@ -386,19 +335,21 @@ export function verifyUnpackedPackageResolution(
  * @param context - Electron Builder's afterPack context.
  * @param list - ASAR listing implementation.
  * @param exists - physical-file probe for the unpacked CLI dependency tree.
- * @param resolvePackage - package resolver anchored at the physical root manifest.
  * @returns Nothing; failure rejects the package before signing.
  */
 export function verifyPackagedRuntime(
   context: PackagedRuntimeContext,
   list: ArchiveLister = listPackage,
   exists: FileProbe = existsSync,
-  resolvePackage?: PackageResolver,
 ): void {
   const archiveEntries = verifyPackagedAsar(resolvePackagedAsarPath(context), list)
   const unpackedRoot = resolvePackagedUnpackedRoot(context)
   const requiredPhysicalEntries = context.electronPlatformName === 'win32'
-    ? [...REQUIRED_UNPACKED_RUNTIME_ENTRIES, ...REQUIRED_WINDOWS_X64_NODE_PTY_ENTRIES]
+    ? [
+        ...REQUIRED_UNPACKED_RUNTIME_ENTRIES,
+        ...REQUIRED_WINDOWS_X64_NODE_PTY_ENTRIES,
+        ...REQUIRED_WINDOWS_X64_NATIVE_ENTRIES,
+      ]
     : context.electronPlatformName === 'darwin' && context.arch === 4
       ? [...REQUIRED_UNPACKED_RUNTIME_ENTRIES, ...REQUIRED_MACOS_UNIVERSAL_ENTRIES]
       : REQUIRED_UNPACKED_RUNTIME_ENTRIES
@@ -427,8 +378,7 @@ export function verifyPackagedRuntime(
       )
     }
   }
-  verifyUnpackedArchiveMirror(archiveEntries, unpackedRoot, exists)
-  verifyUnpackedPackageResolution(unpackedRoot, resolvePackage)
+  verifyUnpackedRuntimeScope(archiveEntries, unpackedRoot, exists)
 }
 
 /**

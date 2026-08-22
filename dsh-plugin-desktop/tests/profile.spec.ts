@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -147,6 +147,14 @@ describe('desktop profile composition', {
     ])
     expect(repaired.dependencies).toEqual({ 'third-party-plugin': '^1.2.3' })
     expect(repaired.custom.preserved).toBe(true)
+  })
+
+  it('does not materialize the installation dependency closure in the profiles directory', () => {
+    const home = temporaryHome()
+
+    prepareDesktopProfile(undefined, home, 'win32')
+
+    expect(existsSync(join(home, 'profiles', 'node_modules'))).toBe(false)
   })
 
   it('migrates the obsolete Desktop bundle before loading a historical profile', () => {

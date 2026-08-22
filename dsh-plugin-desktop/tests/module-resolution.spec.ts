@@ -154,6 +154,27 @@ describe('installProfilePackageResolver', () => {
     expect(harness.resolve?.('profile-peer', { parentURL: desktopPluginUrl }, nextResolve)).toEqual({ url: profilePeerUrl })
   })
 
+  it('allows a Profile-selected package to use a missing dependency from the Desktop archive', () => {
+    const profileBaseUrl = 'file:///C:/Users/test/profile/package.json'
+    const profilePluginUrl = 'file:///C:/Users/test/profile/node_modules/plugin/index.js'
+    const desktopPeerUrl = 'file:///Applications/DSH.app/Contents/Resources/app.asar/node_modules/desktop-peer/index.js'
+    harness.sources.set('plugin', 'profile')
+    harness.sources.set('desktop-peer', 'install')
+    installProfilePackageResolver(profileBaseUrl)
+    const nextResolve = vi.fn((specifier: string, context: { parentURL?: string }) => {
+      if (specifier === 'plugin' && context.parentURL === profileBaseUrl) return { url: profilePluginUrl }
+      if (specifier === 'desktop-peer' && context.parentURL?.endsWith('/lib/index.js')) {
+        return { url: desktopPeerUrl }
+      }
+      throw missing(specifier, context.parentURL)
+    })
+    const loaderEntryUrl = import.meta.resolve('@deepseek-ai/cordis-plugin-loader')
+
+    expect(harness.resolve?.('plugin', { parentURL: loaderEntryUrl }, nextResolve)).toEqual({ url: profilePluginUrl })
+    expect(harness.resolve?.('desktop-peer', { parentURL: profilePluginUrl }, nextResolve))
+      .toEqual({ url: desktopPeerUrl })
+  })
+
   it('does not expose Profile dependencies to unrelated modules', () => {
     const profileBaseUrl = 'file:///C:/Users/test/profile/package.json'
     installProfilePackageResolver(profileBaseUrl)
@@ -189,7 +210,7 @@ describe('installProfilePackageResolver', () => {
     )).toBe('ordinary:@deepseek-ai/dsh-client-modules/package.json')
     expect(resolveFilename(
       '@deepseek-ai/dsh-client-modules/client.js',
-      { filename: '/tmp/dsh-profile/package.json' },
+      { filename: profileManifestPath },
       false,
     )).toBe('ordinary:@deepseek-ai/dsh-client-modules/client.js')
 
