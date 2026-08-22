@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
+import { pathToFileURL } from 'node:url'
 
 const harness = vi.hoisted(() => {
   const cjsOriginal = vi.fn((
@@ -168,19 +171,20 @@ describe('installProfilePackageResolver', () => {
   })
 
   it('uses the same overlay for CommonJS package manifests resolved from the Profile anchor', () => {
-    const profileBaseUrl = 'file:///tmp/dsh-profile/package.json'
+    const profileManifestPath = join(tmpdir(), 'dsh-profile', 'package.json')
+    const profileBaseUrl = pathToFileURL(profileManifestPath).href
     harness.sources.set('@deepseek-ai/dsh-client-modules', 'install')
     const dispose = installProfilePackageResolver(profileBaseUrl)
     const resolveFilename = harness.cjsModule._resolveFilename
 
     expect(resolveFilename(
       '@deepseek-ai/dsh-client-modules/package.json',
-      { filename: '/tmp/dsh-profile/package.json' },
+      { filename: profileManifestPath },
       false,
     )).toBe('/install/@deepseek-ai/dsh-client-modules/package.json')
     expect(resolveFilename(
       '@deepseek-ai/dsh-client-modules/package.json',
-      { filename: '/tmp/another-profile/package.json' },
+      { filename: join(tmpdir(), 'another-profile', 'package.json') },
       false,
     )).toBe('ordinary:@deepseek-ai/dsh-client-modules/package.json')
     expect(resolveFilename(
