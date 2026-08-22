@@ -174,7 +174,7 @@ DSH Desktop 将 UTF-8 日志写入 Electron 用户数据目录：Windows 位于 
 
 ## 打包
 
-`yarn package:dir` 为当前宿主平台创建未封装目录。如果应用归档缺少 desktop 更新与终端模块、DSH CLI bootstrap、内置 pnpm 入口或物理 deployment package，packaged-runtime gate 会拒绝该产物。Electron Builder 会把根 manifest、desktop runtime 与完整依赖树输出到 `app.asar.unpacked`；Host profile boot 与 CLI bootstrap 都会使用这棵物理树，因此 DSH profile fallback 的符号链接不会指向虚拟 ASAR 目录。`build/app-icon.png` 保持为未经修改的 iOS Default 源图，并继续作为 Windows 与 Linux 应用图标。构建过程会运行 `scripts/generate-mac-app-icon.mjs`，把该图缩放为 824 × 824 像素并居中放入透明的 1024 × 1024 画布；macOS 打包与运行中的 Dock 都使用生成的 `build/app-icon-mac.png`。`build/tray-icon.svg` 是品牌蓝托盘源文件：构建过程会派生由 macOS 系统自动着色的模板图，以及固定品牌蓝的 Windows 与 Linux 托盘图。
+`yarn package:dir` 为当前宿主平台创建未封装目录。如果应用归档缺少 desktop runtime 模块、DSH CLI bootstrap、内置 pnpm 入口或必需的原生二进制，packaged-runtime gate 会拒绝该产物。普通 JavaScript 与资源保留在 `app.asar` 中；只有原生模块、外部可执行文件、agent presets 与诊断 Worker 会输出到 `app.asar.unpacked`。打包后的 profile resolver 会回退到 ASAR 内的安装依赖树，不再把整棵依赖物化或复制到每个 profile。`build/app-icon.png` 保持为未经修改的 iOS Default 源图，并继续作为 Windows 与 Linux 应用图标。构建过程会运行 `scripts/generate-mac-app-icon.mjs`，把该图缩放为 824 × 824 像素并居中放入透明的 1024 × 1024 画布；macOS 打包与运行中的 Dock 都使用生成的 `build/app-icon-mac.png`。`build/tray-icon.svg` 是品牌蓝托盘源文件：构建过程会派生由 macOS 系统自动着色的模板图，以及固定品牌蓝的 Windows 与 Linux 托盘图。
 
 ### WSL Linux 无界面检查
 
@@ -190,6 +190,12 @@ corepack yarn build
 ```
 
 从 `/mnt/<drive>` 运行命令是有效的，但会比放在 WSL 原生 ext4 文件系统中的 checkout 更慢。WSL 不能替代真实 Linux 桌面会话来验证托盘、窗口管理器、`.desktop` 集成或安装后 smoke test。
+
+### Linux AppImage 与 DEB 安装包
+
+在原生 glibc Linux x64 或 arm64 宿主上执行 `yarn dist:linux`。命令先运行 Linux 打包 gate，验证已经安装的 x64 与 arm64 Landlock、Sharp、Koffi、ripgrep、Node-API 和 node-pty 二进制，再在 `dsh-plugin-desktop/dist/linux/` 下生成并校验四个产物：x86-64 与 arm64 AppImage，以及 amd64 与 arm64 DEB。verifier 会检查每个 AppImage 与 staging 主程序的 ELF 架构、每个 DEB 的归档头、包元数据和已安装 ASAR 路径；共享 packaged-runtime gate 则会在 Electron Builder 封装产物之前检查对应架构的原生文件。
+
+AppImage 是安装速度优先的路径：赋予执行权限后直接启动，不需要解压，也不经过 package manager 安装。它使用静态 AppImage runtime 与 Zstandard 压缩，在快速启动的同时不依赖 FUSE 2。需要桌面菜单注册与受包管理器管理的卸载时，可使用采用 Zstandard 压缩的 DEB，它会安装 `dsh-desktop`。CI 会在 Ubuntu 上构建两种格式，并在不二次压缩的情况下上传四个文件。
 
 ### Windows x64 本地安装包
 
@@ -219,7 +225,7 @@ corepack.cmd yarn dist:win-portable
 
 ### macOS DMG 冒烟构建
 
-`yarn dist:mac-smoke` 会在原生 macOS 宿主机上构建一个未签名的 universal DMG，同一个安装包可以在 Intel 和 Apple Silicon Mac 上原生运行。该命令拒绝非 macOS 宿主，并在打包前运行完整产品 gate：仓库布局与社区契约检查、Market 的 build 与 check，然后再运行 Desktop build、全部 TypeScript compiler face、完整 unit-test suite、runtime-closure 验证、CLI/Loader/profile headless smoke 与 license audit；其中包括对 macOS runner 上已安装的每种受支持 shell 执行真实 login-shell 测试。随后它会在不接触任何签名材料的情况下打包，挂载 DMG，并检查属性列表、主程序执行权限、`x86_64` 与 `arm64` 两个架构切片，以及 `app.asar`。该命令与 `dist:win` 的密钥纪律一致：剥离 Electron Builder 能识别的全部 macOS 签名与公证变量、设置 `CSC_IDENTITY_AUTO_DISCOVERY=false`、关闭 notarization，且从不发布。产物没有 Developer ID 签名，因此 Gatekeeper 会在其他机器上拦截它；它的存在是为了让打包回归在人工发布之前就在 CI 中失败。签名并公证的 universal 正式发布仍是在持有凭证的 macOS 机器上执行 `yarn dist:mac`，产物写入 `dsh-plugin-desktop/dist/mac-release/`。
+`yarn dist:mac-smoke` 会在原生 macOS 宿主机上构建 `DSH-Desktop-2.0.2-universal.dmg`，同一个安装包可以在 Intel 和 Apple Silicon Mac 上原生运行。DMG 使用 macOS 原生 LZFSE 压缩，在保持适合下载的体积时优先降低挂载与复制过程中的解码开销。该命令拒绝非 macOS 宿主，并在打包前运行完整产品 gate：仓库布局与社区契约检查、Market 的 build 与 check，然后再运行 Desktop build、全部 TypeScript compiler face、完整 unit-test suite、runtime-closure 验证、CLI/Loader/profile headless smoke 与 license audit；其中包括对 macOS runner 上已安装的每种受支持 shell 执行真实 login-shell 测试。随后它会在不接触任何签名材料的情况下打包，挂载 DMG，并检查属性列表、主程序执行权限、`x86_64` 与 `arm64` 两个架构切片，以及 `app.asar`。该命令与 `dist:win` 的密钥纪律一致：剥离 Electron Builder 能识别的全部 macOS 签名与公证变量、设置 `CSC_IDENTITY_AUTO_DISCOVERY=false`、关闭 notarization，且从不发布。产物没有 Developer ID 签名，因此 Gatekeeper 会在其他机器上拦截它；CI 只会把它作为 packaging smoke 上传。签名并公证的 universal 正式发布仍是在持有凭证的 macOS 机器上执行 `yarn dist:mac`，产物写入 `dsh-plugin-desktop/dist/mac-release/`。
 
 ## 模型体验
 

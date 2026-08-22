@@ -126,11 +126,13 @@
     "check": "yarn run build && yarn run typecheck && yarn run test && yarn run verify:closure && yarn run verify:cli && yarn run verify:loader && yarn run verify:profile && yarn run verify:licenses && yarn run verify:operations",
     "check:win-package": "yarn workspace dsh-community-market build && yarn run build && yarn run typecheck && vitest run tests/package.spec.ts tests/package-win.spec.ts tests/update-checker.spec.ts tests/update-download.spec.ts tests/verify-win-installer.spec.ts tests/verify-win-portable.spec.ts tests/verify-packaged-runtime.spec.ts tests/windows-agent-presets.spec.ts tests/windows-pwsh-sandbox.spec.ts tests/windows-volume-diagnostics.spec.ts tests/window-options.spec.ts && yarn run verify:closure",
     "check:mac-package": "yarn workspace dsh-community-market build && yarn run build && yarn run typecheck && vitest run tests/package.spec.ts tests/package-mac.spec.ts tests/verify-mac-smoke.spec.ts tests/verify-packaged-runtime.spec.ts tests/mac-universal.spec.ts && yarn run verify:closure",
+    "check:linux-package": "yarn workspace dsh-community-market build && yarn run build && yarn run typecheck && vitest run tests/package.spec.ts tests/package-linux.spec.ts tests/verify-linux-artifacts.spec.ts tests/verify-packaged-runtime.spec.ts tests/linux-runtime.spec.ts tests/shell-environment.spec.ts tests/terminal.spec.ts tests/window-options.spec.ts && yarn run verify:closure",
     "start": "node lib/bin.js",
     "dev": "yarn run build && node lib/bin.js",
     "package:dir": "yarn run build && node scripts/package-dir.mjs",
     "dist:mac": "node scripts/release-mac.ts",
     "dist:mac-smoke": "node scripts/package-mac.ts",
+    "dist:linux": "node scripts/package-linux.ts",
     "dist:win": "node scripts/package-win.ts",
     "dist:win-portable": "node scripts/package-win-portable.ts",
     "prepack": "yarn run check"
@@ -309,6 +311,7 @@
       "buildResources": "build"
     },
     "toolsets": {
+      "appimage": "1.0.3",
       "nsis": "1.2.1"
     },
     "files": [
@@ -327,8 +330,7 @@
       "!node_modules/@koromix/koffi-win32-{arm64,ia32}/**",
       "!node_modules/node-addon-require-builtin-win32-{arm64,ia32}-msvc/**",
       "!node_modules/node-pty/build/**",
-      "!node_modules/node-pty/prebuilds/!(${platform}-*)/**",
-      "!node_modules/node-pty/prebuilds/{win32-arm64,win32-ia32}/**",
+      "!node_modules/node-pty/prebuilds/!(${platform}-${arch})/**",
       "!node_modules/node-pty/third_party/**"
     ],
     "mac": {
@@ -352,6 +354,10 @@
         "\\.(?:pak|dat|wasm)$"
       ],
       "x64ArchFiles": "**/node_modules/{node-pty/prebuilds/darwin-*/**,node-addon-require-builtin-darwin-*/**,@vscode/ripgrep-darwin-*/**,@img/sharp-darwin-*/**,@img/sharp-libvips-darwin-*/**,@koromix/koffi-darwin-*/**}"
+    },
+    "dmg": {
+      "artifactName": "DSH-Desktop-${version}-universal.${ext}",
+      "format": "ULFO"
     },
     "win": {
       "target": [
@@ -381,9 +387,35 @@
     },
     "linux": {
       "target": [
-        "dir"
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ],
-      "icon": "build/app-icon.png"
+      "artifactName": "DSH-Desktop-${version}-${arch}.${ext}",
+      "category": "Development",
+      "executableName": "dsh-desktop",
+      "icon": "build/app-icon.png",
+      "maintainer": "Anywhere Labs <t4wefan@qq.com>",
+      "synopsis": "Desktop shell for DeepSeek Harness",
+      "syncDesktopName": true
+    },
+    "appImage": {
+      "compression": "zstd"
+    },
+    "deb": {
+      "compression": "zst",
+      "packageName": "dsh-desktop"
     }
   }
 }
