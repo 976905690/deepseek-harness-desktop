@@ -44,7 +44,7 @@ const manifest = JSON.parse(readFileSync(new URL('package.json', packageRoot), '
       target?: unknown
       x64ArchFiles?: unknown
     }
-    win?: { icon?: unknown; target?: unknown; artifactName?: unknown }
+    win?: { icon?: unknown; target?: unknown; artifactName?: unknown; compression?: unknown }
     nsis?: Record<string, unknown>
     portable?: Record<string, unknown>
     linux?: { icon?: unknown }
@@ -591,7 +591,17 @@ describe('published package surface', () => {
       'cordis.patch.yml',
       'lib/**',
       'package.json',
+      '!lib/**/*.map',
+      '!node_modules/**/*.map',
+      '!node_modules/**/*.{ts,mts,cts}',
+      '!node_modules/@vscode/ripgrep-win32-{arm64,ia32}/**',
+      '!node_modules/@img/sharp-win32-{arm64,ia32}/**',
+      '!node_modules/@koromix/koffi-win32-{arm64,ia32}/**',
+      '!node_modules/node-addon-require-builtin-win32-{arm64,ia32}-msvc/**',
       '!node_modules/node-pty/build/**',
+      '!node_modules/node-pty/prebuilds/!(${platform}-*)/**',
+      '!node_modules/node-pty/prebuilds/{win32-arm64,win32-ia32}/**',
+      '!node_modules/node-pty/third_party/**',
     ])
     expect(manifest.build?.mac?.icon).toBe('build/app-icon-mac.png')
     expect(manifest.build?.mac?.mergeASARs).toBe(false)
@@ -602,6 +612,7 @@ describe('published package surface', () => {
       arch: ['x64'],
     }])
     expect(manifest.build?.win?.artifactName).toBe('DSH-Desktop-${version}-${arch}-Portable.${ext}')
+    expect(manifest.build?.win?.compression).toBe('normal')
     expect(manifest.build?.nsis).toEqual({
       license: 'THIRD_PARTY_NOTICES.md',
       oneClick: false,
@@ -624,6 +635,7 @@ describe('published package surface', () => {
     expect(manifest.scripts?.build).toContain('node scripts/generate-mac-app-icon.mjs')
     expect(manifest.scripts?.['package:dir']).toBe('yarn run build && node scripts/package-dir.mjs')
     expect(packageDir).toContain("CSC_IDENTITY_AUTO_DISCOVERY: 'false'")
+    expect(packageDir).toContain("'--config.npmRebuild=false'")
     expect(manifest.scripts?.['dist:mac']).toBe('node scripts/release-mac.ts')
     expect(manifest.scripts?.['dist:mac-smoke']).toBe('node scripts/package-mac.ts')
     expect(manifest.scripts?.['dist:win']).toBe('node scripts/package-win.ts')
