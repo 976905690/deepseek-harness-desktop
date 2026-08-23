@@ -4,7 +4,6 @@ import { describe, expect, it, vi } from 'vitest'
 import AdmZip from 'adm-zip'
 import {
   afterPack,
-  FORBIDDEN_WINDOWS_X64_RUNTIME_PREFIXES,
   REQUIRED_PACKAGED_RUNTIME_ENTRIES,
   REQUIRED_MACOS_UNIVERSAL_ENTRIES,
   REQUIRED_UNPACKED_PACKAGE_SPECIFIERS,
@@ -113,33 +112,6 @@ describe('packaged desktop runtime verification', () => {
       'node_modules/node-pty/prebuilds/win32-x64/conpty/conpty.dll',
     ])
   })
-
-  it.each([
-    'lib/main.js.map',
-    'node_modules/example/index.js.map',
-    'node_modules/example/source.ts',
-    'node_modules/example/source.mts',
-    'node_modules/example/source.cts',
-  ])('rejects excluded development source %s', (forbidden) => {
-    expect(() => verifyPackagedRuntime(
-      context('/build', 'win32'),
-      () => [...completeArchiveEntries(), `/${forbidden}`],
-      () => true,
-    )).toThrow(`contains excluded development sources: ${forbidden}`)
-  })
-
-  it.each(FORBIDDEN_WINDOWS_X64_RUNTIME_PREFIXES)(
-    'rejects forbidden Windows x64 runtime prefix %s',
-    (prefix) => {
-      const forbidden = `${prefix}payload.bin`
-
-      expect(() => verifyPackagedRuntime(
-        context('/build', 'win32'),
-        () => [...completeArchiveEntries(), `/${forbidden}`],
-        () => true,
-      )).toThrow(`contains non-x64 or build-only entries: ${forbidden}`)
-    },
-  )
 
   it.each([
     [

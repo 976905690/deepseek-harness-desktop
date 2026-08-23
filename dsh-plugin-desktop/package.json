@@ -312,17 +312,7 @@
       "cordis.patch.yml",
       "lib/**",
       "package.json",
-      "!lib/**/*.map",
-      "!node_modules/**/*.map",
-      "!node_modules/**/*.{ts,mts,cts}",
-      "!node_modules/@vscode/ripgrep-win32-{arm64,ia32}/**",
-      "!node_modules/@img/sharp-win32-{arm64,ia32}/**",
-      "!node_modules/@koromix/koffi-win32-{arm64,ia32}/**",
-      "!node_modules/node-addon-require-builtin-win32-{arm64,ia32}-msvc/**",
-      "!node_modules/node-pty/build/**",
-      "!node_modules/node-pty/prebuilds/!(${platform}-*)/**",
-      "!node_modules/node-pty/prebuilds/{win32-arm64,win32-ia32}/**",
-      "!node_modules/node-pty/third_party/**"
+      "!node_modules/node-pty/build/**"
     ],
     "mac": {
       "target": [
@@ -356,8 +346,7 @@
         }
       ],
       "artifactName": "DSH-Desktop-${version}-${arch}-Portable.${ext}",
-      "icon": "build/app-icon.png",
-      "compression": "normal"
+      "icon": "build/app-icon.png"
     },
     "nsis": {
       "license": "THIRD_PARTY_NOTICES.md",

@@ -100,23 +100,6 @@ export const REQUIRED_WINDOWS_X64_NODE_PTY_ENTRIES = [
   'node_modules/node-pty/prebuilds/win32-x64/conpty/conpty.dll',
 ] as const
 
-/** Native and build-only trees that must not inflate a Windows x64 installation. */
-export const FORBIDDEN_WINDOWS_X64_RUNTIME_PREFIXES = [
-  'node_modules/@vscode/ripgrep-win32-arm64/',
-  'node_modules/@vscode/ripgrep-win32-ia32/',
-  'node_modules/@img/sharp-win32-arm64/',
-  'node_modules/@img/sharp-win32-ia32/',
-  'node_modules/@koromix/koffi-win32-arm64/',
-  'node_modules/@koromix/koffi-win32-ia32/',
-  'node_modules/node-addon-require-builtin-win32-arm64-msvc/',
-  'node_modules/node-addon-require-builtin-win32-ia32-msvc/',
-  'node_modules/node-pty/prebuilds/darwin-',
-  'node_modules/node-pty/prebuilds/linux-',
-  'node_modules/node-pty/prebuilds/win32-arm64/',
-  'node_modules/node-pty/prebuilds/win32-ia32/',
-  'node_modules/node-pty/third_party/',
-] as const
-
 /** CPU-specific runtime assets that must coexist in a universal macOS application. */
 export const REQUIRED_MACOS_UNIVERSAL_ENTRIES = [
   ...MACOS_UNIVERSAL_NATIVE_ENTRIES.map(entry => entry.path),
@@ -311,15 +294,6 @@ export function verifyPackagedAsar(
       `dsh-plugin-desktop: packaged runtime at ${archivePath} is missing required ASAR entries: ${missing.join(', ')}`,
     )
   }
-  const developmentSources = [...present].filter(entry =>
-    ((entry.startsWith('lib/') || entry.startsWith('node_modules/')) && entry.endsWith('.map'))
-    || (entry.startsWith('node_modules/') && /\.(?:ts|mts|cts)$/.test(entry)),
-  )
-  if (developmentSources.length > 0) {
-    throw new Error(
-      `dsh-plugin-desktop: packaged runtime at ${archivePath} contains excluded development sources: ${developmentSources.join(', ')}`,
-    )
-  }
   return present
 }
 
@@ -414,16 +388,6 @@ export function verifyPackagedRuntime(
     if (forbidden.length > 0) {
       throw new Error(
         `dsh-plugin-desktop: universal macOS runtime at ${unpackedRoot} contains host-architecture build output: ${forbidden.join(', ')}`,
-      )
-    }
-  }
-  if (context.electronPlatformName === 'win32') {
-    const forbidden = [...archiveEntries].filter(entry =>
-      FORBIDDEN_WINDOWS_X64_RUNTIME_PREFIXES.some(prefix => entry.startsWith(prefix)),
-    )
-    if (forbidden.length > 0) {
-      throw new Error(
-        `dsh-plugin-desktop: Windows x64 runtime at ${unpackedRoot} contains non-x64 or build-only entries: ${forbidden.join(', ')}`,
       )
     }
   }
