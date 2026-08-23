@@ -1,4 +1,6 @@
 import { createRequire } from 'node:module'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { Readable } from 'node:stream'
@@ -21,9 +23,11 @@ interface DshMarketRuntime {
 }
 
 const originalFetch = globalThis.fetch
+const temporaryProfiles: string[] = []
 
 afterEach(() => {
   globalThis.fetch = originalFetch
+  for (const profile of temporaryProfiles.splice(0)) rmSync(profile, { recursive: true, force: true })
   vi.unstubAllEnvs()
   vi.restoreAllMocks()
 })
@@ -56,6 +60,69 @@ function completedHandle(): DesktopOperationHandle {
 }
 
 describe('dsh-market Desktop install compatibility', () => {
+  it('offers the host-provided market update when the Profile omits dshmarket', async () => {
+    for (const name of ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'http_proxy', 'https_proxy', 'all_proxy']) {
+      vi.stubEnv(name, '')
+    }
+    globalThis.fetch = vi.fn(async () => new Response(
+      JSON.stringify({ version: '1.20.0' }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    ))
+
+    const profileDir = mkdtempSync(join(tmpdir(), 'dshmarket-desktop-self-update-'))
+    temporaryProfiles.push(profileDir)
+    writeFileSync(join(profileDir, 'package.json'), JSON.stringify({
+      name: 'dsh-profile-desktop',
+      private: true,
+      dependencies: {},
+    }))
+
+    const require = createRequire(import.meta.url)
+    const manifest = require.resolve('dshmarket/package.json')
+    const routesUrl = pathToFileURL(join(dirname(manifest), 'lib', 'routes.js')).href
+    const loaded = await import(routesUrl) as {
+      mountMarketRoutes: (
+        host: object,
+        config: { profile: string; profileDirectory: string; allowRestart: boolean },
+      ) => () => void
+    }
+    const routes = new Map<string, (request: object, response: object) => void | Promise<void>>()
+    const dispose = loaded.mountMarketRoutes({
+      webServer: {
+        register(route: { path: string; handler: (request: object, response: object) => void | Promise<void> }) {
+          routes.set(route.path, route.handler)
+          return () => routes.delete(route.path)
+        },
+      },
+      loader: { entries: () => [] },
+      plugin: () => ({ await: async () => undefined, dispose: () => undefined }),
+    }, { profile: 'desktop', profileDirectory: profileDir, allowRestart: false })
+
+    let status = 0
+    let body = ''
+    await routes.get('/dsh-market/updates')?.(
+      { method: 'GET', url: '/dsh-market/updates?force=1' },
+      {
+        writeHead(code: number) { status = code },
+        end(chunk?: string) { body = chunk ?? '' },
+      },
+    )
+    dispose()
+
+    expect(status).toBe(200)
+    expect(JSON.parse(body).updates.dshmarket).toMatchObject({
+      kind: 'npm',
+      version: '1.17.1',
+      current: '1.17.1',
+      latest: '1.20.0',
+      updateAvailable: true,
+    })
+
+    const client = readFileSync(join(dirname(manifest), 'client', 'client.js'), 'utf8')
+    expect(client).toContain('installed["dshmarket"] !== void 0 || updates["dshmarket"] !== void 0')
+    expect(client).toContain('const self = selfName')
+  })
+
   it.each([
     '@liustack/modlens',
     '@liustack/modlens@latest',

@@ -1,15 +1,30 @@
+diff --git a/client/client.js b/client/client.js
+index 0ad55132e3198e5c5e39b616d7e881751effa0e1..73bb54ebd92785d8ac7e05bedb067c056400f26b 100644
+--- a/client/client.js
++++ b/client/client.js
+@@ -4740,7 +4740,7 @@ window.__ModuleLoader__.load({ id: "dshmarket", factory: (require) => {
+ 					members: [...members, name]
+ 				});
+ 			}, [doGroupAction, groups]);
+-			const selfName = installed["dshmarket"] !== void 0 ? "dshmarket" : "dsh-market";
++			const selfName = installed["dshmarket"] !== void 0 || updates["dshmarket"] !== void 0 ? "dshmarket" : "dsh-market";
+ 			const updatableNames = Object.keys(installed).filter((name) => name !== selfName && !updatedNames.includes(name) && updates[name] && updates[name].updateAvailable);
+ 			const installedOtherCount = Object.keys(installed).filter((name) => name !== selfName).length;
+ 			const doUpdateAll = (0, react.useCallback)(() => {
+@@ -5410,7 +5410,7 @@ window.__ModuleLoader__.load({ id: "dshmarket", factory: (require) => {
+ 										children: ["v", version]
+ 									}),
+ 									(() => {
+-										const self = installed["dshmarket"] !== void 0 ? "dshmarket" : "dsh-market";
++										const self = selfName;
+ 										return updates[self] && updates[self].updateAvailable && !updatedNames.includes(self) && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+ 											variant: "primary",
+ 											size: "sm",
 diff --git a/lib/dsh-cli.js b/lib/dsh-cli.js
-index 2bdfb2a1acc678c3e995e4f70ccba8ce95bc24b8..6d15dbfcc1dd40f9e6cef06cac1b59881e4c885b 100644
+index 2bdfb2a1acc678c3e995e4f70ccba8ce95bc24b8..66fd882cbcdc74b626c0531baea52e2936e753b8 100644
 --- a/lib/dsh-cli.js
 +++ b/lib/dsh-cli.js
-@@ -7,6 +7,6 @@
-  * the agent's sandboxed executor and denies writes to the profile directory.
-  */
- import { spawn } from 'node:child_process';
- import { existsSync } from 'node:fs';
- import { homedir } from 'node:os';
- import { dirname, isAbsolute, join, resolve } from 'node:path';
-@@ -14,6 +15,7 @@ import { logEvent } from './log.js';
+@@ -14,6 +14,7 @@ import { logEvent } from './log.js';
  import { createProgressTracker } from './ndjson.js';
  import { pluginArgsFor } from './pnpm-compat.js';
  import { profileDir } from './profile.js';
@@ -17,7 +32,7 @@ index 2bdfb2a1acc678c3e995e4f70ccba8ce95bc24b8..6d15dbfcc1dd40f9e6cef06cac1b5988
  // 15 min default (slow networks + git installs), overridable for CI/tests.
  // (#6 by @qichuang321.)
  /**
-@@ -548,6 +550,25 @@ export function runDshPlugin(profile, pluginArgs) {
+@@ -548,6 +549,25 @@ export function runDshPlugin(profile, pluginArgs) {
   * market runner. There is no runtime import or dependency on Desktop: the
   * Host supplies this public service only when the package is mounted there.
   */
@@ -43,7 +58,7 @@ index 2bdfb2a1acc678c3e995e4f70ccba8ce95bc24b8..6d15dbfcc1dd40f9e6cef06cac1b5988
  export function createDesktopPluginRuntime(service, activeProfileDir, invokingDir = process.cwd(), timeoutMs = INSTALL_TIMEOUT_MS) {
      if (!isAbsolute(activeProfileDir) || activeProfileDir.includes('\0')) {
          throw new Error('dsh-market: Desktop profile directory must be an absolute path without NUL');
-@@ -575,7 +596,21 @@ export function createDesktopPluginRuntime(service, activeProfileDir, invokingDi
+@@ -575,7 +595,21 @@ export function createDesktopPluginRuntime(service, activeProfileDir, invokingDi
          const abort = new AbortController();
          let handle;
          try {
@@ -66,8 +81,122 @@ index 2bdfb2a1acc678c3e995e4f70ccba8ce95bc24b8..6d15dbfcc1dd40f9e6cef06cac1b5988
          }
          catch (error) {
              const message = error instanceof Error ? error.message : String(error);
+diff --git a/lib/routes.js b/lib/routes.js
+index 6c461bdf34c2fa077de61ba1b3194cff73d9fa6c..f0420e20eef8212163913a64c3ed6fbcc57095cc 100644
+--- a/lib/routes.js
++++ b/lib/routes.js
+@@ -33,28 +33,34 @@ import { carrierDisableIds, disableRow, enableRow, findUserPatchPath, isProtecte
+ import { createProfileBackup, downloadWebdav, MAX_BACKUP_BYTES, mergeRestoreManifest, restoreProfileBackup, unportableDeps, uploadWebdav, } from './backup.js';
+ import { createGist, fitsGistLimit, GistError, gistErrorCode, parseGistId, readGist, resolveGistTokenSource, updateGist, verifyGistToken, } from './gist.js';
+ const PROFILE_RE = /^[A-Za-z0-9_-]+$/;
++/** The market's own package names, as they appear in a profile manifest. */
++const SELF_NAMES = new Set(['dshmarket', 'dsh-market']);
+ /**
+- * The market's own version, read once from its installed package.json.
++ * The market's own package identity, read once from its installed package.json.
+  *
+  * The UI puts this in the page heading so a user's screenshot carries it:
+  * most bug reports arrive as a photo of the screen, and without a version
+  * in frame the first reply always has to ask which one it was.
+  */
+-let cachedVersion = null;
+-export function marketVersion() {
+-    if (cachedVersion !== null)
+-        return cachedVersion;
++let cachedIdentity = null;
++function marketIdentity() {
++    if (cachedIdentity !== null)
++        return cachedIdentity;
+     try {
+         const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+-        cachedVersion = manifest.version ?? 'unknown';
++        cachedIdentity = {
++            name: typeof manifest.name === 'string' && SELF_NAMES.has(manifest.name) ? manifest.name : 'dshmarket',
++            version: manifest.version ?? 'unknown',
++        };
+     }
+     catch {
+-        cachedVersion = 'unknown';
++        cachedIdentity = { name: 'dshmarket', version: 'unknown' };
+     }
+-    return cachedVersion;
++    return cachedIdentity;
++}
++export function marketVersion() {
++    return marketIdentity().version;
+ }
+-/** The market's own package names, as they appear in a profile manifest. */
+-const SELF_NAMES = new Set(['dshmarket', 'dsh-market']);
+ /**
+  * Whether an installed package declares a client part (`dsh.client`). Its UI
+  * is injected into the page, so toggling it needs a browser refresh to show
+@@ -1150,10 +1156,21 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup) {
+                     // to try THIS plugin early, not to be handed every other author's
+                     // unreleased work.
+                     const channel = activeChannel();
+-                    const channelFor = new Map(Object.keys(readInstalled(config.profile, activeProfileDir))
+-                        .filter(name => SELF_NAMES.has(name))
++                    const installed = readInstalled(config.profile, activeProfileDir);
++                    const identity = marketIdentity();
++                    const installedSelfNames = Object.keys(installed).filter(name => SELF_NAMES.has(name));
++                    // Desktop provides dshmarket from the application dependency graph,
++                    // not the profile manifest. Keep that running build visible to the
++                    // ordinary update checker until the first upgrade installs a
++                    // profile-local version.
++                    const hostProvided = installedSelfNames.length === 0
++                        ? new Map([[identity.name, identity.version]])
++                        : new Map();
++                    const channelFor = new Map((installedSelfNames.length > 0 ? installedSelfNames : [identity.name])
+                         .map(name => [name, channel]));
+-                    sendJson(response, 200, { updates: await checkUpdates(config.profile, force, activeProfileDir, channelFor) });
++                    sendJson(response, 200, {
++                        updates: await checkUpdates(config.profile, force, activeProfileDir, channelFor, hostProvided),
++                    });
+                 }
+                 catch (error) {
+                     sendJson(response, 500, { error: error instanceof Error ? error.message : String(error) });
+@@ -1178,7 +1195,9 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup) {
+                         const body = (await readJsonBody(request));
+                         const name = typeof body.name === 'string' ? body.name : '';
+                         const force = body.force === true;
+-                        const spec = readInstalled(config.profile, activeProfileDir)[name];
++                        const identity = marketIdentity();
++                        const installed = readInstalled(config.profile, activeProfileDir);
++                        const spec = installed[name] ?? (name === identity.name ? identity.version : undefined);
+                         if (spec === undefined) {
+                             sendJson(response, 400, { error: 'plugin is not installed' });
+                             return;
+@@ -1202,7 +1221,7 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup) {
+                             });
+                             return;
+                         }
+-                        const beforeInstalled = readInstalled(config.profile, activeProfileDir);
++                        const beforeInstalled = installed;
+                         // Re-running add re-resolves the source: git HEAD for github specs,
+                         // dist-tag latest for registry installs.
+                         const isGit = spec.startsWith('github:');
+@@ -1226,7 +1245,8 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup) {
+                         // at what is installed, and it compares against the target tag
+                         // rather than `latest`, which is not the tag being installed.
+                         if (!isGit) {
+-                            const installedVersion = readInstalledVersion(config.profile, name, activeProfileDir);
++                            const installedVersion = readInstalledVersion(config.profile, name, activeProfileDir)
++                                ?? (name === identity.name ? identity.version : null);
+                             const registryLatest = selfChannel === null
+                                 ? await fetchNpmLatest(name)
+                                 : await versionOnChannel(name, selfChannel, await fetchNpmLatest(name));
+@@ -1250,7 +1270,8 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup) {
+                         // one needs a refresh, not a restart.
+                         const wasLive = verifyActivation(config.profile, name, liveNames(), activeProfileDir, disabled.has(name)).state === 'live'
+                             && hasHostHalf(config.profile, name, activeProfileDir);
+-                        const beforeVersion = readInstalledVersion(config.profile, name, activeProfileDir);
++                        const beforeVersion = readInstalledVersion(config.profile, name, activeProfileDir)
++                            ?? (name === identity.name ? identity.version : null);
+                         const beforeCommit = repoKey !== null
+                             ? readLockCommits(config.profile, activeProfileDir).get(repoKey) ?? null
+                             : null;
 diff --git a/lib/types/dsh-cli.d.ts b/lib/types/dsh-cli.d.ts
-index 9e3ba5e405ec80f8efd5513e220d9ea9a9046ae5..a9a6f858bbdec88b0c415cc841054f57e30d275c 100644
+index 9e3ba5e405ec80f8efd5513e220d9ea9a9046ae5..24b65b0351606464d583af54f2c27a2a2b18cebc 100644
 --- a/lib/types/dsh-cli.d.ts
 +++ b/lib/types/dsh-cli.d.ts
 @@ -131,6 +131,7 @@ export interface DesktopPnpmLike {
@@ -78,21 +207,105 @@ index 9e3ba5e405ec80f8efd5513e220d9ea9a9046ae5..a9a6f858bbdec88b0c415cc841054f57
  }
  /** Desktop runtime also owns cleanup of any operation started by this fiber. */
  export interface DesktopPluginRuntime extends PluginCommandRuntime {
+diff --git a/lib/types/updates.d.ts b/lib/types/updates.d.ts
+index 626eed0c1008877b8b8880fb28abd755ac2990fd..1c7662e1fca395c6e735a47f6a3b472efc971512 100644
+--- a/lib/types/updates.d.ts
++++ b/lib/types/updates.d.ts
+@@ -95,5 +95,12 @@ export declare function checkUpdates(profile: string, force?: boolean, explicitD
+  * ever the market itself: opting into early builds is volunteering to try
+  * THIS plugin early, not a licence to pull every other author's
+  * unreleased work.
++*/
++channelFor?: ReadonlyMap<string, Channel>, 
++/**
++ * npm packages supplied by the host rather than the profile manifest.
++ * DSH Desktop bundles the selected market provider with the application,
++ * so the running market is real and versioned even before its first
++ * profile-local upgrade adds it to dependencies.
+  */
+-channelFor?: ReadonlyMap<string, Channel>): Promise<Record<string, UpdateStatus>>;
++hostProvidedNpmVersions?: ReadonlyMap<string, string>): Promise<Record<string, UpdateStatus>>;
+diff --git a/lib/updates.js b/lib/updates.js
+index 33dd1769c35e1465f30c9922d5f6a0b1feee5a21..077bcb373aecb912cfeb46fb95a6eea367a7d615 100644
+--- a/lib/updates.js
++++ b/lib/updates.js
+@@ -173,22 +173,36 @@ export async function checkUpdates(profile, force = false, explicitDir,
+  * ever the market itself: opting into early builds is volunteering to try
+  * THIS plugin early, not a licence to pull every other author's
+  * unreleased work.
++*/
++channelFor = new Map(), 
++/**
++ * npm packages supplied by the host rather than the profile manifest.
++ * DSH Desktop bundles the selected market provider with the application,
++ * so the running market is real and versioned even before its first
++ * profile-local upgrade adds it to dependencies.
+  */
+-channelFor = new Map()) {
++hostProvidedNpmVersions = new Map()) {
+     const activeProfileDir = profileDir(profile, explicitDir);
+     // The channel is part of the key: switching to betas has to change the
+     // answer immediately, and a cache keyed on the profile alone would serve
+     // the stable verdict for the rest of the TTL — reading as "the setting did
+     // nothing".
+-    const cacheKey = `${activeProfileDir}\u0000${[...channelFor].map(([n, c]) => `${n}:${c}`).sort().join(',')}`;
++    const cacheKey = `${activeProfileDir}\u0000${[...channelFor].map(([n, c]) => `${n}:${c}`).sort().join(',')}\u0000${[...hostProvidedNpmVersions].map(([n, v]) => `${n}:${v}`).sort().join(',')}`;
+     if (!force && updatesCache?.key === cacheKey && Date.now() - updatesCache.at < UPDATES_TTL_MS) {
+         return updatesCache.data;
+     }
+     const installed = readInstalled(profile, activeProfileDir);
++    const provided = new Map();
++    for (const [name, version] of hostProvidedNpmVersions) {
++        if (installed[name] !== undefined)
++            continue;
++        installed[name] = version;
++        provided.set(name, version);
++    }
+     const lockCommits = readLockCommits(profile, activeProfileDir);
+     const result = {};
+     await Promise.all(Object.entries(installed).map(async ([name, spec]) => {
+-        const version = readInstalledVersion(profile, name, activeProfileDir);
++        const version = provided.get(name) ?? readInstalledVersion(profile, name, activeProfileDir);
+         if (spec.startsWith('link:') || spec.startsWith('file:')) {
+             result[name] = { kind: 'linked', version, current: null, latest: null, updateAvailable: false };
+             return;
+diff --git a/src/client/MarketSection.tsx b/src/client/MarketSection.tsx
+index 3d06fdadd16fbf78070f9f79ca51d7dc6683613e..8fb6d93237725af3039fa159374e816af3e006d6 100644
+--- a/src/client/MarketSection.tsx
++++ b/src/client/MarketSection.tsx
+@@ -1862,7 +1862,9 @@ export function MarketSection(props: MarketSectionProps) {
+ 
+   // The market itself stays out of the batch: its update reloads this page
+   // mid-run, which would strand the remaining items.
+-  const selfName = installed['dshmarket'] !== undefined ? 'dshmarket' : 'dsh-market'
++  const selfName = installed['dshmarket'] !== undefined || updates['dshmarket'] !== undefined
++    ? 'dshmarket'
++    : 'dsh-market'
+   const updatableNames = Object.keys(installed).filter(
+     name => name !== selfName && !updatedNames.includes(name) && updates[name] && updates[name].updateAvailable,
+   )
+@@ -2449,7 +2451,7 @@ export function MarketSection(props: MarketSectionProps) {
+           <a className={css.repoLink} href="https://github.com/dsh-market/dsh-market" target="_blank" rel="noreferrer" title="dsh-market · GitHub">dsh-market</a>
+           {version !== null && <span className={css.version} title={t('versionHint')}>v{version}</span>}
+           {(() => {
+-            const self = installed['dshmarket'] !== undefined ? 'dshmarket' : 'dsh-market'
++            const self = selfName
+             return updates[self] && updates[self].updateAvailable && !updatedNames.includes(self)
+               && (
+                 <Button
 diff --git a/src/dsh-cli.ts b/src/dsh-cli.ts
-index 0cc2535e43e371e72700301e783694e0b7c2e4c7..b0f09a897428af80791cc88e9088f2c50bdcf6cb 100644
+index 0cc2535e43e371e72700301e783694e0b7c2e4c7..adf1255db94bee340aa12e8f934ea87e91550e76 100644
 --- a/src/dsh-cli.ts
 +++ b/src/dsh-cli.ts
-@@ -10,4 +10,4 @@
- import { spawn } from 'node:child_process'
- import type { ChildProcess, SpawnOptions } from 'node:child_process'
- import { existsSync } from 'node:fs'
- import { homedir } from 'node:os'
-@@ -17,3 +18,4 @@ import { logEvent } from './log.ts'
+@@ -16,6 +16,7 @@ import { logEvent } from './log.ts'
  import { createProgressTracker, type ProgressPhase } from './ndjson.ts'
  import { pluginArgsFor } from './pnpm-compat.ts'
  import { profileDir } from './profile.ts'
 +import { fetchNpmLatest } from './updates.ts'
-@@ -252,4 +254,32 @@ export interface DesktopPnpmLike {
+ 
+ // 15 min default (slow networks + git installs), overridable for CI/tests.
+ // (#6 by @qichuang321.)
+@@ -252,6 +253,34 @@ export interface DesktopPnpmLike {
      }>
      cancel(): void
    }
@@ -125,7 +338,9 @@ index 0cc2535e43e371e72700301e783694e0b7c2e4c7..b0f09a897428af80791cc88e9088f2c5
 +    target: `${exactName}@${packageVersion}`,
 +  }
  }
-@@ -685,7 +720,24 @@ export function createDesktopPluginRuntime(
+ 
+ /** Desktop runtime also owns cleanup of any operation started by this fiber. */
+@@ -685,7 +714,24 @@ export function createDesktopPluginRuntime(
      const abort = new AbortController()
      let handle: ReturnType<DesktopPnpmLike['runPlugin']>
      try {
@@ -151,3 +366,167 @@ index 0cc2535e43e371e72700301e783694e0b7c2e4c7..b0f09a897428af80791cc88e9088f2c5
      } catch (error) {
        const message = error instanceof Error ? error.message : String(error)
        const busy = /another desktop pnpm operation is already running/i.test(message)
+diff --git a/src/routes.ts b/src/routes.ts
+index 5e5b0d517ddff8e5f634a3a890c9d2e12f7d42a0..0aae101a12145b972cb4163272ab5be874215787 100644
+--- a/src/routes.ts
++++ b/src/routes.ts
+@@ -81,27 +81,42 @@ export interface MarketConfig {
+ 
+ const PROFILE_RE = /^[A-Za-z0-9_-]+$/
+ 
++/** The market's own package names, as they appear in a profile manifest. */
++const SELF_NAMES = new Set(['dshmarket', 'dsh-market'])
++
++interface MarketIdentity {
++  name: string
++  version: string
++}
++
+ /**
+- * The market's own version, read once from its installed package.json.
++ * The market's own package identity, read once from its installed package.json.
+  *
+  * The UI puts this in the page heading so a user's screenshot carries it:
+  * most bug reports arrive as a photo of the screen, and without a version
+  * in frame the first reply always has to ask which one it was.
+  */
+-let cachedVersion: string | null = null
+-export function marketVersion(): string {
+-  if (cachedVersion !== null) return cachedVersion
++let cachedIdentity: MarketIdentity | null = null
++function marketIdentity(): MarketIdentity {
++  if (cachedIdentity !== null) return cachedIdentity
+   try {
+-    const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version?: string }
+-    cachedVersion = manifest.version ?? 'unknown'
++    const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
++      name?: string
++      version?: string
++    }
++    cachedIdentity = {
++      name: typeof manifest.name === 'string' && SELF_NAMES.has(manifest.name) ? manifest.name : 'dshmarket',
++      version: manifest.version ?? 'unknown',
++    }
+   } catch {
+-    cachedVersion = 'unknown'
++    cachedIdentity = { name: 'dshmarket', version: 'unknown' }
+   }
+-  return cachedVersion
++  return cachedIdentity
+ }
+ 
+-/** The market's own package names, as they appear in a profile manifest. */
+-const SELF_NAMES = new Set(['dshmarket', 'dsh-market'])
++export function marketVersion(): string {
++  return marketIdentity().version
++}
+ 
+ /**
+  * Whether an installed package declares a client part (`dsh.client`). Its UI
+@@ -1196,12 +1211,23 @@ export function mountMarketRoutes(
+           // to try THIS plugin early, not to be handed every other author's
+           // unreleased work.
+           const channel = activeChannel()
++          const installed = readInstalled(config.profile, activeProfileDir)
++          const identity = marketIdentity()
++          const installedSelfNames = Object.keys(installed).filter(name => SELF_NAMES.has(name))
++          // Desktop provides dshmarket from the application dependency graph,
++          // not the profile manifest. Keep that running build visible to the
++          // ordinary update checker until the first upgrade installs a
++          // profile-local version.
++          const hostProvided = installedSelfNames.length === 0
++            ? new Map([[identity.name, identity.version]])
++            : new Map<string, string>()
+           const channelFor = new Map(
+-            Object.keys(readInstalled(config.profile, activeProfileDir))
+-              .filter(name => SELF_NAMES.has(name))
++            (installedSelfNames.length > 0 ? installedSelfNames : [identity.name])
+               .map(name => [name, channel] as const),
+           )
+-          sendJson(response, 200, { updates: await checkUpdates(config.profile, force, activeProfileDir, channelFor) })
++          sendJson(response, 200, {
++            updates: await checkUpdates(config.profile, force, activeProfileDir, channelFor, hostProvided),
++          })
+         } catch (error) {
+           sendJson(response, 500, { error: error instanceof Error ? error.message : String(error) })
+         }
+@@ -1226,7 +1252,9 @@ export function mountMarketRoutes(
+             const body = (await readJsonBody(request)) as { name?: unknown; force?: unknown }
+             const name = typeof body.name === 'string' ? body.name : ''
+             const force = body.force === true
+-            const spec = readInstalled(config.profile, activeProfileDir)[name]
++            const identity = marketIdentity()
++            const installed = readInstalled(config.profile, activeProfileDir)
++            const spec = installed[name] ?? (name === identity.name ? identity.version : undefined)
+             if (spec === undefined) {
+               sendJson(response, 400, { error: 'plugin is not installed' })
+               return
+@@ -1250,7 +1278,7 @@ export function mountMarketRoutes(
+               })
+               return
+             }
+-            const beforeInstalled = readInstalled(config.profile, activeProfileDir)
++            const beforeInstalled = installed
+             // Re-running add re-resolves the source: git HEAD for github specs,
+             // dist-tag latest for registry installs.
+             const isGit = spec.startsWith('github:')
+@@ -1275,6 +1303,7 @@ export function mountMarketRoutes(
+             // rather than `latest`, which is not the tag being installed.
+             if (!isGit) {
+               const installedVersion = readInstalledVersion(config.profile, name, activeProfileDir)
++                ?? (name === identity.name ? identity.version : null)
+               const registryLatest = selfChannel === null
+                 ? await fetchNpmLatest(name)
+                 : await versionOnChannel(name, selfChannel, await fetchNpmLatest(name))
+@@ -1299,6 +1328,7 @@ export function mountMarketRoutes(
+             const wasLive = verifyActivation(config.profile, name, liveNames(), activeProfileDir, disabled.has(name)).state === 'live'
+               && hasHostHalf(config.profile, name, activeProfileDir)
+             const beforeVersion = readInstalledVersion(config.profile, name, activeProfileDir)
++              ?? (name === identity.name ? identity.version : null)
+             const beforeCommit = repoKey !== null
+               ? readLockCommits(config.profile, activeProfileDir).get(repoKey) ?? null
+               : null
+diff --git a/src/updates.ts b/src/updates.ts
+index 99b500573d2e5c7fa9d4ab27555d4e507f7bb0c4..e67bfaf79ae0228e022f445bbe9be1d4ab0962ca 100644
+--- a/src/updates.ts
++++ b/src/updates.ts
+@@ -211,23 +211,36 @@ export async function checkUpdates(
+    * ever the market itself: opting into early builds is volunteering to try
+    * THIS plugin early, not a licence to pull every other author's
+    * unreleased work.
+-   */
++  */
+   channelFor: ReadonlyMap<string, Channel> = new Map(),
++  /**
++   * npm packages supplied by the host rather than the profile manifest.
++   * DSH Desktop bundles the selected market provider with the application,
++   * so the running market is real and versioned even before its first
++   * profile-local upgrade adds it to dependencies.
++   */
++  hostProvidedNpmVersions: ReadonlyMap<string, string> = new Map(),
+ ): Promise<Record<string, UpdateStatus>> {
+   const activeProfileDir = profileDir(profile, explicitDir)
+   // The channel is part of the key: switching to betas has to change the
+   // answer immediately, and a cache keyed on the profile alone would serve
+   // the stable verdict for the rest of the TTL — reading as "the setting did
+   // nothing".
+-  const cacheKey = `${activeProfileDir}\u0000${[...channelFor].map(([n, c]) => `${n}:${c}`).sort().join(',')}`
++  const cacheKey = `${activeProfileDir}\u0000${[...channelFor].map(([n, c]) => `${n}:${c}`).sort().join(',')}\u0000${[...hostProvidedNpmVersions].map(([n, v]) => `${n}:${v}`).sort().join(',')}`
+   if (!force && updatesCache?.key === cacheKey && Date.now() - updatesCache.at < UPDATES_TTL_MS) {
+     return updatesCache.data
+   }
+   const installed = readInstalled(profile, activeProfileDir)
++  const provided = new Map<string, string>()
++  for (const [name, version] of hostProvidedNpmVersions) {
++    if (installed[name] !== undefined) continue
++    installed[name] = version
++    provided.set(name, version)
++  }
+   const lockCommits = readLockCommits(profile, activeProfileDir)
+   const result: Record<string, UpdateStatus> = {}
+   await Promise.all(Object.entries(installed).map(async ([name, spec]) => {
+-    const version = readInstalledVersion(profile, name, activeProfileDir)
++    const version = provided.get(name) ?? readInstalledVersion(profile, name, activeProfileDir)
+     if (spec.startsWith('link:') || spec.startsWith('file:')) {
+       result[name] = { kind: 'linked', version, current: null, latest: null, updateAvailable: false }
+       return
