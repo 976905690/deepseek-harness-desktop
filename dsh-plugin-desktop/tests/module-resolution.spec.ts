@@ -81,7 +81,7 @@ describe('installProfilePackageResolver', () => {
 
     const installed = harness.resolve?.(
       '@deepseek-ai/dsh-web-app',
-      { parentURL: loaderEntryUrl },
+      { parentURL: profileBaseUrl },
       nextResolve,
     ) as { context: { parentURL?: string } }
     expect(installed.context.parentURL).not.toBe(profileBaseUrl)
@@ -97,6 +97,22 @@ describe('installProfilePackageResolver', () => {
     })
     expect(harness.overlay).toHaveBeenCalledWith('@deepseek-ai/dsh-web-app', expect.any(Object))
     expect(harness.overlay).toHaveBeenCalledWith('dsh-plugin-desktop', expect.any(Object))
+  })
+
+  it('also recognizes the Loader native dynamic-import fallback', () => {
+    const profileBaseUrl = 'file:///C:/Users/test/profile/package.json'
+    installProfilePackageResolver(profileBaseUrl)
+    const nextResolve = vi.fn((specifier: string, context: { parentURL?: string }) => ({ specifier, context }))
+    const loaderEntryUrl = import.meta.resolve('@deepseek-ai/cordis-plugin-loader')
+
+    expect(harness.resolve?.(
+      '@deepseek-ai/dsh-web-app',
+      { parentURL: loaderEntryUrl },
+      nextResolve,
+    )).toEqual({
+      specifier: '@deepseek-ai/dsh-web-app',
+      context: { parentURL: profileBaseUrl },
+    })
   })
 
   it('keeps non-package Loader specifiers on ordinary Node resolution', () => {
@@ -172,6 +188,7 @@ describe('installProfilePackageResolver', () => {
 
   it('uses the same overlay for CommonJS package manifests resolved from the Profile anchor', () => {
     const profileManifestPath = join(tmpdir(), 'dsh-profile', 'package.json')
+    const profileConfigPath = join(tmpdir(), 'dsh-profile', 'cordis.yml')
     const profileBaseUrl = pathToFileURL(profileManifestPath).href
     harness.sources.set('@deepseek-ai/dsh-client-modules', 'install')
     const dispose = installProfilePackageResolver(profileBaseUrl)
@@ -180,6 +197,11 @@ describe('installProfilePackageResolver', () => {
     expect(resolveFilename(
       '@deepseek-ai/dsh-client-modules/package.json',
       { filename: profileManifestPath },
+      false,
+    )).toBe('/install/@deepseek-ai/dsh-client-modules/package.json')
+    expect(resolveFilename(
+      '@deepseek-ai/dsh-client-modules/package.json',
+      { filename: profileConfigPath },
       false,
     )).toBe('/install/@deepseek-ai/dsh-client-modules/package.json')
     expect(resolveFilename(

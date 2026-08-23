@@ -1,6 +1,7 @@
 /** Profile-relative package resolution for Electron's restricted Node runtime. */
 
 import Module, { registerHooks } from 'node:module'
+import { dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { unpackedAsarPath } from './packaged-runtime-path.ts'
 import {
@@ -45,6 +46,7 @@ function isBareSpecifier(specifier: string): boolean {
  */
 export function installProfilePackageResolver(profileBaseUrl: string): () => void {
   const profileManifestPath = fileURLToPath(profileBaseUrl)
+  const profileDirectory = dirname(profileManifestPath)
 
   // ClientModuleRegistry intentionally uses createRequire(ctx.baseUrl) to
   // resolve each browser bundle from the config tree. Node's ESM resolve hook
@@ -62,7 +64,15 @@ export function installProfilePackageResolver(profileBaseUrl: string): () => voi
     isMain,
     options,
   ) {
-    const packageName = parent?.filename === profileManifestPath
+    // ClientModuleRegistry creates its resolver from the active config-tree
+    // anchor (normally cordis.yml), while other profile consumers use the
+    // package.json anchor. Keep the bridge scoped to direct files in the exact
+    // active Profile directory so both faces select the same overlay without
+    // exposing Desktop packages to unrelated CommonJS modules.
+    const parentFilename = parent?.filename
+    const fromProfileAnchor = parentFilename !== undefined
+      && dirname(parentFilename) === profileDirectory
+    const packageName = fromProfileAnchor
       ? packageNameFromManifestSpecifier(request)
       : undefined
     if (packageName !== undefined) {
@@ -80,7 +90,12 @@ export function installProfilePackageResolver(profileBaseUrl: string): () => voi
   const overlayModuleUrls = new Set<string>()
   const hooks = registerHooks({
     resolve(specifier, context, nextResolve) {
+      // Cordis' internal ModuleLoader deliberately performs top-level imports
+      // with the config tree's base URL as their parent. Keep the Loader entry
+      // URL for the native dynamic-import fallback, and recognize the Profile
+      // manifest anchor used by Electron's internal loader as the same boundary.
       const fromLoader = context.parentURL === LOADER_ENTRY_URL
+        || context.parentURL === profileBaseUrl
       const packageName = fromLoader ? packageNameFromSpecifier(specifier) : undefined
       if (packageName !== undefined) {
         const overlay = resolveOverlayPackage(packageName, {
