@@ -10,7 +10,6 @@ import {
   FORBIDDEN_MACOS_UNIVERSAL_ENTRIES,
   MACOS_UNIVERSAL_NATIVE_ENTRIES,
 } from './mac-universal.ts'
-import { LINUX_NATIVE_ENTRIES, linuxNativeEntries, type LinuxPackageArch } from './linux-runtime.ts'
 
 /** AfterPack fields consumed without importing Electron Builder's incomplete declaration graph. */
 export interface PackagedRuntimeContext {
@@ -104,11 +103,6 @@ export const FORBIDDEN_WINDOWS_X64_RUNTIME_PREFIXES = [
 /** CPU-specific runtime assets that must coexist in a universal macOS application. */
 export const REQUIRED_MACOS_UNIVERSAL_ENTRIES = [
   ...MACOS_UNIVERSAL_NATIVE_ENTRIES.map(entry => entry.path),
-] as const
-
-/** Native and executable files required by each supported Linux CPU. */
-export const REQUIRED_LINUX_NATIVE_ENTRIES = [
-  ...LINUX_NATIVE_ENTRIES.map(entry => entry.path),
 ] as const
 
 /** Injectable archive listing seam used by focused tests. */
@@ -300,7 +294,6 @@ export function allowedUnpackedRuntimeEntry(entry: string): boolean {
     ...REQUIRED_WINDOWS_X64_NODE_PTY_ENTRIES,
     ...REQUIRED_WINDOWS_X64_NATIVE_ENTRIES,
     ...REQUIRED_MACOS_UNIVERSAL_ENTRIES,
-    ...REQUIRED_LINUX_NATIVE_ENTRIES,
   ])
   const prefixes = [
     'node_modules/@deepseek-ai/dsh/config/agent-presets/',
@@ -359,11 +352,6 @@ export function verifyPackagedRuntime(
       ]
     : context.electronPlatformName === 'darwin' && context.arch === 4
       ? [...REQUIRED_UNPACKED_RUNTIME_ENTRIES, ...REQUIRED_MACOS_UNIVERSAL_ENTRIES]
-      : context.electronPlatformName === 'linux'
-        ? [
-            ...REQUIRED_UNPACKED_RUNTIME_ENTRIES,
-            ...linuxNativeEntries(resolveLinuxArch(context.arch)).map(entry => entry.path),
-          ]
       : REQUIRED_UNPACKED_RUNTIME_ENTRIES
   const missing = requiredPhysicalEntries.filter(entry => !exists(join(unpackedRoot, entry)))
   if (missing.length > 0) {
@@ -391,12 +379,6 @@ export function verifyPackagedRuntime(
     }
   }
   verifyUnpackedRuntimeScope(archiveEntries, unpackedRoot, exists)
-}
-
-function resolveLinuxArch(arch: number | undefined): LinuxPackageArch {
-  if (arch === 1) return 'x64'
-  if (arch === 3) return 'arm64'
-  throw new Error(`dsh-plugin-desktop: unsupported Linux package architecture ${String(arch)}`)
 }
 
 /**

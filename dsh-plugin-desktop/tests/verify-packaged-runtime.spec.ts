@@ -6,7 +6,6 @@ import {
   afterPack,
   allowedUnpackedRuntimeEntry,
   FORBIDDEN_WINDOWS_X64_RUNTIME_PREFIXES,
-  REQUIRED_LINUX_NATIVE_ENTRIES,
   REQUIRED_MACOS_UNIVERSAL_ENTRIES,
   REQUIRED_PACKAGED_RUNTIME_ENTRIES,
   REQUIRED_UNPACKED_RUNTIME_ENTRIES,
@@ -23,7 +22,6 @@ import {
   type PackagedRuntimeContext,
 } from '../scripts/verify-packaged-runtime.ts'
 import { FORBIDDEN_MACOS_UNIVERSAL_ENTRIES } from '../scripts/mac-universal.ts'
-import { linuxNativeEntries } from '../scripts/linux-runtime.ts'
 
 function context(
   appOutDir: string,
@@ -54,13 +52,6 @@ function requiredPhysicalEntries(runtimeContext: PackagedRuntimeContext): readon
     return [
       ...REQUIRED_UNPACKED_RUNTIME_ENTRIES,
       ...REQUIRED_MACOS_UNIVERSAL_ENTRIES,
-    ]
-  }
-  if (runtimeContext.electronPlatformName === 'linux') {
-    const arch = runtimeContext.arch === 1 ? 'x64' : 'arm64'
-    return [
-      ...REQUIRED_UNPACKED_RUNTIME_ENTRIES,
-      ...linuxNativeEntries(arch).map(entry => entry.path),
     ]
   }
   return REQUIRED_UNPACKED_RUNTIME_ENTRIES
@@ -95,7 +86,7 @@ describe('packaged desktop runtime verification', () => {
       .rejects.toThrow('packaged diagnostic worker omitted crash-dumps/pending/packaged-smoke.dmp')
   })
 
-  it.each(['darwin', 'linux', 'win32'])(
+  it.each(['darwin', 'win32'])(
     'targets the physical diagnostic Worker in the %s unpacked layout and removes smoke files',
     async (platform) => {
       const unpackedRoot = resolvePackagedUnpackedRoot(context('/build', platform))
@@ -140,20 +131,13 @@ describe('packaged desktop runtime verification', () => {
     [
       'darwin',
       join('/build', 'DSH Desktop.app', 'Contents', 'Resources', 'app.asar'),
-      undefined,
     ],
     [
       'win32',
       join('/build', 'resources', 'app.asar'),
-      undefined,
     ],
-    [
-      'linux',
-      join('/build', 'resources', 'app.asar'),
-      1,
-    ],
-  ] as const)('inspects the %s app.asar path', (platform, expectedPath, arch) => {
-    const runtimeContext = context('/build', platform, arch)
+  ])('inspects the %s app.asar path', (platform, expectedPath) => {
+    const runtimeContext = context('/build', platform)
     const list = vi.fn<ArchiveLister>(() => completeArchiveEntries(platform === 'win32' ? '\\' : '/'))
 
     verifyPackagedRuntime(runtimeContext, list, physicalProbe(runtimeContext))
@@ -234,37 +218,6 @@ describe('packaged desktop runtime verification', () => {
     )
   })
 
-  it.each([
-    [1, 'x64'],
-    [3, 'arm64'],
-  ] as const)('requires the Linux %s native runtime', (arch, archName) => {
-    const runtimeContext = context('/build', 'linux', arch)
-    const required = linuxNativeEntries(archName)
-    const missing = required[0]!.path
-
-    expect(() => verifyPackagedRuntime(
-      runtimeContext,
-      () => completeArchiveEntries(),
-      physicalProbe(runtimeContext, { missing }),
-    )).toThrow(`missing required physical entries: ${missing}`)
-
-    verifyPackagedRuntime(
-      runtimeContext,
-      () => completeArchiveEntries(),
-      physicalProbe(runtimeContext),
-    )
-  })
-
-  it('rejects an unknown Linux package architecture', () => {
-    const runtimeContext = context('/build', 'linux', 2)
-
-    expect(() => verifyPackagedRuntime(
-      runtimeContext,
-      () => completeArchiveEntries(),
-      physicalProbe(context('/build', 'linux', 1)),
-    )).toThrow('unsupported Linux package architecture 2')
-  })
-
   it('rejects a host-architecture node-pty build from a universal app', () => {
     const runtimeContext = context('/build', 'darwin', 4)
     const forbidden = FORBIDDEN_MACOS_UNIVERSAL_ENTRIES[0]
@@ -310,12 +263,5 @@ describe('packaged desktop runtime verification', () => {
       () => completeArchiveEntries(),
       physicalProbe(runtimeContext, { missing }),
     )).toThrow(`missing required physical entries: ${missing}`)
-  })
-
-  it('tracks every Linux native path in the unpack whitelist', () => {
-    expect(REQUIRED_LINUX_NATIVE_ENTRIES).toHaveLength(14)
-    for (const entry of REQUIRED_LINUX_NATIVE_ENTRIES) {
-      expect(allowedUnpackedRuntimeEntry(entry)).toBe(true)
-    }
   })
 })
