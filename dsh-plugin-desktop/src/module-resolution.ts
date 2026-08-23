@@ -1,7 +1,8 @@
 /** Profile-relative package resolution for Electron's restricted Node runtime. */
 
 import Module, { registerHooks } from 'node:module'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { unpackedAsarPath } from './packaged-runtime-path.ts'
 import {
   findOverlayPackage,
   packageNameFromSpecifier,
@@ -9,8 +10,12 @@ import {
 } from './package-overlay.ts'
 
 const LOADER_ENTRY_URL = import.meta.resolve('@deepseek-ai/cordis-plugin-loader')
-const DESKTOP_ENTRY_URL = new URL('../lib/index.js', import.meta.url).href
-const DESKTOP_PACKAGE_URL = new URL('../package.json', import.meta.url).href
+const DESKTOP_ENTRY_URL = pathToFileURL(
+  unpackedAsarPath(fileURLToPath(new URL('../lib/index.js', import.meta.url))),
+).href
+const DESKTOP_PACKAGE_URL = pathToFileURL(
+  unpackedAsarPath(fileURLToPath(new URL('../package.json', import.meta.url))),
+).href
 
 interface CommonJsModuleResolver {
   _resolveFilename(
@@ -31,10 +36,6 @@ function packageNameFromManifestSpecifier(specifier: string): string | undefined
 /** Return whether a Loader request needs Node package resolution. */
 function isBareSpecifier(specifier: string): boolean {
   return !specifier.startsWith('.') && !specifier.startsWith('/') && !URL.canParse(specifier)
-}
-
-function overlayParentUrl(source: 'install' | 'profile', profileBaseUrl: string): string {
-  return source === 'profile' ? profileBaseUrl : DESKTOP_ENTRY_URL
 }
 
 /**
@@ -88,7 +89,7 @@ export function installProfilePackageResolver(profileBaseUrl: string): () => voi
         })
         const resolved = nextResolve(specifier, {
           ...context,
-          parentURL: overlayParentUrl(overlay.selected.source, profileBaseUrl),
+          parentURL: overlay.selected.source === 'profile' ? profileBaseUrl : DESKTOP_ENTRY_URL,
         })
         overlayModuleUrls.add(resolved.url)
         return resolved
@@ -107,18 +108,7 @@ export function installProfilePackageResolver(profileBaseUrl: string): () => voi
         return resolved
       } catch (cause) {
         if ((cause as NodeJS.ErrnoException).code !== 'ERR_MODULE_NOT_FOUND') throw cause
-        const packageName = packageNameFromSpecifier(specifier)
-        const overlay = packageName === undefined
-          ? undefined
-          : findOverlayPackage(packageName, {
-              installPackageUrl: DESKTOP_PACKAGE_URL,
-              profilePackageUrl: profileBaseUrl,
-            })
-        if (overlay === undefined) throw cause
-        const resolved = nextResolve(specifier, {
-          ...context,
-          parentURL: overlayParentUrl(overlay.selected.source, profileBaseUrl),
-        })
+        const resolved = nextResolve(specifier, { ...context, parentURL: profileBaseUrl })
         overlayModuleUrls.add(resolved.url)
         return resolved
       }

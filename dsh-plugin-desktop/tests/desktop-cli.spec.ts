@@ -182,7 +182,7 @@ describe('packaged dsh bootstrap', () => {
     }
   })
 
-  it('maps only explicitly physical assets to the unpacked Electron tree', () => {
+  it('uses the physical unpacked dependency tree only inside an Electron package', () => {
     expect(unpackedAsarPath('/Applications/DSH Desktop.app/Contents/Resources/app.asar/node_modules/pkg'))
       .toBe('/Applications/DSH Desktop.app/Contents/Resources/app.asar.unpacked/node_modules/pkg')
     expect(unpackedAsarPath('C:\\Program Files\\DSH Desktop\\resources\\app.asar\\node_modules\\pkg'))
@@ -194,7 +194,7 @@ describe('packaged dsh bootstrap', () => {
       .toThrow('relative POSIX path')
   })
 
-  it('keeps a resolved JavaScript dependency inside ASAR for RunAsNode', () => {
+  it('maps a resolved ASAR dependency to its physical unpacked path', () => {
     const root = mkdtempSync(join(tmpdir(), 'dsh-desktop-asar-profile-'))
     const desktopLib = join(root, 'app.asar', 'lib')
     const dshPackage = join(root, 'app.asar', 'node_modules', '@deepseek-ai', 'dsh')
@@ -210,7 +210,7 @@ describe('packaged dsh bootstrap', () => {
       const moduleUrl = pathToFileURL(join(desktopLib, 'desktop-cli.js')).href
       expect(packagedDependencyPath(moduleUrl, '@deepseek-ai/dsh/lib/bin.js')).toBe(join(
         realpathSync(root),
-        'app.asar',
+        'app.asar.unpacked',
         'node_modules',
         '@deepseek-ai',
         'dsh',

@@ -285,20 +285,13 @@
   "build": {
     "appId": "ai.deepseek.dsh.desktop",
     "productName": "DSH Desktop",
-    "asar": {
-      "smartUnpack": false
-    },
+    "asar": true,
     "asarUnpack": [
-      "lib/diagnostic-export-worker.js",
-      "node_modules/@deepseek-ai/dsh/config/agent-presets/**",
-      "node_modules/@deepseek-ai/node-addon-landlock-run-linux-*/**",
-      "node_modules/@img/sharp-*/**",
-      "node_modules/@img/sharp-libvips-*/**",
-      "node_modules/@koromix/koffi-*/**",
-      "node_modules/@vscode/ripgrep-*/**",
-      "node_modules/node-addon-require-builtin-*/**",
-      "node_modules/node-pty/prebuilds/**",
-      "node_modules/pnpm/dist/vendor/**"
+      "package.json",
+      "cordis.patch.yml",
+      "build/**",
+      "lib/**",
+      "node_modules/**"
     ],
     "afterPack": "./scripts/verify-packaged-runtime.ts",
     "electronFuses": {

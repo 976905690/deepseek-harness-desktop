@@ -1,4 +1,4 @@
-/** Runtime-path helpers for Electron ASAR dependencies and explicitly unpacked assets. */
+/** Physical-path helpers for dependencies Electron Builder removes from app.asar. */
 
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
@@ -46,7 +46,7 @@ export function unpackedAsarPath(filename: string): string {
  * Resolve one dependency entry from a built desktop module.
  * @param moduleUrl - URL of a module emitted below the package's `lib` directory.
  * @param dependencyEntry - package subpath resolved through Node module lookup.
- * @returns a logical path suitable for Electron's RunAsNode module loader.
+ * @returns a physical path suitable for Node execution and profile symlinks.
  */
 export function packagedDependencyPath(moduleUrl: string, dependencyEntry: string): string {
   const segments = dependencyEntry.split('/')
@@ -63,5 +63,5 @@ export function packagedDependencyPath(moduleUrl: string, dependencyEntry: strin
     resolvePackageRoot(moduleUrl, packageName),
     ...segments.slice(packageSegments),
   )
-  return logicalPath
+  return unpackedAsarPath(logicalPath)
 }
