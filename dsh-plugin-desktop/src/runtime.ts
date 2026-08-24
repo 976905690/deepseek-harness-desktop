@@ -198,6 +198,12 @@ export interface DesktopRuntime {
   /** Open a native terminal containing packaged DSH command shims. */
   openTerminal(): void
 
+  /** Reload the mounted renderer without restarting the Host. */
+  reloadRenderer(): void
+
+  /** Toggle Developer Tools for the mounted renderer. */
+  toggleDeveloperTools(): void
+
   /** Export a diagnostics zip and reveal it in the system file manager. */
   exportDiagnostics(): Promise<void>
 
@@ -221,6 +227,9 @@ export interface DesktopRuntime {
 
   /** Request orderly Cordis teardown followed by an Electron relaunch. */
   requestRestart(): Promise<void>
+
+  /** Request orderly teardown followed by a one-shot recovery-mode relaunch. */
+  requestRecoveryRestart(): Promise<void>
 
   /** Allow the final native quit after the Cordis tree has disposed. */
   prepareToQuit(): void

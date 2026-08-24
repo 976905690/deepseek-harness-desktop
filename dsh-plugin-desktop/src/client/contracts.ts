@@ -69,7 +69,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     'details': { kind: 'single'; scope: 'session'; owner: Record<never, never> }
     /** Frame-wide additive overlays. */
     'shell.overlay': { kind: 'list'; scope: 'root' }
-    /** Additive actions rendered in the visible extended-window command bar. */
+    /** Additive actions rendered in the compatibility/extended Desktop frame. */
     'desktop.titlebar.action': { kind: 'list'; scope: 'root' }
   }
 }

@@ -37,7 +37,9 @@ Every profile or mode switch disposes the current generation before starting the
 - **Web Client** contains the official Web UI and third-party browser contributions. It works over the loopback carrier and does not call Electron directly.
 - **Native runtime** adapts Electron BrowserWindow, the tray, filesystem/network operations, and installers. `desktopRuntime` is for Desktop-owned rows only.
 
-Compatibility mode validates its environment without installing a Desktop layout, root, sidebar, or conversation override. Extended mode preserves the official layout and adds a Desktop command bar through its overlay slot, shifting the complete frame below the bar. Advanced mode installs the Desktop-owned layout and frame. Both custom-window modes use capability-gated native materials while respecting upstream and third-party slot composition.
+Compatibility mode validates its environment and adds only an independent 44-pixel Desktop frame through the overlay slot; the official layout, root, sidebar, and conversation remain an unrelated content viewport below it. Extended mode preserves that exact official composition and additionally makes its sidebar transparent over the frame's material layer, producing the inverted-L surface. Advanced mode installs the Desktop-owned layout and frame. macOS and Windows apply capability-gated native materials without changing upstream or third-party slot ownership.
+
+Desktop-level confirmations, warnings, errors, and results do not enter the Web Client tree. `DesktopDialogWindow` creates a separate sandboxed modal `BrowserWindow`, applies the shared empty utility frame, parents it to the active generation window when possible, and accepts only one bounded local response. Recovery and Profile creation are separate Desktop-owned windows using the same title-free frame. Recovery itself is a shadcn page with reason-first presentation and four workflow tabs; destructive recovery actions delegate their confirmation back to `DesktopDialogWindow`.
 
 ### Native shell generation and platform adapters
 

@@ -16,8 +16,8 @@ Profile 是一组 DSH bundle、依赖和 patch 的组合。托盘中的 **Profil
 
 ## 窗口模式与材质
 
-- **兼容模式**：使用上游默认 Web client 和 profile 自己的 layout/sidebar/conversation 组合。它适合希望尽量接近官方 Harness 的用户。
-- **扩展窗口**：保留完整官方布局，并把它放在跨平台操作栏下方。操作栏与上游左侧栏组成带圆角内拐角的倒 L 材质区域；终端和重启按钮仍可点击，其余操作栏区域可以拖动窗口。
+- **兼容模式**：保持 profile 的官方 layout/sidebar/conversation 组合完整，并把它放在独立的 44 像素 Desktop frame 下方。frame 可以拖动，图标操作仍可点击，官方 dialog 只会占用与 frame 无关的下方内容 viewport。
+- **扩展窗口**：保留同一套官方 layout 与独立 frame，再把所选材质延伸到完整官方侧边栏背后。顶部与左侧材质组成一个带圆角内拐角的倒 L 区域。
 - **高级模式**：在不改变上游 Web carrier 的前提下加入 Desktop 自有的 frame、布局、Mica/vibrancy 和原生拖动区域。它适合需要更完整桌面外观的用户。
 
 macOS 自定义窗口模式可以打开或关闭透明材质。Windows 可关闭材质或使用原生亚克力；仅 Windows 11 build 22621 及以上在支持时显示 Mica，因此 Windows 10 使用亚克力。切换模式或材质都会重启应用，不会在正在运行的 renderer 中热替换 root slot 或窗口材质。Linux 只提供兼容模式。
@@ -57,7 +57,7 @@ dsh plugin update
 
 ## 打开终端
 
-可以从托盘、Desktop 设置或扩展窗口操作栏选择 **Open DSH Terminal**；设置中的旁边还提供 **重启 Desktop** 按钮。macOS 会打开 Terminal，Windows 会优先使用 Windows Terminal，找不到时回退到 PowerShell 或命令提示符。
+可以从托盘、Desktop 设置或 Desktop frame 选择 **Open DSH Terminal**；设置中的旁边提供重启下拉菜单，可以普通重启或 **重启到恢复模式**，两种操作都必须确认。macOS 会打开 Terminal，Windows 会优先使用 Windows Terminal，找不到时回退到 PowerShell 或命令提示符。
 
 欢迎信息会显示：应用版本、当前 profile、profile 目录和 DSH home。Desktop 会在自己的 user-data 目录生成 `dsh`、`pnpm` 和 `node` 私有 shim，只对这个终端进程设置 PATH，不会修改系统 PATH 或用户 shell 配置。
 
@@ -70,6 +70,8 @@ dsh plugin update
 确认下载后，应用会先打开原生的“保存更新安装包”对话框，默认建议保存到 Downloads；你可以改用其他目录和文件名，取消对话框则不会开始下载。保存后应用才会请求当前平台的固定下载地址，并记录安装包位置。macOS 会打开 DMG，由用户把应用替换到 Applications；Windows 会准备 NSIS 安装器，再询问是否退出并启动安装。升级完成并重新启动后，应用会询问是否删除安装包以释放磁盘空间，也可以选择保留。下载和安装失败不会破坏当前版本，托盘仍可重试。
 
 ## 排查
+
+Desktop 的确认、警告与操作结果会打开独立、基于 shadcn 的桌面级模态窗口，而不是侵入官方页面的 overlay。恢复窗口会先展示进入原因，再提供 **插件管理**、**回滚**、**切换配置** 与 **诊断** 四个 Tab；它与新增 Profile 窗口顶部的 utility frame 都不会重复显示标题。
 
 - **应用能够进入托盘**：右键托盘图标，选择 **导出诊断信息…**。确认隐私提示后，Desktop 会生成 `diagnostics-*.zip` 并在文件管理器中显示它。
 - **应用持续闪退，无法进入托盘**：在 PowerShell 中直接运行安装后的程序并加上恢复参数。默认安装位置的命令如下；如果安装时修改过目录，请替换为实际的 EXE 路径。

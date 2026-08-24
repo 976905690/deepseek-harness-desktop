@@ -2,25 +2,15 @@
 
 import type { BrowserWindowConstructorOptions, NativeImage } from 'electron'
 import type { DesktopPlatform, DesktopShellSpec } from './runtime.ts'
-import { EXTENDED_TITLEBAR_HEIGHT, WINDOWS_TITLEBAR_HEIGHT } from './window-chrome.ts'
+import { DESKTOP_FRAME_HEIGHT, WINDOWS_TITLEBAR_HEIGHT } from './window-chrome.ts'
 
-/**
- * Build a secure BrowserWindow while preserving the operating system frame.
- * @param spec - shell values resolved from the active Cordis row.
- * @param icon - validated application icon.
- * @param platform - current Electron platform.
- * @returns options with a native frame and no custom materials.
- */
-export function compatibilityWindowOptions(
+function baseWindowOptions(
   spec: DesktopShellSpec,
   icon: NativeImage,
   platform: DesktopPlatform,
   preload: string,
 ): BrowserWindowConstructorOptions {
-  if (spec.mode !== 'compatibility') {
-    throw new Error(`dsh-plugin-desktop: unsupported compatibility window mode ${spec.mode}`)
-  }
-  const options: BrowserWindowConstructorOptions = {
+  return {
     title: platform === 'win32' ? spec.windowTitle : '',
     width: spec.width,
     height: spec.height,
@@ -36,8 +26,30 @@ export function compatibilityWindowOptions(
       webSecurity: true,
     },
   }
-  if (platform === 'win32') options.autoHideMenuBar = true
-  return options
+}
+
+/**
+ * Build the independent Desktop frame around the official compatibility client.
+ * @param spec - shell values resolved from the active Cordis row.
+ * @param icon - validated application icon.
+ * @param platform - current Electron platform.
+ * @returns custom frame options on macOS/Windows and a native Linux fallback.
+ */
+export function compatibilityWindowOptions(
+  spec: DesktopShellSpec,
+  icon: NativeImage,
+  platform: DesktopPlatform,
+  preload: string,
+): BrowserWindowConstructorOptions {
+  if (spec.mode !== 'compatibility') {
+    throw new Error(`dsh-plugin-desktop: unsupported compatibility window mode ${spec.mode}`)
+  }
+  if (platform === 'darwin' || platform === 'win32') {
+    return customChromeWindowOptions(spec, icon, platform, preload, DESKTOP_FRAME_HEIGHT)
+  }
+  const options = baseWindowOptions(spec, icon, platform, preload)
+  if (platform === 'linux') return options
+  throw new Error('dsh-plugin-desktop: compatibility mode is unsupported on this platform')
 }
 
 /**
@@ -69,7 +81,7 @@ export function extendedWindowOptions(
   if (spec.mode !== 'extended') {
     throw new Error(`dsh-plugin-desktop: unsupported extended window mode ${spec.mode}`)
   }
-  return customChromeWindowOptions(spec, icon, platform, preload, EXTENDED_TITLEBAR_HEIGHT)
+  return customChromeWindowOptions(spec, icon, platform, preload, DESKTOP_FRAME_HEIGHT)
 }
 
 function customChromeWindowOptions(
@@ -79,22 +91,7 @@ function customChromeWindowOptions(
   preload: string,
   titlebarHeight: number,
 ): BrowserWindowConstructorOptions {
-  const options: BrowserWindowConstructorOptions = {
-    title: platform === 'win32' ? spec.windowTitle : '',
-    width: spec.width,
-    height: spec.height,
-    minWidth: spec.minWidth,
-    minHeight: spec.minHeight,
-    show: false,
-    icon,
-    webPreferences: {
-      preload,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-      webSecurity: true,
-    },
-  }
+  const options = baseWindowOptions(spec, icon, platform, preload)
   if (platform === 'darwin') {
     const custom: BrowserWindowConstructorOptions = {
       ...options,

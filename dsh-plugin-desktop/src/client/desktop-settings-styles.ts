@@ -162,6 +162,7 @@ const CSS = `
   align-items: center;
   gap: 8px;
 }
+.dshDesktopNativeActions[data-placement="settings"] .dshDesktopActionMenu { right: 0; }
 .dshDesktopSettingsHeaderButton {
   display: inline-flex;
   align-items: center;
@@ -177,6 +178,7 @@ const CSS = `
   font-size: 12px;
   line-height: 18px;
 }
+.dshDesktopSettingsHeaderButton svg { width: 14px; height: 14px; margin-left: 5px; }
 .dshDesktopSettingsHeaderButton:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
 .dshDesktopSettingsHeaderButton:disabled { cursor: not-allowed; opacity: .4; }
 .dshDesktopNativeActionError {

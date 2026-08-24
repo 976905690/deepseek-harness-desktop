@@ -10,7 +10,7 @@ Electron 可执行文件只包含最小启动代码。它获取单实例锁、�
 
 三种呈现模式都复用现有 loopback Web carrier。profile 挂载普通 `dsh-base` 与 `dsh-web-app` bundle；Host 把 HTTP 与 WebSocket surface 绑定到 `127.0.0.1` 的临时端口；Electron 在沙箱 renderer 中加载该同源页面。Electron 不维护自有插件 roster，不使用 preload bridge，renderer 也不会获得原始 Electron API。
 
-desktop package 拥有普通 Host 与 Web Client 两个 face。它的 Client face 会在所有模式下校验 Host 提供的模式、平台和经过能力门槛解析的材质 marker。兼容模式保持官方呈现不变；扩展窗口在官方布局外增加可见操作栏；增强模式则安装下文所述的 desktop layout service 与 root 呈现。所有模式下，第三方 Web client 都继续使用普通 DSH 模块图。
+desktop package 拥有普通 Host 与 Web Client 两个 face。它的 Client face 会在所有模式下校验 Host 提供的模式、平台和经过能力门槛解析的材质 marker。兼容模式把保持不变的官方呈现放在独立 Desktop frame 下方；扩展窗口再把侧边栏纳入该 frame 的材质区域；增强模式则安装下文所述的 desktop layout service 与 root 呈现。所有模式下，第三方 Web client 都继续使用普通 DSH 模块图。
 
 托盘中的 profile 选择器会列出现有 profile，以及可延迟创建的 `desktop` 与 `web` 默认项。可选 profile 必须直接按顺序组合 `dsh-base` 与 `dsh-web-app`；headless、损坏或已经内嵌 desktop bundle 的 profile 仍会显示，但不可选择。只有 `desktop` 是 Launcher 管理的 profile：它会修复安装方拥有的前缀，同时保留第三方 bundle 的相对顺序。其他被选 profile 的 manifest、用户 patch 与依赖均保持不变。Launcher 只会为当前 generation 在 `dsh-web-app` 后插入自有 desktop layer，不会把该 layer 持久化到被选 bundle 列表。
 
@@ -51,9 +51,9 @@ Linux 只支持兼容模式。其托盘模式命令会被禁用，自定义窗�
 
 ## 兼容模式
 
-`dsh-desktop.mode` 默认为 `compatibility`。该模式创建带有操作系统原生边框的普通窗口，并加载当前 DSH profile 中的官方 Web surface。macOS 会隐藏可见的页面标题。Windows 保留原生标题栏图标并显示 `DeepSeek Harness Desktop`，但会移除窗口菜单栏。原生标题栏颜色与外观由操作系统拥有。
+`dsh-desktop.mode` 默认为 `compatibility`。在 macOS 与 Windows 上，该模式会在当前 DSH profile 的官方 Web surface 上方创建一条独立的 44 CSS 像素 Desktop frame，并保留原生红绿灯或窗口按钮。居中的标识、模式 pill、拖动区域与图标操作只属于该 frame；完整官方页面从它下方开始，不参与 frame 的布局或安全区计算。Linux 保留普通原生 frame 作为兼容 fallback。
 
-desktop Client module 会校验模式与平台 marker，随后在兼容模式下不产生任何呈现替换。它不提供或替换 `layout` service，不注册 `root` 或 `sidebar` occupant，也不改动 conversation surface。Desktop 自有的启动健康报告和本地文件夹拖放属于能力 effect；兼容模式仍会保留被选 profile 自身的 layout、sidebar 与 conversation 组合，普通 `desktop` 与 `web` profile 因而会原样保留官方 row。
+desktop Client module 会校验模式与平台 marker，在兼容模式下只注册独立 frame overlay 与固定 launcher 操作，不替换任何官方呈现。它不提供或替换 `layout` service，不注册 `root` 或 `sidebar` occupant，也不改动 conversation surface。Desktop 自有的启动健康报告和本地文件夹拖放属于能力 effect；兼容模式仍会保留被选 profile 自身的 layout、sidebar 与 conversation 组合，普通 `desktop` 与 `web` profile 因而会原样保留官方 row。上游 dialog 仍是内容 overlay，并被限制在 Desktop frame 下方。
 
 Cordis row 会在 profile 激活期间登记原生窗口参数。Launcher 只在 `app-boot` 完成并审计整个 profile 后创建窗口，因此首个 renderer manifest 会包含所有已激活的官方、desktop 与第三方 client plugin，同时插件自身不会在 Loader entry 内等待整棵 Loader tree。
 
@@ -65,9 +65,13 @@ Cordis row 会在 profile 激活期间登记原生窗口参数。Launcher 只在
 
 ## 扩展窗口模式
 
-扩展窗口保留官方上游 `ui-layout`、sidebar、conversation 和 details occupant。Desktop 在完整官方 frame 上方加入一条固定的 52 CSS 像素操作栏，并把整个官方 surface 下移，因此上游内容不需要再为标题栏逐个处理安全区。操作栏与官方左侧栏使用同一种材质，组成倒 L 形玻璃区域；主会话 surface 位于倒 L 内侧，内拐角使用 14 像素圆角裁切。
+扩展窗口会保留官方上游 `ui-layout`、sidebar、conversation 和 details occupant，作为兼容增强呈现。Desktop 在完整官方 frame 上方加入一条固定的 44 CSS 像素操作栏，并把整个官方 surface 下移，因此上游内容不需要再为标题栏逐个处理安全区。操作栏与完整的官方左侧栏只透出一层不会叠色的材质，组成连续的倒 L 形玻璃区域；主会话 surface 位于倒 L 内侧，内拐角使用 14 像素圆角裁切。
 
-即使上游 overlay 打开，操作栏仍会保持可见且可以拖动窗口。macOS 红绿灯和 Windows 原生标题栏按钮保留各自命中区域；Desktop 的打开终端、重启按钮以及注册到可叠加 `desktop.titlebar.action` slot 的 contribution 会明确退出拖动区域，因此仍可正常点击。
+居中的产品标题和模式 pill 不受两侧操作组影响。第一方操作使用紧凑图标：macOS 把它们放在红绿灯相对的右侧，Windows 则把它们放在原生标题栏按钮相对的左侧。图标可以打开 DSH 终端、打开包含普通重启与恢复模式重启的菜单，或打开开发者菜单来重载 renderer 与切换分离式开发者工具。这些固定操作通过私有同源 launcher 边界执行；页面不会获得原始 Electron 或任意命令接口。
+
+即使上游 overlay 打开，操作栏仍会保持可见且可以拖动窗口。macOS 红绿灯和 Windows 原生标题栏按钮保留各自命中区域；第一方图标以及注册到可叠加 `desktop.titlebar.action` slot 的 contribution 会明确退出拖动区域，因此仍可正常点击。
+
+DOM 会把操作栏声明为 Desktop frame，并把下移后的上游 root 声明为它的 content viewport。全视口上游对话框——包括 portal 到 `body` 的对话框——都会被限制在这个 content viewport 内，因此 mask 与卡片会从 44 像素 frame 下方开始，不会再压暗或拦截顶栏。
 
 自定义窗口材质独立于模式设置。macOS 可选“关闭”或“透明材质”；Windows 可选“关闭”和原生“亚克力”，仅 Windows 11 build 22621 及以上显示 Mica。Windows 10 因此使用真正的原生亚克力，而不是 CSS 模拟。已持久化但系统不支持的 Mica 会按能力门槛回退到亚克力。切换模式或材质都会执行有序重启。
 
@@ -170,7 +174,11 @@ npx dsh-plugin-desktop
 
 Release operator 必须先发布两个平台产物，再让版本可被发现。产物与 download redirect 准备完成后，在 Upstash Redis console 中把 `deepseek-harness-desktop:release:version` 设置为规范的 stable 版本，例如 `SET deepseek-harness-desktop:release:version 2.0.1`。版本 API 会立即生效；key 缺失、服务不可用或值无效时，Desktop 不会显示任何提示。
 
-在 macOS 与 Windows 上，**打开 DSH 终端** 会打开以当前激活 profile 为工作目录的系统终端。设置页标题区会把 **重启 Desktop** 放在它旁边；本地同源请求先收到确认响应，随后才会启动与设置变更相同的有序 Cordis shutdown 和 Electron relaunch。终端欢迎信息会显示应用版本、当前 profile、profile 目录与 DSH home，并列出配置与插件管理命令。在该终端内，裸 `dsh`、`dsh --dump-config`，以及没有选择 profile 的 plugin 子命令都会默认使用当前激活 profile；显式 `--profile` 与上游 `web` alias 会保留原有含义。DSH Desktop 会在自身 user-data 目录下按 profile 生成私有 `dsh`、`pnpm` 与 `node` shim，设置 `DSH_HOME`，使用当前 profile 作为工作目录，并且只在该终端的 `PATH` 前置 shim 目录；之后切换 profile 不会改变已经打开的终端命令。它不会修改全局环境或 shell 启动文件。macOS launcher 会先保留用户的交互式 zsh 或 bash 设置，再恢复 desktop 自有变量。Windows 会依次选择 PowerShell 7、Windows PowerShell 或命令提示符，并在新的 Windows Terminal 窗口中打开；如果 `wt.exe` 不可用，则由私有 `cmd start` broker 创建可见控制台。同步启动失败与 broker 非正常退出会显示在原生错误对话框中。Linux 不组合该终端命令。
+在 macOS 与 Windows 上，**打开 DSH 终端** 会打开以当前激活 profile 为工作目录的系统终端。设置页标题区会在它旁边提供重启菜单，其中包含 **重启 Desktop** 和 **重启到恢复模式**；任何重启路径都会先显示确认，再开始有序 Cordis shutdown 和 Electron relaunch。终端欢迎信息会显示应用版本、当前 profile、profile 目录与 DSH home，并列出配置与插件管理命令。在该终端内，裸 `dsh`、`dsh --dump-config`，以及没有选择 profile 的 plugin 子命令都会默认使用当前激活 profile；显式 `--profile` 与上游 `web` alias 会保留原有含义。DSH Desktop 会在自身 user-data 目录下按 profile 生成私有 `dsh`、`pnpm` 与 `node` shim，设置 `DSH_HOME`，使用当前 profile 作为工作目录，并且只在该终端的 `PATH` 前置 shim 目录；之后切换 profile 不会改变已经打开的终端命令。它不会修改全局环境或 shell 启动文件。macOS launcher 会先保留用户的交互式 zsh 或 bash 设置，再恢复 desktop 自有变量。Windows 会依次选择 PowerShell 7、Windows PowerShell 或命令提示符，并在新的 Windows Terminal 窗口中打开；如果 `wt.exe` 不可用，则由私有 `cmd start` broker 创建可见控制台。同步启动失败与 broker 非正常退出会使用 Desktop dialog surface。Linux 不组合该终端命令。
+
+Desktop 的确认、警告、错误与结果统一使用基于 shadcn 的 `DesktopDialogWindow`。每个 dialog 都是独立、沙箱化的模态 `BrowserWindow`，在可用时以当前 Desktop 窗口为 parent；它不是官方 Web 页面内部的组件或 portal。窗口使用共享的空白 44 像素 utility frame，把 Escape 或关闭窗口映射为有界取消操作，并只向 main process 返回一次本地结果。操作系统的打开文件和保存文件选择器仍保持原生，因为它们负责选择系统路径，而不是展示 Desktop 操作。
+
+恢复模式同样使用独立的 Desktop-owned 窗口与空白 44 像素 frame。其完整 shadcn 页面先说明进入恢复模式的原因，再把操作分成 **插件管理**、**回滚**、**切换配置** 与 **诊断** 四个 Tab。新增 Profile 窗口使用同一套无标题 utility frame。恢复操作和任何重启请求都会打开 `DesktopDialogWindow` 确认，而不会把 modal 放进恢复页面里。
 
 ## 日志与诊断
 
@@ -213,7 +221,7 @@ corepack.cmd yarn dist:win
 
 该流程不要求 Python 或 Visual Studio C++ Build Tools。Windows 命令会直接使用 `node-pty` 内置的 x64 Node-API 二进制，而不会让 Electron Builder 从源码重新编译；如果安装包 staging tree 缺少这些二进制，packaged-runtime gate 会直接拒绝产物。
 
-`dist:win` 会拒绝非 Windows 或非 x64 宿主，先执行一组 Windows 可运行的 gate，其中包括 build、全部 TypeScript compiler face、打包与原生 shell 聚焦测试，以及 runtime-closure verifier；随后再构建 NSIS 安装向导，并校验生成的两个 PE 文件。完整跨平台 suite 仍由 CI 持有，因为其中部分 POSIX 执行测试不是 Windows 程序。安装向导支持当前用户安装或提升权限后的所有用户安装，可更改安装目录，会创建开始菜单与桌面快捷方式，并且卸载应用时保留 DSH 用户数据。版本 `2.0.4` 会输出到 `dsh-plugin-desktop\dist\DSH-Desktop-2.0.4-x64-Setup.exe`；用于 smoke 测试的未封装程序仍位于 `dsh-plugin-desktop\dist\win-unpacked\DSH Desktop.exe`。
+`dist:win` 会拒绝非 Windows 或非 x64 宿主，先执行一组 Windows 可运行的 gate，其中包括 build、全部 TypeScript compiler face、打包与原生 shell 聚焦测试，以及 runtime-closure verifier；随后再构建 NSIS 安装向导，并校验生成的两个 PE 文件。完整跨平台 suite 仍由 CI 持有，因为其中部分 POSIX 执行测试不是 Windows 程序。安装向导支持当前用户安装或提升权限后的所有用户安装，可更改安装目录，会创建开始菜单与桌面快捷方式，并且卸载应用时保留 DSH 用户数据。版本 `2.0.5` 会输出到 `dsh-plugin-desktop\dist\DSH-Desktop-2.0.5-x64-Setup.exe`；用于 smoke 测试的未封装程序仍位于 `dsh-plugin-desktop\dist\win-unpacked\DSH Desktop.exe`。
 
 该本地命令会主动移除 Windows 证书变量，并设置 `signExecutable=false`。产物可以安装测试，但没有 Authenticode publisher，因此 Windows 可能显示 Unknown publisher 或 SmartScreen 警告。签名后的 Windows release、证书校验、安装器升级与卸载测试，以及原生 UI 和 sandbox smoke 仍是独立的发布 gate。
 
@@ -225,7 +233,7 @@ corepack.cmd yarn dist:win
 corepack.cmd yarn dist:win-portable
 ```
 
-产物为 `dsh-plugin-desktop\\dist\\DSH-Desktop-2.0.4-x64-Portable.zip`。用户解压到任意可写目录后运行其中的 `DSH Desktop.exe`，不需要安装器、管理员权限、开始菜单注册或卸载步骤。它仍会把 profile、日志和缓存写入 Windows 默认用户数据目录，因此这是便携分发方式，不是把数据完全封装在 exe 旁边的自包含沙箱。绿色 ZIP 不会交给 NSIS 自动更新流程，新版本需要手动替换并重新解压。本地构建没有签名，Windows 可能显示 Unknown publisher 或 SmartScreen 警告；签名后的绿色版仍属于正式发布 gate。
+产物为 `dsh-plugin-desktop\\dist\\DSH-Desktop-2.0.5-x64-Portable.zip`。用户解压到任意可写目录后运行其中的 `DSH Desktop.exe`，不需要安装器、管理员权限、开始菜单注册或卸载步骤。它仍会把 profile、日志和缓存写入 Windows 默认用户数据目录，因此这是便携分发方式，不是把数据完全封装在 exe 旁边的自包含沙箱。绿色 ZIP 不会交给 NSIS 自动更新流程，新版本需要手动替换并重新解压。本地构建没有签名，Windows 可能显示 Unknown publisher 或 SmartScreen 警告；签名后的绿色版仍属于正式发布 gate。
 
 ### macOS DMG 冒烟构建
 

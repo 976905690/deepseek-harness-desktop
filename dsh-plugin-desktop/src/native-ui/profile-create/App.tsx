@@ -4,6 +4,7 @@ import { Alert, AlertDescription } from '../components/ui/alert.tsx'
 import { Button } from '../components/ui/button.tsx'
 import { Input } from '../components/ui/input.tsx'
 import { Label } from '../components/ui/label.tsx'
+import { DesktopFrame } from '../shared/DesktopFrame.tsx'
 
 const SCHEME = 'dsh-profile-create:'
 
@@ -72,7 +73,7 @@ export function ProfileCreateApp(): JSX.Element {
     }
     submit(trimmed)
   }
-  return <main className="min-h-screen overflow-hidden p-6"><section className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-md flex-col">
+  return <><DesktopFrame /><main className="dshNativeContent h-screen overflow-hidden p-6"><section className="mx-auto flex h-full w-full max-w-md flex-col">
     <header className="mb-5"><h1 className="text-lg leading-none font-semibold tracking-tight">{copy.heading}</h1><p className="mt-2 text-sm text-muted-foreground">{copy.description}</p></header>
     <div className="space-y-2">
       <Label htmlFor="profile-name">{copy.label}</Label>
@@ -83,5 +84,5 @@ export function ProfileCreateApp(): JSX.Element {
       <Button onClick={() => { window.location.assign(`${SCHEME}//cancel`) }} type="button" variant="outline"><X />{copy.cancel}</Button>
       <Button onClick={onSubmit} type="button"><Plus />{copy.start}</Button>
     </footer>
-  </section></main>
+  </section></main></>
 }

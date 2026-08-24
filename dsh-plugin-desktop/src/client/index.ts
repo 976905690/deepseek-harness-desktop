@@ -10,13 +10,13 @@ import { startRendererBootReporter } from './boot-health.ts'
 import { applyDesktopSettings } from './desktop-settings.ts'
 import { installDesktopDirectoryPickerBridge, requestDesktopDirectoryValidation } from './directory-picker.ts'
 import { parseDesktopClientEnvironment } from './environment.ts'
-import { applyExtendedShell } from './extended-shell.ts'
+import { applyFramedShell } from './extended-shell.ts'
 import { installWorkspaceFolderDrop } from './workspace-folder-drop.ts'
 import { desktopWindowService, provideDesktopWindow } from './window-service.ts'
 
 export { applyAdvancedShell } from './advanced-shell.ts'
 export { applyDesktopSettings } from './desktop-settings.ts'
-export { applyExtendedShell } from './extended-shell.ts'
+export { applyExtendedShell, applyFramedShell } from './extended-shell.ts'
 export {
   createDesktopSettingsApi,
   desktopSettingsPaths,
@@ -108,5 +108,8 @@ export function apply(ctx: ClientContext): void {
     )
   }
   if (environment.mode === 'advanced') applyAdvancedShell(ctx, environment)
-  if (environment.mode === 'extended') applyExtendedShell(ctx, environment)
+  if (environment.platform !== 'linux'
+    && (environment.mode === 'compatibility' || environment.mode === 'extended')) {
+    applyFramedShell(ctx, environment)
+  }
 }

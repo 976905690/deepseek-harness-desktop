@@ -79,7 +79,7 @@ describe('ProfileCreateWindow', () => {
     expect(electron.windows[0]?.focus).toHaveBeenCalledOnce()
     expect(electron.windows[0]?.loadFile).toHaveBeenCalledWith(
       expect.stringMatching(/[\\/]native-ui[\\/]profile-create\.html$/u),
-      { query: { locale: 'en' } },
+      { query: { locale: 'en', platform: process.platform } },
     )
     expect(electron.windows[0]?.options).toEqual(expect.objectContaining({
       width: 480,

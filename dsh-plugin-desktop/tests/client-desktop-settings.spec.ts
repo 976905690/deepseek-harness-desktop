@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import type { ClientContext, SettingsScope } from '@deepseek-ai/dsh-client-runtime/client'
+import { DesktopNativeActions } from '../src/client/DesktopNativeActions.tsx'
 import { DesktopSettingsSection } from '../src/client/DesktopSettingsSection.tsx'
 import { DesktopTerminalSettingsAction } from '../src/client/DesktopTerminalSettingsAction.tsx'
 import {
@@ -16,6 +19,7 @@ import {
   DESKTOP_SETTINGS_LOCALE_NAMESPACE,
   DESKTOP_SHELL_SETTINGS_NAMESPACE,
 } from '../src/client/desktop-settings.ts'
+import { en, type DesktopSettingsLocaleKey } from '../src/client/desktop-settings-locales.ts'
 
 const VIEW: DesktopSettingsView = {
   current: 'desktop',
@@ -54,7 +58,11 @@ describe('Desktop settings API', () => {
   it('uses the strict same-origin routes and request bodies', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       const path = String(input)
-      if (path === desktopSettingsPaths.terminalOpen || path === desktopSettingsPaths.restart) {
+      if (path === desktopSettingsPaths.terminalOpen
+        || path === desktopSettingsPaths.restart
+        || path === desktopSettingsPaths.recoveryRestart
+        || path === desktopSettingsPaths.rendererReload
+        || path === desktopSettingsPaths.developerToolsToggle) {
         return json({ accepted: true })
       }
       return path === desktopSettingsPaths.settings || path === desktopSettingsPaths.profileCreate || path === desktopSettingsPaths.profileDelete
@@ -70,6 +78,9 @@ describe('Desktop settings API', () => {
     await expect(api.selectMarket('community-market')).resolves.toEqual({ accepted: true, restartRequired: true })
     await expect(api.openTerminal()).resolves.toBeUndefined()
     await expect(api.restart()).resolves.toBeUndefined()
+    await expect(api.restartToRecovery()).resolves.toBeUndefined()
+    await expect(api.reloadRenderer()).resolves.toBeUndefined()
+    await expect(api.toggleDeveloperTools()).resolves.toBeUndefined()
 
     expect(fetcher.mock.calls.map(call => call[0])).toEqual([
       desktopSettingsPaths.settings,
@@ -79,6 +90,9 @@ describe('Desktop settings API', () => {
       desktopSettingsPaths.marketSelect,
       desktopSettingsPaths.terminalOpen,
       desktopSettingsPaths.restart,
+      desktopSettingsPaths.recoveryRestart,
+      desktopSettingsPaths.rendererReload,
+      desktopSettingsPaths.developerToolsToggle,
     ])
     expect(fetcher.mock.calls[1]?.[1]).toMatchObject({
       method: 'POST',
@@ -100,12 +114,61 @@ describe('Desktop settings API', () => {
       method: 'POST',
       body: JSON.stringify({}),
     })
+    expect(fetcher.mock.calls[7]?.[1]).toMatchObject({
+      method: 'POST',
+      body: JSON.stringify({}),
+    })
+    expect(fetcher.mock.calls[8]?.[1]).toMatchObject({
+      method: 'POST',
+      body: JSON.stringify({}),
+    })
+    expect(fetcher.mock.calls[9]?.[1]).toMatchObject({
+      method: 'POST',
+      body: JSON.stringify({}),
+    })
   })
 
   it('does not reflect an untrusted error body into its public error', async () => {
     const api = createDesktopSettingsApi(async () => json({ error: '/Users/private/profile failed' }, 400))
     await expect(api.read()).rejects.toThrow('Desktop settings request failed (400)')
     await expect(api.read()).rejects.not.toThrow('/Users/private')
+  })
+})
+
+describe('Desktop native action presentation', () => {
+  const api = {
+    openTerminal: vi.fn(async () => {}),
+    restart: vi.fn(async () => {}),
+    restartToRecovery: vi.fn(async () => {}),
+    reloadRenderer: vi.fn(async () => {}),
+    toggleDeveloperTools: vi.fn(async () => {}),
+  }
+  const t = (key: DesktopSettingsLocaleKey): string => en[key]
+
+  it('uses accessible icon actions in the extended title bar', () => {
+    const markup = renderToStaticMarkup(createElement(DesktopNativeActions, {
+      api,
+      t,
+      placement: 'titlebar',
+    }))
+
+    expect(markup.match(/dshDesktopTitlebarIconButton/g)).toHaveLength(3)
+    expect(markup).toContain('aria-label="Open DSH Terminal"')
+    expect(markup).toContain('aria-label="Restart options"')
+    expect(markup).toContain('aria-label="Developer options"')
+  })
+
+  it('keeps explicit text labels in settings', () => {
+    const markup = renderToStaticMarkup(createElement(DesktopNativeActions, {
+      api,
+      t,
+      placement: 'settings',
+    }))
+
+    expect(markup).toContain('Open DSH Terminal')
+    expect(markup).toContain('Restart Desktop')
+    expect(markup).toContain('aria-haspopup="menu"')
+    expect(markup).not.toContain('Developer options')
   })
 })
 

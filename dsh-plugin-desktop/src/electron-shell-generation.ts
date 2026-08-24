@@ -10,6 +10,7 @@ import {
   Tray,
 } from 'electron'
 import { formatDesktopExitCode } from './desktop-logger.ts'
+import { showDesktopMessageBox } from './desktop-dialog-window.ts'
 import { applicationNeedsReveal, revealApplication } from './electron-reveal.ts'
 import type { ElectronPlatformStrategy } from './electron-platform.ts'
 import type { DesktopNotification, DesktopShellSpec } from './runtime.ts'
@@ -70,7 +71,7 @@ export class ElectronShellGeneration {
     }
     platform.configureApplication(icon, spec.productName, this.options.buildApplicationMenuItems())
     const origin = new URL(spec.url).origin
-    if (spec.mode !== 'compatibility') nativeTheme.themeSource = spec.readThemeSource()
+    if (platform.platform !== 'linux') nativeTheme.themeSource = spec.readThemeSource()
     const window = new BrowserWindow(desktopWindowOptions(spec, icon, platform.platform, this.options.preloadPath))
     window.accessibleTitle = spec.windowTitle
     platform.configureWindow(window)
@@ -279,6 +280,25 @@ export class ElectronShellGeneration {
     this.prepareFullscreenReveal?.()
   }
 
+  /** Reload the active renderer without permitting arbitrary renderer commands. */
+  reloadRenderer(): void {
+    const window = this.window
+    if (window === undefined || window.isDestroyed()) {
+      throw new Error('dsh-plugin-desktop: renderer reload requires a mounted window')
+    }
+    window.webContents.reloadIgnoringCache()
+  }
+
+  /** Toggle Developer Tools for the active renderer. */
+  toggleDeveloperTools(): void {
+    const window = this.window
+    if (window === undefined || window.isDestroyed()) {
+      throw new Error('dsh-plugin-desktop: Developer Tools require a mounted window')
+    }
+    if (window.webContents.isDevToolsOpened()) window.webContents.closeDevTools()
+    else window.webContents.openDevTools({ mode: 'detach', activate: true })
+  }
+
   notifyAttention(notification: DesktopNotification): void {
     const window = this.window
     if (window === undefined || window.isDestroyed() || window.isFocused()) return
@@ -303,8 +323,8 @@ export class ElectronShellGeneration {
   async showMessageBox(options: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> {
     const window = this.window
     return window === undefined || window.isDestroyed()
-      ? await dialog.showMessageBox(options)
-      : await dialog.showMessageBox(window, options)
+      ? await showDesktopMessageBox(options)
+      : await showDesktopMessageBox(options, window)
   }
 
   async showSaveDialog(options: Electron.SaveDialogOptions): Promise<Electron.SaveDialogReturnValue> {

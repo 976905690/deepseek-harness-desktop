@@ -13,6 +13,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { desktopTerminalStateDirectory, openDesktopTerminal } from './desktop-terminal.ts'
+import { showDesktopMessageBox } from './desktop-dialog-window.ts'
 import { desktopInstallRecoveryStatePath } from './install-recovery.ts'
 import { packagedDependencyPath } from './packaged-runtime-path.ts'
 import { ElectronShellGeneration } from './electron-shell-generation.ts'
@@ -42,6 +43,7 @@ import { exportDesktopDiagnostics } from './diagnostic-export.ts'
 import {
   desktopDiagnosticsPrivacyCopy,
   desktopLocaleFromLanguageTag,
+  desktopRestartConfirmationCopy,
   desktopTrayLabel,
 } from './tray-locale.ts'
 import {
@@ -116,9 +118,10 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
   private updateCleanupTask: Promise<void> | undefined
   private rendererHealthGate: DesktopRendererHealthGate | undefined
   private profileCreateWindow: ProfileCreateWindow | undefined
+  private restartRequest: Promise<void> | undefined
 
   constructor(
-    private readonly restart: () => Promise<void>,
+    private readonly restart: (target?: 'recovery') => Promise<void>,
     private readonly onRendererBoot: (report: RendererBootReport) => boolean | void = () => {},
     private readonly logger: DesktopLogger | undefined = undefined,
     workspaceVolumeQuery: WindowsVolumeQuery | undefined = undefined,
@@ -134,7 +137,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
       showOpenDialog: async options => this.generation === undefined
         ? await dialog.showOpenDialog(options)
         : await this.generation.showOpenDialog(options),
-      showMessageBox: async options => await dialog.showMessageBox(options),
+      showMessageBox: async options => await this.showDesktopMessageBox(options),
       logError: message => { this.logError(message) },
       ...(workspaceVolumeQuery === undefined ? {} : { volumeQuery: workspaceVolumeQuery }),
     })
@@ -210,7 +213,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
           this.generation = undefined
           this.mountTask = undefined
           if (this.scheduled === spec) {
-            if (spec.mode !== 'compatibility') nativeTheme.themeSource = previousThemeSource
+            if (this.platform !== 'linux') nativeTheme.themeSource = previousThemeSource
             this.scheduled = undefined
           }
         }
@@ -349,6 +352,22 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
   }
 
   /** @inheritdoc */
+  reloadRenderer(): void {
+    if (this.generation === undefined) {
+      throw new Error('dsh-plugin-desktop: renderer reload requires an active shell generation')
+    }
+    this.generation.reloadRenderer()
+  }
+
+  /** @inheritdoc */
+  toggleDeveloperTools(): void {
+    if (this.generation === undefined) {
+      throw new Error('dsh-plugin-desktop: Developer Tools require an active shell generation')
+    }
+    this.generation.toggleDeveloperTools()
+  }
+
+  /** @inheritdoc */
   exportDiagnostics(): Promise<void> {
     if (this.diagnosticExport !== undefined) return this.diagnosticExport
     const operation = this.performDiagnosticExport().finally(() => {
@@ -361,7 +380,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
   private async performDiagnosticExport(): Promise<void> {
     const copy = desktopDiagnosticsPrivacyCopy(this.locale)
     try {
-      const confirmation = await dialog.showMessageBox({
+      const confirmation = await this.showDesktopMessageBox({
         type: 'warning',
         title: copy.title,
         message: copy.message,
@@ -417,7 +436,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
 
   /** @inheritdoc */
   setThemeSource(source: DesktopThemeSource): void {
-    if (this.scheduled?.mode !== 'compatibility' && this.generation !== undefined) {
+    if (this.platform !== 'linux' && this.generation !== undefined) {
       nativeTheme.themeSource = source
       // Windows can retain the preceding DWM Mica palette until the window is
       // recomposed (for example after minimize/restore). Reapplying the active
@@ -428,7 +447,40 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
 
   /** @inheritdoc */
   async requestRestart(): Promise<void> {
-    await this.restart()
+    if (this.quitting) return
+    if (this.restartRequest !== undefined) return await this.restartRequest
+    const request = this.confirmAndRestart('normal').finally(() => {
+      if (this.restartRequest === request) this.restartRequest = undefined
+    })
+    this.restartRequest = request
+    await request
+  }
+
+  /** @inheritdoc */
+  async requestRecoveryRestart(): Promise<void> {
+    if (this.quitting) return
+    if (this.restartRequest !== undefined) return await this.restartRequest
+    const request = this.confirmAndRestart('recovery').finally(() => {
+      if (this.restartRequest === request) this.restartRequest = undefined
+    })
+    this.restartRequest = request
+    await request
+  }
+
+  private async confirmAndRestart(target: 'normal' | 'recovery'): Promise<void> {
+    const copy = desktopRestartConfirmationCopy(this.currentLocale, target)
+    const options: Electron.MessageBoxOptions = {
+      type: 'question',
+      title: copy.title,
+      message: copy.message,
+      detail: copy.detail,
+      buttons: [copy.confirm, copy.cancel],
+      defaultId: 1,
+      cancelId: 1,
+      noLink: true,
+    }
+    const result = await this.showDesktopMessageBox(options)
+    if (result.response === 0) await this.restart(target === 'recovery' ? 'recovery' : undefined)
   }
 
   /** @inheritdoc */
@@ -446,7 +498,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
       ? 'Unknown client plugin'
       : report.plugins.map(plugin => `- ${plugin}`).join('\n')
     const error = report.error === undefined ? 'The client Loader did not provide an error message.' : report.error
-    const result = await dialog.showMessageBox({
+    const result = await this.showDesktopMessageBox({
       type: 'error',
       title: 'Plugin Recovery',
       message: 'DSH Desktop could not load all plugins.',
@@ -508,8 +560,12 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
   }
 
   private async showUpdateMessageBox(options: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> {
+    return await this.showDesktopMessageBox(options)
+  }
+
+  private async showDesktopMessageBox(options: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> {
     return this.generation === undefined
-      ? await dialog.showMessageBox(options)
+      ? await showDesktopMessageBox(options)
       : await this.generation.showMessageBox(options)
   }
 
@@ -717,22 +773,34 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
   private reportTerminalLaunchError(cause: unknown): void {
     const error = cause instanceof Error ? cause : new Error(String(cause))
     this.logError(`dsh-plugin-desktop: failed to open terminal: ${error.message}`)
-    try {
-      dialog.showErrorBox('Unable to Open DSH Terminal', error.message)
-    } catch (dialogCause) {
+    void this.showDesktopMessageBox({
+      type: 'error',
+      title: 'Unable to Open DSH Terminal',
+      message: 'DSH Desktop could not open a terminal.',
+      detail: error.message,
+      buttons: ['OK'],
+      defaultId: 0,
+      cancelId: 0,
+    }).catch((dialogCause: unknown) => {
       this.logError(`dsh-plugin-desktop: failed to show terminal error: ${dialogCause instanceof Error ? dialogCause.message : String(dialogCause)}`)
-    }
+    })
   }
 
   /** Keep diagnostic export failures visible in a packaged GUI process. */
   private reportDiagnosticExportError(cause: unknown): void {
     const error = cause instanceof Error ? cause : new Error(String(cause))
     this.logError(`dsh-plugin-desktop: failed to export diagnostics: ${error.message}`)
-    try {
-      dialog.showErrorBox('Unable to Export Diagnostics', error.message)
-    } catch (dialogCause) {
+    void this.showDesktopMessageBox({
+      type: 'error',
+      title: 'Unable to Export Diagnostics',
+      message: 'DSH Desktop could not export diagnostics.',
+      detail: error.message,
+      buttons: ['OK'],
+      defaultId: 0,
+      cancelId: 0,
+    }).catch((dialogCause: unknown) => {
       this.logError(`dsh-plugin-desktop: failed to show diagnostics error: ${dialogCause instanceof Error ? dialogCause.message : String(dialogCause)}`)
-    }
+    })
   }
 
   private buildTrayTemplate(spec: DesktopShellSpec): Electron.MenuItemConstructorOptions[] {

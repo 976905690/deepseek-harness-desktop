@@ -11,7 +11,7 @@ import {
 import { installAdvancedStyles } from '../src/client/styles.ts'
 import { desktopWindowService, provideDesktopWindow } from '../src/client/window-service.ts'
 import {
-  EXTENDED_TITLEBAR_HEIGHT,
+  DESKTOP_FRAME_HEIGHT,
   MACOS_DRAG_REGION_HEIGHT,
   MACOS_TITLEBAR_HEIGHT,
   MACOS_TRAFFIC_LIGHT_SAFE_WIDTH,
@@ -146,8 +146,12 @@ describe('advanced desktop layout', () => {
       material: 'off',
       micaSupported: false,
       availableMaterials: ['off', 'transparent'],
-      safeAreaInsets: { top: 0, right: 0, bottom: 0, left: 0 },
-      dragRegion: { height: 0, leftInset: 0, rightInset: 0 },
+      safeAreaInsets: { top: DESKTOP_FRAME_HEIGHT, right: 0, bottom: 0, left: 0 },
+      dragRegion: {
+        height: DESKTOP_FRAME_HEIGHT,
+        leftInset: MACOS_TRAFFIC_LIGHT_SAFE_WIDTH,
+        rightInset: 0,
+      },
     })
     const mac = desktopWindowService({
       mode: 'advanced', platform: 'darwin', material: 'transparent', micaSupported: false,
@@ -191,9 +195,9 @@ describe('advanced desktop layout', () => {
       material: 'mica',
       micaSupported: true,
       availableMaterials: ['off', 'acrylic', 'mica'],
-      safeAreaInsets: { top: EXTENDED_TITLEBAR_HEIGHT, right: 0, bottom: 0, left: 0 },
+      safeAreaInsets: { top: DESKTOP_FRAME_HEIGHT, right: 0, bottom: 0, left: 0 },
       dragRegion: {
-        height: EXTENDED_TITLEBAR_HEIGHT,
+        height: DESKTOP_FRAME_HEIGHT,
         leftInset: 0,
         rightInset: WINDOWS_CAPTION_CONTROLS_WIDTH,
       },
@@ -248,8 +252,8 @@ describe('advanced desktop layout', () => {
   })
 })
 
-describe('extended desktop layout', () => {
-  it('reserves a visible command bar and rounds the inner corner of the inverted-L glass frame', () => {
+describe('independent Desktop frame', () => {
+  it('reserves a command bar for both framed modes and limits the inverted-L surface to extended mode', () => {
     let css = ''
     const remove = vi.fn()
     const style = {
@@ -266,11 +270,21 @@ describe('extended desktop layout', () => {
 
     try {
       const dispose = installExtendedStyles()
-      expect(css).toContain(`padding-top: ${EXTENDED_TITLEBAR_HEIGHT}px`)
+      expect(css).toContain(`padding-top: ${DESKTOP_FRAME_HEIGHT}px`)
+      expect(DESKTOP_FRAME_HEIGHT).toBe(44)
+      expect(css).toMatch(/\[role="presentation"\]:has\(> \[aria-modal="true"\]\),[\s\S]*> \[aria-modal="true"\] \{[\s\S]*top: var\(--dsh-desktop-frame-height\) !important;/)
       expect(css).toContain('#root > :has(> [data-shell-overlay])')
+      expect(css).toMatch(/#root > :has\(> \[data-shell-overlay\]\) \{[^}]*--dsw-specific-sidebar-fill: transparent;/)
+      expect(css).toMatch(/> :first-child \{[^}]*background: var\(--dsh-desktop-frame-fill\)/)
       expect(css).toMatch(/> :nth-child\(2\) \{[^}]*border-top-left-radius: 14px;/)
-      expect(css).toMatch(/\.dshDesktopExtendedTitlebar \{[^}]*-webkit-app-region: drag;/)
-      expect(css).toMatch(/\.dshDesktopExtendedActions \{[^}]*-webkit-app-region: no-drag;/)
+      expect(css).toContain('body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extended"]) #root')
+      expect(css).toMatch(/\.dshDesktopFrameTitlebar \{[^}]*-webkit-app-region: drag;/)
+      expect(css).toMatch(/\.dshDesktopFrameIdentity \{[^}]*left: 50%;[^}]*transform: translateX\(-50%\);/)
+      expect(css).toMatch(/\.dshDesktopFrameActions \{[^}]*-webkit-app-region: no-drag;/)
+      expect(css).toContain('[data-platform="darwin"] .dshDesktopFrameActions { margin-left: auto; }')
+      expect(css).toContain('[data-platform="win32"] .dshDesktopFrameActions { margin-right: auto; }')
+      expect(css).toMatch(/\.dshDesktopTitlebarIconButton \{[^}]*-webkit-app-region: no-drag;/)
+      expect(css).toContain('.dshDesktopActionMenu')
       expect(css).toContain(`padding: 0 ${WINDOWS_CAPTION_CONTROLS_WIDTH + 12}px 0 16px`)
       expect(appendChild).toHaveBeenCalledWith(style)
       dispose()
@@ -280,13 +294,15 @@ describe('extended desktop layout', () => {
     }
   })
 
-  it('registers the title bar in the upstream overlay and exposes an additive action seat', () => {
+  it('registers the independent frame through the upstream overlay lifecycle and exposes an additive action seat', () => {
     const registrations: Array<Record<string, unknown>> = []
     const disposers: Array<() => void> = []
     const dataset: Record<string, string> = {}
+    const rootDataset: Record<string, string> = {}
     const style = { dataset: {}, remove: vi.fn(), textContent: '', id: '' }
     vi.stubGlobal('document', {
       body: { dataset },
+      getElementById: (id: string) => id === 'root' ? { dataset: rootDataset } : null,
       createElement: () => style,
       head: { appendChild: vi.fn() },
     })
@@ -313,7 +329,7 @@ describe('extended desktop layout', () => {
       })
       expect(registrations[0]).toMatchObject({
         name: 'shell.overlay',
-        id: 'desktop-extended-titlebar',
+        id: 'desktop-frame-titlebar',
         children: { 'desktop.titlebar.action': { kind: 'list', scope: 'root' } },
       })
       expect(registrations[1]).toMatchObject({
@@ -325,8 +341,10 @@ describe('extended desktop layout', () => {
         dshDesktopPlatform: 'win32',
         dshDesktopMaterial: 'acrylic',
       })
+      expect(rootDataset).toEqual({ dshDesktopContentViewport: '' })
       disposers.forEach(dispose => { dispose() })
       expect(dataset).toEqual({})
+      expect(rootDataset).toEqual({})
     } finally {
       vi.unstubAllGlobals()
     }

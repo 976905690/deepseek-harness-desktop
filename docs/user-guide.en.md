@@ -16,8 +16,8 @@ Switching profiles does not silently copy plugins from the old profile into the 
 
 ## Window modes and materials
 
-- **Compatibility mode** uses the upstream Web client and the selected profile's own layout/sidebar/conversation composition. It is the closest presentation to ordinary Harness.
-- **Extended window** preserves that official layout and places it below a cross-platform command bar. The bar and upstream sidebar form an inverted-L material surface with a rounded inner corner; its terminal and restart controls remain clickable while the rest of the bar can drag the window.
+- **Compatibility mode** keeps the selected profile's official layout/sidebar/conversation composition intact below a separate 44-pixel Desktop frame. The frame is draggable, its icon actions remain clickable, and official dialogs stay inside the unrelated content viewport below it.
+- **Extended window** keeps that same official layout and independent frame, then extends the selected material down behind the entire official sidebar. The top and left material surfaces form one inverted-L region with a rounded inner corner.
 - **Advanced mode** keeps the same upstream Web carrier while adding Desktop-owned framing, layout, Mica/vibrancy, and native drag regions. It is intended for a fuller desktop presentation.
 
 macOS custom-window modes can turn the transparent material on or off. Windows can turn material off or use native Acrylic; Mica appears only when supported on Windows 11 build 22621 or newer. Windows 10 therefore uses Acrylic. Changing mode or material restarts the application; it does not hot-swap root slots or native materials in a live renderer. Linux provides compatibility mode only.
@@ -57,7 +57,7 @@ An explicit `--profile <name>` always wins. Restart DSH Desktop after plugin cha
 
 ## Opening the terminal
 
-Choose **Open DSH Terminal** from the tray, Desktop settings, or the extended-window command bar. The settings action has a **Restart Desktop** button beside it. macOS opens Terminal; Windows prefers Windows Terminal and falls back to PowerShell or Command Prompt when it is unavailable.
+Choose **Open DSH Terminal** from the tray, Desktop settings, or the Desktop frame. The settings action has a restart menu beside it for an ordinary restart or **Restart in Recovery Mode**; both require confirmation. macOS opens Terminal; Windows prefers Windows Terminal and falls back to PowerShell or Command Prompt when it is unavailable.
 
 The welcome text shows the application version, active profile, profile directory, and DSH home. Desktop creates private `dsh`, `pnpm`, and `node` shims in its user-data directory and prepends that directory only for the new terminal process. It does not modify the system PATH or the user's shell files.
 
@@ -70,6 +70,8 @@ Packaged macOS and Windows applications check `https://www.dshdesktop.cn/api/des
 After confirmation, the app first opens the native **Save Update Installer** dialog, defaulting to the Downloads directory. You can choose another directory and filename; cancelling the dialog does not start a download. After the destination is confirmed, the app requests the fixed platform download URL and remembers the installer location. macOS opens the DMG for the user to replace the application in Applications; Windows prepares the NSIS installer and then asks whether to quit and start installation. After the upgrade completes and the app starts again, it asks whether to delete the installer to free disk space or keep it. Download or installer failures do not damage the current version, and the tray operation can be retried.
 
 ## Troubleshooting
+
+Desktop confirmations, warnings, and operation results open as separate shadcn-backed modal Desktop windows rather than as overlays inside the official page. The Recovery window first shows why it opened and then provides **Plugin management**, **Rollback**, **Switch Profile**, and **Diagnostics** tabs. Its top utility frame and the Profile creation frame intentionally contain no duplicate title.
 
 - **The application reaches the tray**: right-click the tray icon and choose **Export Diagnostics…**. After the privacy confirmation, Desktop creates a `diagnostics-*.zip` archive and reveals it in the file manager.
 - **The application crashes repeatedly before the tray appears**: run the installed executable directly with the recovery option. The default Windows installation command is below; replace the path if you selected another installation directory.

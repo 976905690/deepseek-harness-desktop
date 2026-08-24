@@ -91,6 +91,8 @@ function createHarness(platform: DesktopRuntime['platform'] = 'darwin'): PluginH
     notifyAttention: () => {},
     registerTrayItem: () => ({ refresh: () => {}, dispose: () => {} }),
     openTerminal: () => {},
+    reloadRenderer: () => {},
+    toggleDeveloperTools: () => {},
     exportDiagnostics: async () => {},
     pickDirectory,
     validateDirectory,
@@ -99,6 +101,7 @@ function createHarness(platform: DesktopRuntime['platform'] = 'darwin'): PluginH
     setLocalePreference,
     setThemeSource,
     requestRestart: restart,
+    requestRecoveryRestart: restart,
     prepareToQuit: () => {},
   }
   const settings = {
@@ -241,7 +244,7 @@ describe('desktop Host plugin', () => {
     expect(loaderAwait).not.toHaveBeenCalled()
     expect(harness.shell()).toEqual(expect.objectContaining({
       mode: 'compatibility',
-      url: 'http://127.0.0.1:43120/?dsh-desktop-mode=compatibility&dsh-desktop-platform=darwin&dsh-desktop-material=off',
+      url: 'http://127.0.0.1:43120/?dsh-desktop-mode=compatibility&dsh-desktop-platform=darwin&dsh-desktop-material=transparent',
       productName: 'DSH Desktop',
       windowTitle: 'DeepSeek Harness Desktop',
       readThemeSource: expect.any(Function),
@@ -251,7 +254,7 @@ describe('desktop Host plugin', () => {
     expect(harness.shell()?.trayIcons.bluePath.endsWith(join('build', 'tray-icon-blue.png'))).toBe(true)
     expect(harness.shell()?.readThemeSource()).toBe('system')
     harness.notifyTheme('dark')
-    expect(harness.setThemeSource).not.toHaveBeenCalled()
+    expect(harness.setThemeSource).toHaveBeenCalledWith('dark')
 
     await harness.shell()?.requestModeChange('advanced')
     expect(harness.update).toHaveBeenCalledWith({ mode: 'advanced' })

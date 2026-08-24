@@ -7,7 +7,7 @@ import {
   MACOS_TRAFFIC_LIGHT_SAFE_WIDTH,
   WINDOWS_CAPTION_CONTROLS_WIDTH,
   WINDOWS_TITLEBAR_HEIGHT,
-  EXTENDED_TITLEBAR_HEIGHT,
+  DESKTOP_FRAME_HEIGHT,
 } from '../window-chrome.ts'
 import type { DesktopWindowService } from './contracts.ts'
 import type { DesktopClientEnvironment } from './environment.ts'
@@ -30,20 +30,32 @@ export function desktopWindowService(environment: DesktopClientEnvironment): Des
         : ['off', 'acrylic'] as const
       : ['off'] as const)
   if (environment.mode === 'compatibility') {
+    if (environment.platform === 'linux') {
+      return Object.freeze({
+        ...environment,
+        availableMaterials,
+        safeAreaInsets: frozenInsets(0),
+        dragRegion: frozenDragRegion(0, 0, 0),
+      })
+    }
     return Object.freeze({
       ...environment,
       availableMaterials,
-      safeAreaInsets: frozenInsets(0),
-      dragRegion: frozenDragRegion(0, 0, 0),
+      safeAreaInsets: frozenInsets(DESKTOP_FRAME_HEIGHT),
+      dragRegion: frozenDragRegion(
+        DESKTOP_FRAME_HEIGHT,
+        environment.platform === 'darwin' ? MACOS_TRAFFIC_LIGHT_SAFE_WIDTH : 0,
+        environment.platform === 'win32' ? WINDOWS_CAPTION_CONTROLS_WIDTH : 0,
+      ),
     })
   }
   if (environment.mode === 'extended') {
     return Object.freeze({
       ...environment,
       availableMaterials,
-      safeAreaInsets: frozenInsets(EXTENDED_TITLEBAR_HEIGHT),
+      safeAreaInsets: frozenInsets(DESKTOP_FRAME_HEIGHT),
       dragRegion: frozenDragRegion(
-        EXTENDED_TITLEBAR_HEIGHT,
+        DESKTOP_FRAME_HEIGHT,
         environment.platform === 'darwin' ? MACOS_TRAFFIC_LIGHT_SAFE_WIDTH : 0,
         environment.platform === 'win32' ? WINDOWS_CAPTION_CONTROLS_WIDTH : 0,
       ),

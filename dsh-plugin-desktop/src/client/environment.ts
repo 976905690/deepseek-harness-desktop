@@ -50,8 +50,7 @@ export function parseDesktopClientEnvironment(search: string): DesktopClientEnvi
   if (micaSupported === undefined) {
     throw new Error(`dsh-plugin-desktop: invalid dsh-desktop-mica ${JSON.stringify(micaMarker)}`)
   }
-  if ((mode === 'compatibility' && material !== 'off')
-    || (platform === 'darwin' && material !== 'off' && material !== 'transparent')
+  if ((platform === 'darwin' && material !== 'off' && material !== 'transparent')
     || (platform === 'win32' && material === 'transparent')
     || (platform === 'linux' && material !== 'off')
     || (material === 'mica' && !micaSupported)) {
