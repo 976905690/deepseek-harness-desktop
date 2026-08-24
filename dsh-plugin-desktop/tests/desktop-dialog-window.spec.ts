@@ -19,10 +19,21 @@ const electron = vi.hoisted(() => {
     readonly restore = vi.fn()
     readonly removeMenu = vi.fn()
     readonly destroy = vi.fn()
+    private bounds: Electron.Rectangle
+    readonly getBounds = vi.fn(() => ({ ...this.bounds }))
+    readonly setBounds = vi.fn((bounds: Electron.Rectangle) => { this.bounds = { ...bounds } })
     readonly loadFile = vi.fn(async () => {})
     readonly once = vi.fn((event: string, listener: Listener) => { this.onceListeners.set(event, listener) })
     readonly on = vi.fn((event: string, listener: Listener) => { this.listeners.set(event, listener) })
-    constructor(readonly options: Electron.BrowserWindowConstructorOptions) { windows.push(this) }
+    constructor(readonly options: Electron.BrowserWindowConstructorOptions) {
+      this.bounds = {
+        x: 0,
+        y: 0,
+        width: options.width ?? 800,
+        height: options.height ?? 600,
+      }
+      windows.push(this)
+    }
   }
   return {
     app: { isHidden: vi.fn(() => false), show: vi.fn() },
@@ -34,8 +45,8 @@ const electron = vi.hoisted(() => {
 vi.mock('electron', () => ({ app: electron.app, BrowserWindow: electron.BrowserWindow }))
 
 import {
-  desktopDialogWindowHeight,
   DesktopDialogWindow,
+  parseDesktopDialogLayout,
   parseDesktopDialogResponse,
 } from '../src/desktop-dialog-window.ts'
 
@@ -51,25 +62,10 @@ describe('DesktopDialogWindow', () => {
     expect(parseDesktopDialogResponse('dsh-desktop-dialog://response?id=-1', 2)).toBeUndefined()
     expect(parseDesktopDialogResponse('dsh-desktop-dialog://response?id=1&command=bad', 2)).toBeUndefined()
     expect(parseDesktopDialogResponse('https://response/?id=1', 2)).toBeUndefined()
-  })
-
-  it('sizes short confirmations to their content instead of leaving a fixed blank body', () => {
-    const short = desktopDialogWindowHeight({
-      title: 'Restart DSH Desktop',
-      message: '现在重启 DSH Desktop？',
-      detail: '正在运行的操作和未发送的输入可能会中断。如果取消，已保存的设置会继续等待下次重启生效。',
-      buttons: ['重启', '取消'],
-    })
-    const long = desktopDialogWindowHeight({
-      title: 'Plugin Recovery',
-      message: 'DSH Desktop could not load all plugins.',
-      detail: 'Failed plugins:\n- dsh-vision-router\n\nThe client Loader failed while starting the plugin. Open DSH Terminal to update or remove it, then restart DSH Desktop.',
-      buttons: ['Open DSH Terminal', 'Restart DSH Desktop', 'Dismiss'],
-    })
-
-    expect(short).toBeLessThan(210)
-    expect(long).toBeGreaterThan(short)
-    expect(long).toBeLessThanOrEqual(360)
+    expect(parseDesktopDialogLayout('dsh-desktop-dialog://layout?height=236')).toBe(236)
+    expect(parseDesktopDialogLayout('dsh-desktop-dialog://layout?height=0')).toBeUndefined()
+    expect(parseDesktopDialogLayout('dsh-desktop-dialog://layout?height=441')).toBeUndefined()
+    expect(parseDesktopDialogLayout('dsh-desktop-dialog://layout?height=236&width=900')).toBeUndefined()
   })
 
   it('creates a frameless parented modal shadcn window and returns its explicit response', async () => {
@@ -92,15 +88,8 @@ describe('DesktopDialogWindow', () => {
       frame: false,
       closable: false,
       resizable: false,
-      height: desktopDialogWindowHeight({
-        type: 'question',
-        title: 'Restart DSH Desktop',
-        message: 'Restart now?',
-        detail: 'Running operations may be interrupted.',
-        buttons: ['Restart', 'Cancel'],
-        defaultId: 1,
-        cancelId: 1,
-      }),
+      height: 300,
+      minHeight: 200,
     }))
     expect(window?.options).not.toHaveProperty('titleBarStyle')
     expect(window?.loadFile).toHaveBeenCalledWith(
@@ -108,6 +97,13 @@ describe('DesktopDialogWindow', () => {
       expect.objectContaining({ query: expect.objectContaining({ platform: process.platform, frame: 'false' }) }),
     )
     const navigate = window?.webListeners.get('will-navigate')
+    window?.onceListeners.get('ready-to-show')?.()
+    expect(window?.show).not.toHaveBeenCalled()
+    const layoutEvent = { preventDefault: vi.fn() }
+    navigate?.(layoutEvent, 'dsh-desktop-dialog://layout?height=236')
+    expect(layoutEvent.preventDefault).toHaveBeenCalledOnce()
+    expect(window?.setBounds).toHaveBeenCalledWith({ x: 0, y: 32, width: 480, height: 236 }, false)
+    expect(window?.show).toHaveBeenCalledOnce()
     const event = { preventDefault: vi.fn() }
     navigate?.(event, 'dsh-desktop-dialog://response?id=0')
 
@@ -128,6 +124,7 @@ describe('DesktopDialogWindow', () => {
     expect(electron.windows[0]?.options).toEqual(expect.objectContaining({
       titleBarStyle: 'hiddenInset',
       trafficLightPosition: { x: 16, y: 12 },
+      minHeight: 236,
     }))
     expect(electron.windows[0]?.loadFile).toHaveBeenCalledWith(
       expect.any(String),

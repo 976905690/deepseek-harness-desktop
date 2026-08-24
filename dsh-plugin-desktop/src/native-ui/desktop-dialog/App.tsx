@@ -1,5 +1,5 @@
 import { AlertCircle, AlertTriangle, HelpCircle, Info } from 'lucide-react'
-import { useEffect } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import { Button } from '../components/ui/button.tsx'
 import { DesktopFrame } from '../shared/DesktopFrame.tsx'
 
@@ -35,6 +35,12 @@ function respond(response: number): void {
   window.location.assign(url.href)
 }
 
+function reportLayout(height: number): void {
+  const url = new URL(`${SCHEME}//layout`)
+  url.searchParams.set('height', String(height))
+  window.location.assign(url.href)
+}
+
 function ToneIcon({ type }: Pick<DesktopDialogState, 'type'>): JSX.Element {
   const className = type === 'error'
     ? 'text-destructive'
@@ -49,6 +55,7 @@ function ToneIcon({ type }: Pick<DesktopDialogState, 'type'>): JSX.Element {
 
 export function DesktopDialogApp(): JSX.Element {
   const state = decodeState()
+  const contentRef = useRef<HTMLElement>(null)
   useEffect(() => {
     if (state === undefined) return
     const onKeyDown = (event: KeyboardEvent): void => {
@@ -57,10 +64,32 @@ export function DesktopDialogApp(): JSX.Element {
     window.addEventListener('keydown', onKeyDown)
     return () => { window.removeEventListener('keydown', onKeyDown) }
   }, [state])
+  useLayoutEffect(() => {
+    const content = contentRef.current
+    if (content === null) return
+    let frame: number | undefined
+    let lastHeight = 0
+    const measure = (): void => {
+      frame = undefined
+      const height = Math.ceil(content.getBoundingClientRect().height)
+      if (height <= 0 || height === lastHeight) return
+      lastHeight = height
+      reportLayout(height)
+    }
+    const observer = new ResizeObserver(() => {
+      frame ??= requestAnimationFrame(measure)
+    })
+    observer.observe(content)
+    measure()
+    return () => {
+      observer.disconnect()
+      if (frame !== undefined) cancelAnimationFrame(frame)
+    }
+  }, [])
 
-  if (state === undefined) return <><DesktopFrame /><main className="dshNativeContent flex h-screen items-center justify-center p-5"><p className="text-sm text-destructive">Desktop dialog state is unavailable.</p></main></>
-  return <><DesktopFrame /><main className="dshNativeContent flex h-screen flex-col overflow-hidden p-5">
-    <section className="flex min-h-0 flex-1 gap-4" role="dialog" aria-labelledby="desktop-dialog-title" aria-describedby={state.detail === undefined ? undefined : 'desktop-dialog-detail'}>
+  if (state === undefined) return <><DesktopFrame /><main ref={contentRef} className="dshNativeContent flex items-center justify-center p-5"><p className="text-sm text-destructive">Desktop dialog state is unavailable.</p></main></>
+  return <><DesktopFrame /><main ref={contentRef} className="dshNativeContent flex flex-col overflow-hidden p-5">
+    <section className="flex gap-4" role="dialog" aria-labelledby="desktop-dialog-title" aria-describedby={state.detail === undefined ? undefined : 'desktop-dialog-detail'}>
       <div className="mt-0.5 shrink-0"><ToneIcon type={state.type} /></div>
       <div className="min-w-0">
         <h1 className="text-base font-semibold leading-tight" id="desktop-dialog-title">{state.message}</h1>
