@@ -14,15 +14,10 @@ const DIALOG_SCHEME = 'dsh-desktop-dialog:'
 const DIALOG_DOCUMENT = fileURLToPath(new URL('./native-ui/desktop-dialog.html', import.meta.url))
 const MAX_BUTTONS = 4
 const DIALOG_WIDTH = 480
-const DIALOG_BODY_PADDING = 40
-const DIALOG_CONTENT_COLUMNS = 54
-const DIALOG_MESSAGE_LINE_HEIGHT = 20
-const DIALOG_DETAIL_LINE_HEIGHT = 23
-const DIALOG_FOOTER_GAP = 20
-const DIALOG_BUTTON_HEIGHT = 32
-const DIALOG_BUTTON_GAP = 8
-const DIALOG_MIN_HEIGHT = 160
-const DIALOG_MAX_ESTIMATED_HEIGHT = 360
+const DIALOG_INITIAL_HEIGHT = 300
+const DIALOG_MIN_CONTENT_HEIGHT = 200
+const DIALOG_MAX_HEIGHT = 440
+const DIALOG_REVEAL_FALLBACK_MS = 250
 
 export interface DesktopDialogOptions {
   readonly type?: 'none' | 'info' | 'error' | 'question' | 'warning'
@@ -38,61 +33,6 @@ export interface DesktopDialogOptions {
 
 export interface DesktopDialogResult {
   readonly response: number
-}
-
-function visualColumns(value: string): number {
-  return [...value].reduce((columns, character) => {
-    if (character === '\t') return columns + 4
-    return columns + ((character.codePointAt(0) ?? 0) > 0xff ? 2 : 1)
-  }, 0)
-}
-
-function estimatedWrappedLines(value: string, maximum: number): number {
-  const lines = value.split('\n').reduce((count, line) => (
-    count + Math.max(1, Math.ceil(visualColumns(line) / DIALOG_CONTENT_COLUMNS))
-  ), 0)
-  return Math.min(maximum, Math.max(1, lines))
-}
-
-function estimatedButtonRows(buttons: readonly string[]): number {
-  const availableWidth = DIALOG_WIDTH - DIALOG_BODY_PADDING
-  let rows = 1
-  let rowWidth = 0
-  for (const label of buttons) {
-    const width = Math.min(240, Math.max(52, 24 + visualColumns(label) * 7))
-    const nextWidth = rowWidth === 0 ? width : rowWidth + DIALOG_BUTTON_GAP + width
-    if (nextWidth > availableWidth && rowWidth !== 0) {
-      rows += 1
-      rowWidth = width
-    } else {
-      rowWidth = nextWidth
-    }
-  }
-  return rows
-}
-
-/**
- * Keep short confirmations compact while retaining bounded room for recovery,
- * diagnostic, and multi-action dialogs. The renderer scrolls detail beyond
- * five estimated lines, so a message cannot grow a modal without limit.
- */
-export function desktopDialogWindowHeight(
-  options: DesktopDialogOptions,
-  customFrame = false,
-): number {
-  const messageHeight = estimatedWrappedLines(options.message, 3) * DIALOG_MESSAGE_LINE_HEIGHT
-  const detailHeight = options.detail === undefined
-    ? 0
-    : 8 + estimatedWrappedLines(options.detail, 5) * DIALOG_DETAIL_LINE_HEIGHT
-  const contentHeight = Math.max(24, messageHeight + detailHeight)
-  const buttonRows = estimatedButtonRows(options.buttons)
-  const footerHeight = buttonRows * DIALOG_BUTTON_HEIGHT + (buttonRows - 1) * DIALOG_BUTTON_GAP
-  const frameHeight = customFrame ? DESKTOP_FRAME_HEIGHT : 0
-  const estimated = frameHeight + DIALOG_BODY_PADDING + contentHeight + DIALOG_FOOTER_GAP + footerHeight
-  return Math.min(
-    DIALOG_MAX_ESTIMATED_HEIGHT,
-    Math.max(DIALOG_MIN_HEIGHT + frameHeight, estimated),
-  )
 }
 
 function normalizedIndex(value: number | undefined, fallback: number, length: number): number {
@@ -113,6 +53,20 @@ export function parseDesktopDialogResponse(href: string, buttonCount: number): n
   if (raw === null || !/^(?:0|[1-9]\d*)$/u.test(raw)) return undefined
   const response = Number(raw)
   return Number.isSafeInteger(response) && response >= 0 && response < buttonCount ? response : undefined
+}
+
+/** Accept only a bounded rendered content height from the isolated local UI. */
+export function parseDesktopDialogLayout(href: string): number | undefined {
+  let url: URL
+  try { url = new URL(href) } catch { return undefined }
+  if (url.protocol !== DIALOG_SCHEME || url.hostname !== 'layout'
+    || url.username !== '' || url.password !== '' || url.port !== ''
+    || url.pathname !== '' || url.hash !== ''
+    || [...url.searchParams.keys()].some(key => key !== 'height')) return undefined
+  const raw = url.searchParams.get('height')
+  if (raw === null || !/^[1-9]\d*$/u.test(raw)) return undefined
+  const height = Number(raw)
+  return Number.isSafeInteger(height) && height <= DIALOG_MAX_HEIGHT ? height : undefined
 }
 
 /** One-shot modal Desktop window; closing it always produces the cancel result. */
@@ -143,16 +97,16 @@ export class DesktopDialogWindow {
     // controls; standalone notices keep ordinary close controls.
     const windowControls = this.options.windowControls ?? parent === undefined
     const customFrame = auxiliaryWindowHasCustomFrame(process.platform, windowControls)
-    const height = desktopDialogWindowHeight(this.options, customFrame)
+    const minimumHeight = DIALOG_MIN_CONTENT_HEIGHT + (customFrame ? DESKTOP_FRAME_HEIGHT : 0)
     const window = new BrowserWindow({
       title: this.options.title,
       ...auxiliaryWindowChromeOptions(process.platform, windowControls),
       width: DIALOG_WIDTH,
-      height,
+      height: DIALOG_INITIAL_HEIGHT,
       minWidth: 420,
-      minHeight: height,
+      minHeight: minimumHeight,
       maxWidth: 620,
-      maxHeight: 440,
+      maxHeight: DIALOG_MAX_HEIGHT,
       resizable: windowControls,
       maximizable: false,
       fullscreenable: false,
@@ -178,20 +132,53 @@ export class DesktopDialogWindow {
 
     return await new Promise<DesktopDialogResult>((resolve, reject) => {
       let settled = false
+      let documentReady = false
+      let layoutReady = false
+      let revealed = false
+      let revealTimer: ReturnType<typeof setTimeout> | undefined
+      const reveal = (): void => {
+        if (revealed || !documentReady || window.isDestroyed()) return
+        revealed = true
+        if (revealTimer !== undefined) clearTimeout(revealTimer)
+        revealTimer = undefined
+        revealApplication(window)
+      }
       const finish = (response: number): void => {
         if (settled) return
         settled = true
+        if (revealTimer !== undefined) clearTimeout(revealTimer)
         if (!window.isDestroyed()) window.destroy()
         resolve(Object.freeze({ response }))
       }
       const navigate = (event: Electron.Event, href: string): void => {
         event.preventDefault()
         const response = parseDesktopDialogResponse(href, this.options.buttons.length)
-        if (response !== undefined) finish(response)
+        if (response !== undefined) {
+          finish(response)
+          return
+        }
+        const renderedHeight = parseDesktopDialogLayout(href)
+        if (renderedHeight === undefined || window.isDestroyed()) return
+        const bounds = window.getBounds()
+        const height = Math.max(minimumHeight, renderedHeight)
+        window.setBounds({
+          ...bounds,
+          y: bounds.y + Math.round((bounds.height - height) / 2),
+          height,
+        }, false)
+        layoutReady = true
+        if (documentReady) reveal()
       }
       window.webContents.on('will-navigate', navigate)
       window.webContents.on('will-redirect', navigate)
-      window.once('ready-to-show', () => { revealApplication(window) })
+      window.once('ready-to-show', () => {
+        documentReady = true
+        if (layoutReady) {
+          reveal()
+        } else {
+          revealTimer = setTimeout(reveal, DIALOG_REVEAL_FALLBACK_MS)
+        }
+      })
       window.on('closed', () => { finish(cancelId) })
       void window.loadFile(DIALOG_DOCUMENT, {
         query: {
@@ -202,6 +189,7 @@ export class DesktopDialogWindow {
       }).catch((cause: unknown) => {
         if (settled) return
         settled = true
+        if (revealTimer !== undefined) clearTimeout(revealTimer)
         if (!window.isDestroyed()) window.destroy()
         reject(cause)
       })
