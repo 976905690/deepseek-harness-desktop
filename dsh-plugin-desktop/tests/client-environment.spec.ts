@@ -59,7 +59,7 @@ describe('desktop client environment', () => {
 })
 
 describe('advanced desktop layout', () => {
-  it('owns native caption geometry without targeting feature headers', () => {
+  it('owns native caption geometry and extends macOS drag handling through empty session header space', () => {
     expect(ADVANCED_MACOS_CONTENT_INSET).toBe(20)
     expect(ADVANCED_MACOS_DRAG_REGION_HEIGHT).toBe(32)
     expect(ADVANCED_MACOS_DRAG_REGION_HEIGHT).toBeGreaterThan(ADVANCED_MACOS_CONTENT_INSET)
@@ -100,6 +100,7 @@ describe('advanced desktop layout', () => {
       expect(css).toMatch(new RegExp(`\\.dshDesktopMacCaptionRow::before \\{[^}]*height: ${ADVANCED_MACOS_DRAG_REGION_HEIGHT}px;[^}]*-webkit-app-region: drag;`))
       expect(css).not.toMatch(/\.dshDesktopMacCaptionRow::before \{[^}]*z-index:/)
       expect(css).not.toMatch(/data-desktop-platform="darwin"\] \.dshDesktopSidebarSurface \{[^}]*-webkit-app-region:\s*drag;/)
+      expect(css).toContain('body[data-dsh-desktop-mode="advanced"] .dshDesktopFrame[data-desktop-platform="darwin"] .dshDesktopConversationSurface [data-slot="conversation.session.header"] > header { -webkit-app-region: drag; }')
       expect(css).not.toContain('[data-phase')
       expect(css).toMatch(/\.dshDesktopNoDrag, button, input, textarea, select, label, summary, a,[^{}]*\{ -webkit-app-region: no-drag !important; \}/)
       expect(css).toContain('[contenteditable="true"]')
