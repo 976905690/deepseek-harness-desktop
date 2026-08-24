@@ -13,7 +13,9 @@ import type { DesktopClientPlatform } from './environment.ts'
 
 /** Browser view of the Host `dsh-desktop` settings namespace. */
 export interface DesktopShellSettings {
-  readonly mode: 'compatibility' | 'advanced'
+  readonly mode: 'compatibility' | 'extended' | 'advanced'
+  readonly macosMaterial: 'off' | 'transparent'
+  readonly windowsMaterial: 'off' | 'acrylic' | 'mica'
   readonly port: number
   readonly logLevel: 'debug' | 'info' | 'warn' | 'error'
 }
@@ -32,6 +34,7 @@ export interface DesktopSettingsSectionInjected {
   readonly api: DesktopSettingsApi
   readonly platform: DesktopClientPlatform
   readonly initialMode: DesktopShellSettings['mode']
+  readonly micaSupported: boolean
   readonly desktopSettings: SettingsScope<DesktopShellSettings>
   readonly notificationSettings: SettingsScope<DesktopNotificationSettings>
 }
@@ -43,7 +46,7 @@ export type DesktopSettingsSectionProps =
   & InjectFace<DesktopSettingsSectionInjected>
 
 type Translate = DesktopSettingsSectionProps['t']
-type BusyOperation = 'load' | 'create-profile' | 'select-profile' | 'delete-profile' | 'select-market' | 'mode' | 'notification'
+type BusyOperation = 'load' | 'create-profile' | 'select-profile' | 'delete-profile' | 'select-market' | 'mode' | 'material' | 'notification'
 type RestartState = 'none' | 'restarting' | 'required'
 
 function useScope<T>(scope: SettingsScope<T>) {
@@ -192,6 +195,7 @@ export function DesktopSettingsSection({
   api,
   platform,
   initialMode,
+  micaSupported,
   desktopSettings,
   notificationSettings,
 }: DesktopSettingsSectionProps) {
@@ -287,6 +291,23 @@ export function DesktopSettingsSection({
   const setMode = (next: DesktopShellSettings['mode']): void => {
     void run('mode', async () => {
       await desktopSettings.set('mode', next)
+      requestRestart()
+    })
+  }
+
+  const setMaterial = (next: string): void => {
+    void run('material', async () => {
+      if (platform === 'darwin') {
+        if (next !== 'off' && next !== 'transparent') {
+          throw new Error(`dsh-plugin-desktop: invalid macOS material ${JSON.stringify(next)}`)
+        }
+        await desktopSettings.set('macosMaterial', next)
+      } else if (platform === 'win32') {
+        if (next !== 'off' && next !== 'acrylic' && (next !== 'mica' || !micaSupported)) {
+          throw new Error(`dsh-plugin-desktop: unavailable Windows material ${JSON.stringify(next)}`)
+        }
+        await desktopSettings.set('windowsMaterial', next)
+      }
       requestRestart()
     })
   }
@@ -446,6 +467,14 @@ export function DesktopSettingsSection({
             status={mode === 'compatibility' ? t('selected') : undefined}
           />
           <Choice
+            title={t('extendedMode')}
+            body={platform === 'linux' ? t('extendedUnavailableLinux') : t('extendedModeBody')}
+            selected={mode === 'extended'}
+            disabled={platform === 'linux' || !settingsWritable || busy !== undefined || restart !== 'none'}
+            action={() => { setMode('extended') }}
+            status={mode === 'extended' ? t('selected') : undefined}
+          />
+          <Choice
             title={t('advancedMode')}
             body={platform === 'linux' ? t('advancedUnavailableLinux') : t('advancedModeBody')}
             selected={mode === 'advanced'}
@@ -454,6 +483,34 @@ export function DesktopSettingsSection({
             status={mode === 'advanced' ? t('selected') : undefined}
           />
         </div>
+        {platform !== 'linux' && (
+          <label className="dshDesktopSettingsMaterialField">
+            <span className="dshDesktopSettingsMaterialCopy">
+              <span className="dshDesktopSettingsChoiceTitle">{t('windowMaterial')}</span>
+              <span className="dshDesktopSettingsChoiceBody">{t('windowMaterialBody')}</span>
+            </span>
+            <select
+              className="dshDesktopSettingsSelect"
+              value={platform === 'darwin'
+                ? desktop.value?.macosMaterial ?? 'transparent'
+                : !micaSupported && desktop.value?.windowsMaterial === 'mica'
+                  ? 'acrylic'
+                  : desktop.value?.windowsMaterial ?? 'acrylic'}
+              disabled={!settingsWritable || busy !== undefined || restart !== 'none'}
+              onChange={event => { setMaterial(event.currentTarget.value) }}
+            >
+              <option value="off">{t('windowMaterialOff')}</option>
+              {platform === 'darwin'
+                ? <option value="transparent">{t('windowMaterialTransparent')}</option>
+                : (
+                    <>
+                      <option value="acrylic">{t('windowMaterialAcrylic')}</option>
+                      {micaSupported && <option value="mica">{t('windowMaterialMica')}</option>}
+                    </>
+                  )}
+            </select>
+          </label>
+        )}
       </section>
 
       <section className="dshDesktopSettingsGroup" aria-labelledby="dsh-desktop-notifications-title">

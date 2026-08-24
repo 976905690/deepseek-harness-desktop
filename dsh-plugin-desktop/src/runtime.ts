@@ -2,12 +2,17 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { RendererBootReport } from './renderer-boot-contract.ts'
 import type { UpdateCheckResult, UpdateRequest } from './update-checker.ts'
 import type { ProfileCreateWindowOptions } from './profile-create-window.ts'
+import type {
+  DesktopWindowMaterial,
+  MacosWindowMaterial,
+  WindowsWindowMaterial,
+} from './window-material.ts'
 
 /** Electron platforms supported by the DSH Desktop native adapter. */
 export type DesktopPlatform = 'darwin' | 'win32' | 'linux'
 
 /** Native presentation modes selected by the desktop-shell Cordis row. */
-export type DesktopShellMode = 'compatibility' | 'advanced'
+export type DesktopShellMode = 'compatibility' | 'extended' | 'advanced'
 
 /** Electron appearance source used by native frame and material rendering. */
 export type DesktopThemeSource = 'system' | 'light' | 'dark'
@@ -19,6 +24,10 @@ export type DesktopLocale = 'zh' | 'en'
 export interface DesktopWindowConfig {
   /** Native presentation mode selected before BrowserWindow construction. */
   mode: DesktopShellMode
+  /** macOS material preference retained independently across platforms. */
+  macosMaterial: MacosWindowMaterial
+  /** Windows material preference retained independently across platforms. */
+  windowsMaterial: WindowsWindowMaterial
   /** Initial window width in CSS pixels. */
   width: number
   /** Initial window height in CSS pixels. */
@@ -120,6 +129,10 @@ export interface DesktopTerminalSpec {
 
 /** Values the desktop-shell plugin hands to the Electron adapter. */
 export interface DesktopShellSpec extends DesktopWindowConfig {
+  /** Actual material after platform and Windows-build capability gating. */
+  material: DesktopWindowMaterial
+  /** Windows build used for material capability reporting, when applicable. */
+  windowsBuild?: number
   /** Unmodified Web root served by the active DSH profile. */
   url: string
   /** Native application and tray label. */
@@ -144,6 +157,9 @@ export interface DesktopShellSpec extends DesktopWindowConfig {
 export interface DesktopRuntime {
   /** Current Electron platform. */
   readonly platform: DesktopPlatform
+
+  /** NT build number used to gate system backdrop materials. */
+  readonly windowsBuild: number | undefined
 
   /** Locale currently used for native tray contributions. */
   readonly locale: DesktopLocale

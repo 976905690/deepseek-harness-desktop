@@ -2,7 +2,7 @@
 
 English | [中文](plugin-services.zh.md)
 
-This document is the supported integration contract for plugin authors. It covers the public Host services `desktopProfiles` and `desktopPnpm`, plus the Client service `desktopWindow`, exported by DSH Desktop 2.x in both compatibility and advanced presentation modes. It does not grant third-party access to raw Electron APIs or launcher bootstrap state.
+This document is the supported integration contract for plugin authors. It covers the public Host services `desktopProfiles` and `desktopPnpm`, plus the Client service `desktopWindow`, exported by DSH Desktop 2.x in compatibility, extended, and advanced presentation modes. It does not grant third-party access to raw Electron APIs or launcher bootstrap state.
 
 ## Layers and data flow
 
@@ -67,8 +67,11 @@ export function apply(ctx: ClientContext): void {
 
 ```ts
 interface DesktopWindowService {
-  readonly mode: 'compatibility' | 'advanced'
+  readonly mode: 'compatibility' | 'extended' | 'advanced'
   readonly platform: 'darwin' | 'win32' | 'linux'
+  readonly material: 'off' | 'transparent' | 'acrylic' | 'mica'
+  readonly micaSupported: boolean
+  readonly availableMaterials: readonly ('off' | 'transparent' | 'acrylic' | 'mica')[]
   readonly safeAreaInsets: {
     readonly top: number
     readonly right: number
@@ -83,9 +86,13 @@ interface DesktopWindowService {
 }
 ```
 
-All values use CSS pixels and remain fixed for one renderer generation. Compatibility mode reports zero insets and a zero-height drag region because the operating system owns the ordinary frame. Advanced macOS reports a 20-pixel top content inset, a continuous 44-pixel drag band, and an 80-pixel left exclusion for the traffic lights. Advanced Windows reports a 32-pixel top content inset and drag band with a 138-pixel right exclusion for native caption controls.
+All values remain fixed for one renderer generation, and geometry uses CSS pixels. `material` is the effective, capability-gated backdrop rather than merely the persisted preference. `availableMaterials` is `off/transparent` on macOS, `off/acrylic` on Windows 10, and adds `mica` on Windows 11 build 22621 or newer.
+
+Compatibility mode reports zero insets and a zero-height drag region because the operating system owns the ordinary frame. Extended mode reports a 52-pixel top reservation and drag band; it excludes 80 pixels on the left for macOS traffic lights or 138 pixels on the right for Windows caption controls. Desktop already shifts the complete official frame below this reservation, so ordinary upstream-slot occupants must not add it again. Advanced macOS reports a 20-pixel top content inset, a continuous 44-pixel drag band, and an 80-pixel left exclusion. Advanced Windows reports a 32-pixel top content inset and drag band with a 138-pixel right exclusion.
 
 `safeAreaInsets` describes where Desktop starts the complete upstream content surfaces. `dragRegion` separately describes the native caption hit area, so consumers must not assume that the two heights are equal. Interactive elements inside that band must apply `-webkit-app-region: no-drag`; Desktop already applies this exclusion to standard buttons, links, inputs, editable fields, menus, tabs, switches, and dialogs. The service reports geometry only: it does not expose window mutation, focus, Electron, or IPC capabilities. It is absent from an ordinary browser boot.
+
+Extended mode also declares the additive root-scoped `desktop.titlebar.action` list slot. A Web Client plugin may register compact operations there using the ordinary slot API. The command bar itself remains a drag region, so the contribution root must apply `-webkit-app-region: no-drag`; it must use Host routes or ordinary services rather than Electron APIs. The slot is absent outside extended mode, so registrations must use normal slot injection and tolerate waiting or disposal.
 
 ## Public Host Cordis services
 

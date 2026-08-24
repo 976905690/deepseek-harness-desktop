@@ -15,6 +15,7 @@ import type { ElectronPlatformStrategy } from './electron-platform.ts'
 import type { DesktopNotification, DesktopShellSpec } from './runtime.ts'
 import { prepareTrayIcon } from './tray-icons.ts'
 import { desktopWindowOptions } from './window-options.ts'
+import { setWindowsAcrylic } from './windows-acrylic.ts'
 
 const MIN_ZOOM_LEVEL = -4
 const MAX_ZOOM_LEVEL = 4
@@ -52,6 +53,7 @@ export class ElectronShellGeneration {
   private released = false
   private attentionCount = 0
   private prepareFullscreenReveal: (() => void) | undefined
+  private refreshNativeMaterial: (() => void) | undefined
   private cleanupListeners: (() => void) | undefined
 
   constructor(private readonly options: ElectronShellGenerationOptions) {}
@@ -68,10 +70,25 @@ export class ElectronShellGeneration {
     }
     platform.configureApplication(icon, spec.productName, this.options.buildApplicationMenuItems())
     const origin = new URL(spec.url).origin
-    if (spec.mode === 'advanced') nativeTheme.themeSource = spec.readThemeSource()
+    if (spec.mode !== 'compatibility') nativeTheme.themeSource = spec.readThemeSource()
     const window = new BrowserWindow(desktopWindowOptions(spec, icon, platform.platform, this.options.preloadPath))
     window.accessibleTitle = spec.windowTitle
     platform.configureWindow(window)
+    const refreshNativeMaterial = (): void => {
+      if (platform.platform === 'win32' && spec.material === 'acrylic') {
+        try {
+          if (!setWindowsAcrylic(window, true, nativeTheme.shouldUseDarkColors)) {
+            this.options.logError('dsh-plugin-desktop: Windows rejected the acrylic backdrop request')
+          }
+        } catch (cause) {
+          this.options.logError(`dsh-plugin-desktop: failed to apply Windows acrylic backdrop: ${cause instanceof Error ? cause.message : String(cause)}`)
+        }
+        return
+      }
+      platform.refreshThemeMaterial(window, spec.material)
+    }
+    this.refreshNativeMaterial = refreshNativeMaterial
+    refreshNativeMaterial()
     this.window = window
 
     const show = (): void => { this.show() }
@@ -303,7 +320,7 @@ export class ElectronShellGeneration {
   }
 
   refreshThemeMaterial(): void {
-    if (this.window !== undefined && !this.window.isDestroyed()) this.options.platform.refreshThemeMaterial(this.window)
+    if (this.window !== undefined && !this.window.isDestroyed()) this.refreshNativeMaterial?.()
   }
 
   async release(): Promise<void> {
@@ -317,6 +334,7 @@ export class ElectronShellGeneration {
     this.window = undefined
     this.tray = undefined
     this.prepareFullscreenReveal = undefined
+    this.refreshNativeMaterial = undefined
     if (window === undefined) return
 
     this.cleanupListeners?.()

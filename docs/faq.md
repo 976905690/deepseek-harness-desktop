@@ -26,7 +26,7 @@ DSH Desktop 是面向 Windows 和 macOS 的开源 DeepSeek Harness 桌面客户�
 
 ## DSH Desktop 会修改官方 Harness 吗？
 
-不会。仓库固定一个未修改的官方 Harness 上游版本。兼容模式运行上游默认 Web client；高级模式通过 Desktop 自有插件增加桌面布局和原生窗口效果，不直接修改上游源码。
+不会。仓库固定一个未修改的官方 Harness 上游版本。兼容模式运行上游默认 Web client；扩展窗口通过官方 overlay slot 加入操作栏并保留该布局；增强模式提供 Desktop 自有布局。两者都由 Desktop 插件实现，不直接修改上游源码。
 
 ## 数据是否保存在本地？
 

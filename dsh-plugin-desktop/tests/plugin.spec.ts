@@ -25,6 +25,8 @@ import { RENDERER_BOOT_REPORT_PATH, type RendererBootReport } from '../src/rende
 
 const config: DesktopConfig = {
   mode: 'compatibility',
+  macosMaterial: 'transparent',
+  windowsMaterial: 'acrylic',
   port: 43_120,
   width: 1280,
   height: 840,
@@ -67,6 +69,7 @@ function createHarness(platform: DesktopRuntime['platform'] = 'darwin'): PluginH
   let themePreference: ThemePreference = 'system'
   const runtime: DesktopRuntime = {
     platform,
+    windowsBuild: platform === 'win32' ? 22_631 : undefined,
     locale: 'en',
     updates: {
       isPackaged: false,
@@ -161,7 +164,13 @@ describe('desktop Host plugin', () => {
   it('defaults to compatibility mode and validates both schemas', () => {
     expect(Config({} as DesktopConfig)).toEqual(config)
     expect(Config({ mode: 'advanced' } as DesktopConfig)).toEqual({ ...config, mode: 'advanced' })
-    expect(DesktopSettingsSchema({} as DesktopSettings)).toEqual({ mode: 'compatibility', port: 43_120, logLevel: 'info' })
+    expect(DesktopSettingsSchema({} as DesktopSettings)).toEqual({
+      mode: 'compatibility',
+      macosMaterial: 'transparent',
+      windowsMaterial: 'acrylic',
+      port: 43_120,
+      logLevel: 'info',
+    })
     expect(() => DesktopSettingsSchema({ port: -1 } as DesktopSettings)).toThrow()
     expect(() => DesktopSettingsSchema({ port: 1.5 } as DesktopSettings)).toThrow()
     expect(() => DesktopSettingsSchema({ port: 65_536 } as DesktopSettings)).toThrow()
@@ -201,6 +210,19 @@ describe('desktop Host plugin', () => {
     expect(Object.fromEntries(url.searchParams)).toEqual({
       'dsh-desktop-mode': 'advanced',
       'dsh-desktop-platform': 'darwin',
+      'dsh-desktop-material': 'off',
+    })
+    expect(Object.fromEntries(new URL(desktopRendererUrl(
+      43120,
+      'extended',
+      'win32',
+      'mica',
+      22_631,
+    )).searchParams)).toEqual({
+      'dsh-desktop-mode': 'extended',
+      'dsh-desktop-platform': 'win32',
+      'dsh-desktop-material': 'mica',
+      'dsh-desktop-mica': '1',
     })
   })
 
@@ -219,7 +241,7 @@ describe('desktop Host plugin', () => {
     expect(loaderAwait).not.toHaveBeenCalled()
     expect(harness.shell()).toEqual(expect.objectContaining({
       mode: 'compatibility',
-      url: 'http://127.0.0.1:43120/?dsh-desktop-mode=compatibility&dsh-desktop-platform=darwin',
+      url: 'http://127.0.0.1:43120/?dsh-desktop-mode=compatibility&dsh-desktop-platform=darwin&dsh-desktop-material=off',
       productName: 'DSH Desktop',
       windowTitle: 'DeepSeek Harness Desktop',
       readThemeSource: expect.any(Function),
@@ -331,15 +353,15 @@ describe('desktop Host plugin', () => {
     apply(harness.ctx, config)
 
     await harness.notify(
-      { mode: 'compatibility', port: 0, logLevel: 'info' },
-      { mode: 'compatibility', port: 0, logLevel: 'info' },
+      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 0, logLevel: 'info' },
+      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 0, logLevel: 'info' },
     )
     expect(harness.restart).not.toHaveBeenCalled()
 
     harness.restart.mockImplementation(() => new Promise<void>(() => {}))
     await harness.notify(
-      { mode: 'advanced', port: 0, logLevel: 'info' },
-      { mode: 'compatibility', port: 0, logLevel: 'info' },
+      { mode: 'advanced', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 0, logLevel: 'info' },
+      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 0, logLevel: 'info' },
     )
     await vi.runAllTimersAsync()
     expect(harness.restart).toHaveBeenCalledOnce()
@@ -351,17 +373,32 @@ describe('desktop Host plugin', () => {
     apply(harness.ctx, config)
 
     await harness.notify(
-      { mode: 'compatibility', port: 0, logLevel: 'debug' },
-      { mode: 'compatibility', port: 0, logLevel: 'info' },
+      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 0, logLevel: 'debug' },
+      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 0, logLevel: 'info' },
     )
     expect(harness.restart).not.toHaveBeenCalled()
 
     harness.restart.mockImplementation(() => new Promise<void>(() => {}))
     await harness.notify(
-      { mode: 'compatibility', port: 43_189, logLevel: 'debug' },
-      { mode: 'compatibility', port: 0, logLevel: 'debug' },
+      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 43_189, logLevel: 'debug' },
+      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 0, logLevel: 'debug' },
     )
     await vi.runAllTimersAsync()
+    expect(harness.restart).toHaveBeenCalledOnce()
+  })
+
+  it('requests one orderly restart after the native material changes', async () => {
+    vi.useFakeTimers()
+    const harness = createHarness('win32')
+    apply(harness.ctx, config)
+
+    harness.restart.mockImplementation(() => new Promise<void>(() => {}))
+    await harness.notify(
+      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'mica', port: 0, logLevel: 'info' },
+      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 0, logLevel: 'info' },
+    )
+    await vi.runAllTimersAsync()
+
     expect(harness.restart).toHaveBeenCalledOnce()
   })
 
@@ -396,13 +433,16 @@ describe('desktop Host plugin', () => {
     expect(() => apply(harness.ctx, config)).toThrow('requires a loopback Web server')
   })
 
-  it('refuses advanced settings on Linux before persistence', () => {
+  it('refuses custom-window settings on Linux before persistence', () => {
     const harness = createHarness('linux')
     apply(harness.ctx, config)
     const register = vi.mocked(harness.ctx.settings.register)
     const options = register.mock.calls[0]?.[2]
 
     expect(() => options?.validate?.({ mode: 'advanced' })).toThrow(
+      'supported on macOS and Windows',
+    )
+    expect(() => options?.validate?.({ mode: 'extended' })).toThrow(
       'supported on macOS and Windows',
     )
     expect(() => options?.validate?.({ mode: 'compatibility' })).not.toThrow()

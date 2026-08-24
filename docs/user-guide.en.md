@@ -14,12 +14,13 @@ Selecting a profile performs an orderly restart. The new profile becomes the las
 
 Switching profiles does not silently copy plugins from the old profile into the new one. Use an explicit profile in the terminal when preparing another profile, or use the default commands after switching.
 
-## Compatibility and advanced modes
+## Window modes and materials
 
 - **Compatibility mode** uses the upstream Web client and the selected profile's own layout/sidebar/conversation composition. It is the closest presentation to ordinary Harness.
+- **Extended window** preserves that official layout and places it below a cross-platform command bar. The bar and upstream sidebar form an inverted-L material surface with a rounded inner corner; its terminal and restart controls remain clickable while the rest of the bar can drag the window.
 - **Advanced mode** keeps the same upstream Web carrier while adding Desktop-owned framing, layout, Mica/vibrancy, and native drag regions. It is intended for a fuller desktop presentation.
 
-Changing mode restarts the application; it does not hot-swap root slots or native materials in a live renderer. Linux provides compatibility mode only.
+macOS custom-window modes can turn the transparent material on or off. Windows can turn material off or use native Acrylic; Mica appears only when supported on Windows 11 build 22621 or newer. Windows 10 therefore uses Acrylic. Changing mode or material restarts the application; it does not hot-swap root slots or native materials in a live renderer. Linux provides compatibility mode only.
 
 ## Local Web port
 
@@ -56,7 +57,7 @@ An explicit `--profile <name>` always wins. Restart DSH Desktop after plugin cha
 
 ## Opening the terminal
 
-Choose **Open DSH Terminal** from the tray. macOS opens Terminal; Windows prefers Windows Terminal and falls back to PowerShell or Command Prompt when it is unavailable.
+Choose **Open DSH Terminal** from the tray, Desktop settings, or the extended-window command bar. The settings action has a **Restart Desktop** button beside it. macOS opens Terminal; Windows prefers Windows Terminal and falls back to PowerShell or Command Prompt when it is unavailable.
 
 The welcome text shows the application version, active profile, profile directory, and DSH home. Desktop creates private `dsh`, `pnpm`, and `node` shims in its user-data directory and prepends that directory only for the new terminal process. It does not modify the system PATH or the user's shell files.
 

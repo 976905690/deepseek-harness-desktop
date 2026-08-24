@@ -157,7 +157,7 @@ const CSS = `
 .dshDesktopSettingsButtonSecondary { color: var(--dsw-alias-label-secondary); }
 .dshDesktopSettingsButtonDanger { color: var(--dsw-alias-state-error-primary); }
 .dshDesktopSettingsButton:disabled { cursor: default; opacity: .55; }
-.dshDesktopSettingsTerminalAction {
+.dshDesktopNativeActions[data-placement="settings"] {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -179,12 +179,36 @@ const CSS = `
 }
 .dshDesktopSettingsHeaderButton:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
 .dshDesktopSettingsHeaderButton:disabled { cursor: not-allowed; opacity: .4; }
-.dshDesktopSettingsTerminalError {
+.dshDesktopNativeActionError {
   max-width: 260px;
   color: var(--dsw-alias-state-error-primary);
   font-size: 11px;
   line-height: 1.4;
 }
+.dshDesktopSettingsMaterialField {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1);
+}
+.dshDesktopSettingsMaterialCopy { min-width: 0; }
+.dshDesktopSettingsSelect {
+  flex: 0 0 auto;
+  min-width: 150px;
+  min-height: 32px;
+  padding: 4px 28px 4px 10px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 12px;
+}
+.dshDesktopSettingsSelect:disabled { opacity: .55; }
 .dshDesktopSettingsNotice,
 .dshDesktopSettingsError,
 .dshDesktopSettingsSuccess {

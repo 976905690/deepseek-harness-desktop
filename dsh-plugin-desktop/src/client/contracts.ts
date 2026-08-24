@@ -36,8 +36,14 @@ export interface DesktopWindowDragRegion {
 
 /** Generation-stable native window geometry exposed to Desktop client plugins. */
 export interface DesktopWindowService {
-  readonly mode: 'compatibility' | 'advanced'
+  readonly mode: 'compatibility' | 'extended' | 'advanced'
   readonly platform: 'darwin' | 'win32' | 'linux'
+  /** Capability-gated native material active behind this renderer. */
+  readonly material: 'off' | 'transparent' | 'acrylic' | 'mica'
+  /** Windows Mica capability after the operating-system build gate. */
+  readonly micaSupported: boolean
+  /** Materials available on the active platform and operating-system build. */
+  readonly availableMaterials: readonly ('off' | 'transparent' | 'acrylic' | 'mica')[]
   /** Content insets owned by the active Desktop presentation. */
   readonly safeAreaInsets: DesktopWindowInsets
   /** Top caption geometry; interactive children must opt out of app dragging. */
@@ -63,5 +69,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     'details': { kind: 'single'; scope: 'session'; owner: Record<never, never> }
     /** Frame-wide additive overlays. */
     'shell.overlay': { kind: 'list'; scope: 'root' }
+    /** Additive actions rendered in the visible extended-window command bar. */
+    'desktop.titlebar.action': { kind: 'list'; scope: 'root' }
   }
 }

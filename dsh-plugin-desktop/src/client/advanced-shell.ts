@@ -27,11 +27,13 @@ export function applyAdvancedShell(ctx: ClientContext, environment: DesktopClien
   ctx.effect(() => {
     document.body.dataset.dshDesktopMode = 'advanced'
     document.body.dataset.dshDesktopPlatform = environment.platform
+    document.body.dataset.dshDesktopMaterial = environment.material
     const removeStyles = installAdvancedStyles()
     return () => {
       removeStyles()
       delete document.body.dataset.dshDesktopMode
       delete document.body.dataset.dshDesktopPlatform
+      delete document.body.dataset.dshDesktopMaterial
     }
   }, 'desktop: advanced shell styles')
 

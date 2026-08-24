@@ -7,6 +7,7 @@ import {
   MACOS_TRAFFIC_LIGHT_SAFE_WIDTH,
   WINDOWS_CAPTION_CONTROLS_WIDTH,
   WINDOWS_TITLEBAR_HEIGHT,
+  EXTENDED_TITLEBAR_HEIGHT,
 } from '../window-chrome.ts'
 import type { DesktopWindowService } from './contracts.ts'
 import type { DesktopClientEnvironment } from './environment.ts'
@@ -21,16 +22,37 @@ function frozenDragRegion(height: number, leftInset: number, rightInset: number)
 
 /** Derive the public native-window geometry from the validated renderer marker. */
 export function desktopWindowService(environment: DesktopClientEnvironment): DesktopWindowService {
+  const availableMaterials = Object.freeze(environment.platform === 'darwin'
+    ? ['off', 'transparent'] as const
+    : environment.platform === 'win32'
+      ? environment.micaSupported
+        ? ['off', 'acrylic', 'mica'] as const
+        : ['off', 'acrylic'] as const
+      : ['off'] as const)
   if (environment.mode === 'compatibility') {
     return Object.freeze({
       ...environment,
+      availableMaterials,
       safeAreaInsets: frozenInsets(0),
       dragRegion: frozenDragRegion(0, 0, 0),
+    })
+  }
+  if (environment.mode === 'extended') {
+    return Object.freeze({
+      ...environment,
+      availableMaterials,
+      safeAreaInsets: frozenInsets(EXTENDED_TITLEBAR_HEIGHT),
+      dragRegion: frozenDragRegion(
+        EXTENDED_TITLEBAR_HEIGHT,
+        environment.platform === 'darwin' ? MACOS_TRAFFIC_LIGHT_SAFE_WIDTH : 0,
+        environment.platform === 'win32' ? WINDOWS_CAPTION_CONTROLS_WIDTH : 0,
+      ),
     })
   }
   if (environment.platform === 'darwin') {
     return Object.freeze({
       ...environment,
+      availableMaterials,
       safeAreaInsets: frozenInsets(MACOS_TITLEBAR_HEIGHT),
       dragRegion: frozenDragRegion(
         MACOS_DRAG_REGION_HEIGHT,
@@ -42,6 +64,7 @@ export function desktopWindowService(environment: DesktopClientEnvironment): Des
   if (environment.platform === 'win32') {
     return Object.freeze({
       ...environment,
+      availableMaterials,
       safeAreaInsets: frozenInsets(WINDOWS_TITLEBAR_HEIGHT),
       dragRegion: frozenDragRegion(
         WINDOWS_TITLEBAR_HEIGHT,
@@ -52,6 +75,7 @@ export function desktopWindowService(environment: DesktopClientEnvironment): Des
   }
   return Object.freeze({
     ...environment,
+    availableMaterials,
     safeAreaInsets: frozenInsets(0),
     dragRegion: frozenDragRegion(0, 0, 0),
   })

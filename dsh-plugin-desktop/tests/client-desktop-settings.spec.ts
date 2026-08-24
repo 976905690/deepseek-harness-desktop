@@ -139,7 +139,12 @@ describe('Desktop settings Slot registration', () => {
       slots: { inject, register },
     } as unknown as ClientContext
 
-    applyDesktopSettings(ctx, { mode: 'compatibility', platform: 'darwin' })
+    applyDesktopSettings(ctx, {
+      mode: 'compatibility',
+      platform: 'darwin',
+      material: 'off',
+      micaSupported: false,
+    })
 
     expect(bind).toHaveBeenNthCalledWith(1, { namespace: DESKTOP_SHELL_SETTINGS_NAMESPACE })
     expect(bind).toHaveBeenNthCalledWith(2, { namespace: DESKTOP_NOTIFICATIONS_SETTINGS_NAMESPACE })
@@ -156,7 +161,11 @@ describe('Desktop settings Slot registration', () => {
       locale: DESKTOP_SETTINGS_LOCALE_NAMESPACE,
     })
     expect(options.label()).toBe(`${DESKTOP_SETTINGS_LOCALE_NAMESPACE}:nav`)
-    expect(options.inject()).toMatchObject({ platform: 'darwin', initialMode: 'compatibility' })
+    expect(options.inject()).toMatchObject({
+      platform: 'darwin',
+      initialMode: 'compatibility',
+      micaSupported: false,
+    })
     expect(component).toBe(DesktopSettingsSection)
 
     const [actionOptions, actionComponent] = register.mock.calls[1] as unknown as [
