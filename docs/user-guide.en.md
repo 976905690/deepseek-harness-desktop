@@ -62,7 +62,7 @@ The welcome text shows the application version, active profile, profile director
 
 ## Updates
 
-Packaged macOS and Windows applications check `https://www.dshdesktop.cn/api/desktop/version` in the background. Startup is not blocked; network errors, non-200 responses, invalid versions, and a server version that is not newer remain silent in the background.
+Packaged macOS and Windows applications check `https://www.dshdesktop.cn/api/desktop/version` in the background. Startup is not blocked; network errors, non-200 responses, invalid versions, and a server version that is not newer remain silent in the background. A newer version updates the tray and raises one non-blocking system notification per version instead of opening a download confirmation automatically; clicking the notification reveals Desktop.
 
 **Check for Updates…** in the tray is a manual check. It shows a result even when the installed version is current, and reports a retry message when the check fails. Only a server version strictly newer than the local version produces a download confirmation. Cancelling never requests the counted download endpoint.
 

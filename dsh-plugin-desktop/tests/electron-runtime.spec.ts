@@ -112,6 +112,7 @@ const electron = vi.hoisted(() => {
     readonly isFocused = vi.fn(() => false)
     readonly isVisible = vi.fn(() => false)
     readonly isMinimized = vi.fn(() => false)
+    readonly isFullScreen = vi.fn(() => false)
     readonly flashFrame = vi.fn()
     readonly restore = vi.fn()
     readonly show = vi.fn()
@@ -124,6 +125,7 @@ const electron = vi.hoisted(() => {
     readonly loadURL = loadURL
     readonly removeMenu = vi.fn()
     readonly setBackgroundMaterial = vi.fn()
+    readonly setFullScreen = vi.fn()
   }
 
   class Tray {
@@ -870,6 +872,61 @@ describe('Electron desktop runtime', () => {
     await release()
   })
 
+  it('leaves macOS fullscreen before hiding and ignores repeated close events during the transition', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
+    const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
+    const runtime = new ElectronDesktopRuntime(async () => {})
+    const release = runtime.schedule(spec)
+    await runtime.mountScheduled()
+
+    const window = electron.browserWindows[0]
+    window?.isFullScreen.mockReturnValue(true)
+    const close = electron.browserWindowOn.mock.calls.find(([event]) => event === 'close')?.[1]
+    expect(close).toEqual(expect.any(Function))
+
+    const first = { preventDefault: vi.fn() }
+    const second = { preventDefault: vi.fn() }
+    close(first)
+    close(second)
+
+    expect(first.preventDefault).toHaveBeenCalledOnce()
+    expect(second.preventDefault).toHaveBeenCalledOnce()
+    expect(window?.setFullScreen).toHaveBeenCalledOnce()
+    expect(window?.setFullScreen).toHaveBeenCalledWith(false)
+    expect(window?.hide).not.toHaveBeenCalled()
+    const leaveFullscreen = window?.once.mock.calls.find(([event]) => event === 'leave-full-screen')?.[1]
+    expect(leaveFullscreen).toEqual(expect.any(Function))
+
+    leaveFullscreen()
+    expect(window?.hide).toHaveBeenCalledOnce()
+
+    await release()
+  })
+
+  it('cancels a pending fullscreen hide when the user explicitly reveals the macOS window', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
+    const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
+    const runtime = new ElectronDesktopRuntime(async () => {})
+    const release = runtime.schedule(spec)
+    await runtime.mountScheduled()
+
+    const window = electron.browserWindows[0]
+    window?.isFullScreen.mockReturnValue(true)
+    const close = electron.browserWindowOn.mock.calls.find(([event]) => event === 'close')?.[1]
+    close({ preventDefault: vi.fn() })
+    const leaveFullscreen = window?.once.mock.calls.find(([event]) => event === 'leave-full-screen')?.[1]
+
+    runtime.show()
+    leaveFullscreen()
+
+    expect(window?.off).toHaveBeenCalledWith('leave-full-screen', expect.any(Function))
+    expect(window?.hide).not.toHaveBeenCalled()
+    expect(window?.show).toHaveBeenCalledOnce()
+    expect(window?.focus).toHaveBeenCalledOnce()
+
+    await release()
+  })
+
   it('flashes the Windows taskbar and clears attention on focus and release', async () => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
     const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
@@ -1129,7 +1186,7 @@ describe('Electron desktop runtime', () => {
         appExecutable: process.execPath,
         electronVersion: '43.4.0',
         profileName: 'desktop',
-        productVersion: '2.0.2',
+        productVersion: '2.0.3',
         profileDir: expect.stringMatching(/profiles[\\/]+desktop$/u),
         homeDir: expect.stringContaining('dsh-desktop-user-data'),
         installRecoveryStatePath: expect.stringMatching(/[\\/]plugin-install-recovery[\\/]state\.json$/u),
@@ -1166,7 +1223,7 @@ describe('Electron desktop runtime', () => {
     expect(diagnostics.export).toHaveBeenCalledWith(
       expect.stringContaining('dsh-desktop-user-data'),
       expect.objectContaining({
-        appVersion: '2.0.2',
+        appVersion: '2.0.3',
         crashDumpsDir: expect.stringMatching(/[\\/]Crashpad$/u),
       }),
     )
@@ -1388,13 +1445,16 @@ describe('Electron desktop runtime', () => {
     updater.download.mockResolvedValueOnce('/tmp/DSH-Desktop-2.1.0-mac.dmg')
     const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
     const runtime = new ElectronDesktopRuntime(async () => {})
+    const release = runtime.schedule(spec)
+    await runtime.mountScheduled()
+    const activeWindow = electron.browserWindows[0]
 
     await expect(runtime.updates.request('https://www.dshdesktop.cn/api/desktop/version', { method: 'GET' }))
       .resolves.toBe(response)
     expect(runtime.updates).toMatchObject({
       isPackaged: false,
       canDownload: false,
-      currentVersion: '2.0.2',
+      currentVersion: '2.0.3',
       statePath: join('/tmp/dsh-desktop-user-data', 'updates', 'state.json'),
     })
     electron.app.isPackaged = true
@@ -1405,17 +1465,23 @@ describe('Electron desktop runtime', () => {
       currentVersion: '2.0.0',
       latestVersion: '2.0.0',
     })
-    expect(electron.dialog.showMessageBox).toHaveBeenLastCalledWith(expect.objectContaining({
-      title: 'DSH Desktop Is Up to Date',
-      detail: 'Installed version: 2.0.0',
-      buttons: ['OK'],
-    }))
+    expect(electron.dialog.showMessageBox).toHaveBeenLastCalledWith(
+      activeWindow,
+      expect.objectContaining({
+        title: 'DSH Desktop Is Up to Date',
+        detail: 'Installed version: 2.0.0',
+        buttons: ['OK'],
+      }),
+    )
 
     await runtime.updates.showManualCheckResult(null)
-    expect(electron.dialog.showMessageBox).toHaveBeenLastCalledWith(expect.objectContaining({
-      title: 'Unable to Check for Updates',
-      buttons: ['OK'],
-    }))
+    expect(electron.dialog.showMessageBox).toHaveBeenLastCalledWith(
+      activeWindow,
+      expect.objectContaining({
+        title: 'Unable to Check for Updates',
+        buttons: ['OK'],
+      }),
+    )
 
     electron.dialog.showMessageBox.mockResolvedValueOnce({ response: 1, checkboxChecked: false })
     await expect(runtime.updates.confirmDownload('2.1.0')).resolves.toBe(false)
@@ -1429,10 +1495,13 @@ describe('Electron desktop runtime', () => {
       filePath: '/tmp/Downloads/DSH-Desktop-2.1.0-mac.dmg',
     })
     await runtime.updates.downloadAndOpen('2.1.0', controller.signal)
-    expect(electron.dialog.showSaveDialog).toHaveBeenCalledWith(expect.objectContaining({
-      defaultPath: join('/tmp/Downloads', 'DSH-Desktop-2.1.0-mac.dmg'),
-      filters: [{ name: 'Disk Image', extensions: ['dmg'] }],
-    }))
+    expect(electron.dialog.showSaveDialog).toHaveBeenCalledWith(
+      activeWindow,
+      expect.objectContaining({
+        defaultPath: join('/tmp/Downloads', 'DSH-Desktop-2.1.0-mac.dmg'),
+        filters: [{ name: 'Disk Image', extensions: ['dmg'] }],
+      }),
+    )
     expect(updater.download).toHaveBeenCalledWith({
       platform: 'darwin',
       version: '2.1.0',
@@ -1446,10 +1515,13 @@ describe('Electron desktop runtime', () => {
       version: '2.1.0',
       path: '/tmp/DSH-Desktop-2.1.0-mac.dmg',
     })
-    expect(electron.dialog.showMessageBox).toHaveBeenLastCalledWith(expect.objectContaining({
-      title: 'DSH Desktop Update Downloaded',
-      buttons: ['OK'],
-    }))
+    expect(electron.dialog.showMessageBox).toHaveBeenLastCalledWith(
+      activeWindow,
+      expect.objectContaining({
+        title: 'DSH Desktop Update Downloaded',
+        buttons: ['OK'],
+      }),
+    )
 
     runtime.updates.notify({
       title: 'Profile Recovered',
@@ -1461,7 +1533,13 @@ describe('Electron desktop runtime', () => {
       body: 'Reopened the last-known-good profile.',
     })
     expect(notification?.show).toHaveBeenCalledOnce()
-    expect(notification?.once).not.toHaveBeenCalled()
+    expect(notification?.once).toHaveBeenCalledWith('click', expect.any(Function))
+    const click = notification?.once.mock.calls.find(([event]) => event === 'click')?.[1]
+    click()
+    expect(activeWindow?.show).toHaveBeenCalledOnce()
+    expect(activeWindow?.focus).toHaveBeenCalledOnce()
+
+    await release()
   })
 
   it('starts the downloaded Windows installer before requesting orderly exit', async () => {
@@ -1597,11 +1675,14 @@ describe('Electron desktop runtime', () => {
     await runtime.mountScheduled()
     await vi.waitFor(() => { expect(updater.resolve).toHaveBeenCalledOnce() })
 
-    expect(electron.dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({
-      title: 'Remove Update Installer',
-      detail: expect.stringContaining(artifact.path),
-      buttons: ['Delete Installer', 'Keep Installer'],
-    }))
+    expect(electron.dialog.showMessageBox).toHaveBeenCalledWith(
+      electron.browserWindows[0],
+      expect.objectContaining({
+        title: 'Remove Update Installer',
+        detail: expect.stringContaining(artifact.path),
+        buttons: ['Delete Installer', 'Keep Installer'],
+      }),
+    )
     expect(updater.resolve).toHaveBeenCalledWith('/tmp/dsh-desktop-user-data', artifact, remove)
   })
 

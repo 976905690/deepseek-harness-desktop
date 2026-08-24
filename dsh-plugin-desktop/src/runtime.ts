@@ -94,7 +94,7 @@ export interface DesktopUpdateAdapter {
   readonly canDownload: boolean
   /** Installed desktop product version. */
   readonly currentVersion: string
-  /** Private file used for update-prompt history. */
+  /** Private file used to suppress repeated background update announcements. */
   readonly statePath: string
   /** Request adapter backed by Electron's native network session. */
   readonly request: UpdateRequest

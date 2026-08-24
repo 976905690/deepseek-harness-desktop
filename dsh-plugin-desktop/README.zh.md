@@ -154,7 +154,7 @@ npx dsh-plugin-desktop
 
 当 Desktop 窗口没有焦点时，直接用户发起的回合到达 `completed` 会显示原生完成通知；以 `error` 或 `max-tokens` 结束时则显示需要处理的通知。后台任务完成或失败也使用同一条原生注意力路径。取消、阻塞、中断、被终止的任务、插件发起、仅 continuation、turn 不匹配及 subagent 活动都保持静默。点击通知会显示并聚焦窗口。macOS 与 Linux 会递增应用角标，Windows 会闪烁任务栏按钮；显示、聚焦或释放窗口时会清除这些提示。实时生效的 `dsh-desktop-notifications` settings namespace 提供相互独立的 `notifyOnTurnCompletion`、`notifyOnTurnFailure`、`notifyOnJobCompletion` 与 `notifyOnJobFailure` 开关，默认全部开启。通知文案刻意保持通用，不会包含提示词、回复、错误、任务标签、命令、路径、会话 ID、模型或 provider 名称、工具数据及输出。
 
-打包后的 macOS 与 Windows 应用会在启动 60 秒后查询 `https://www.dshdesktop.cn/api/desktop/version`，并在每次检查完成六小时后再次查询。每次 no-cache 请求的期限为 15 秒，并与托盘中的 **Check for Updates…** 命令共用一个 in-flight operation。响应只有在包含规范的 stable Semantic Versioning 时才会被接受。后台检查遇到网络、HTTP、超时、无效响应、相同版本或服务端旧版本时保持静默。手工检查一定会显示原生结果对话框：相同或旧版本会显示当前安装版本，失败会提示用户重试，严格更新的版本则显示 **Download** 或 **Later**。自动更新提示会按版本记录，用户仍可从托盘显式重试。开发运行、未打包启动与 Linux 不会下载安装包。
+打包后的 macOS 与 Windows 应用会在启动 60 秒后查询 `https://www.dshdesktop.cn/api/desktop/version`，并在每次检查完成六小时后再次查询。每次 no-cache 请求的期限为 15 秒，并与托盘中的 **Check for Updates…** 命令共用一个 in-flight operation。响应只有在包含规范的 stable Semantic Versioning 时才会被接受。后台检查遇到网络、HTTP、超时、无效响应、相同版本或服务端旧版本时保持静默。发现严格更新的后台版本时，应用会更新托盘并且每个版本只发送一次非阻塞原生通知，不会在其他应用上方弹出下载确认；点击通知会显示 DSH Desktop。手工检查一定会显示原生结果对话框：相同或旧版本会显示当前安装版本，失败会提示用户重试，严格更新的版本则显示 **Download** 或 **Later**。开发运行、未打包启动与 Linux 不会下载安装包。
 
 选择 **Download** 后，应用会先重新确认服务端版本没有变化，然后打开原生保存对话框。默认位置是 Downloads，但用户可以选择其他绝对路径和文件名；取消对话框不会发起下载请求。DSH Desktop 使用 Electron 网络跟随 service redirect，把不超过 1 GiB 的文件流式写入用户选择的路径，记录安装包位置用于升级交接，并在交付前拒绝不完整的 DMG 或 Windows PE。macOS 会打开下载好的 DMG，并提示用户替换 `Applications` 中的应用后重新打开。Windows 会在 NSIS 安装器准备完成后再次确认；选择 **Restart and Install** 会启动安装器，并在当前进程退出前请求 Cordis 有序 teardown。升级后的应用启动时会询问删除已记录的安装包，或保留它；任一选择都会消费 pending cleanup state。下载、文件系统与安装器打开失败都会保持静默，同时保留托盘中的可重试版本操作。
 
@@ -203,7 +203,7 @@ corepack.cmd yarn dist:win
 
 该流程不要求 Python 或 Visual Studio C++ Build Tools。Windows 命令会直接使用 `node-pty` 内置的 x64 Node-API 二进制，而不会让 Electron Builder 从源码重新编译；如果安装包 staging tree 缺少这些二进制，packaged-runtime gate 会直接拒绝产物。
 
-`dist:win` 会拒绝非 Windows 或非 x64 宿主，先执行一组 Windows 可运行的 gate，其中包括 build、全部 TypeScript compiler face、打包与原生 shell 聚焦测试，以及 runtime-closure verifier；随后再构建 NSIS 安装向导，并校验生成的两个 PE 文件。完整跨平台 suite 仍由 CI 持有，因为其中部分 POSIX 执行测试不是 Windows 程序。安装向导支持当前用户安装或提升权限后的所有用户安装，可更改安装目录，会创建开始菜单与桌面快捷方式，并且卸载应用时保留 DSH 用户数据。版本 `2.0.1` 会输出到 `dsh-plugin-desktop\dist\DSH-Desktop-2.0.1-x64-Setup.exe`；用于 smoke 测试的未封装程序仍位于 `dsh-plugin-desktop\dist\win-unpacked\DSH Desktop.exe`。
+`dist:win` 会拒绝非 Windows 或非 x64 宿主，先执行一组 Windows 可运行的 gate，其中包括 build、全部 TypeScript compiler face、打包与原生 shell 聚焦测试，以及 runtime-closure verifier；随后再构建 NSIS 安装向导，并校验生成的两个 PE 文件。完整跨平台 suite 仍由 CI 持有，因为其中部分 POSIX 执行测试不是 Windows 程序。安装向导支持当前用户安装或提升权限后的所有用户安装，可更改安装目录，会创建开始菜单与桌面快捷方式，并且卸载应用时保留 DSH 用户数据。版本 `2.0.3` 会输出到 `dsh-plugin-desktop\dist\DSH-Desktop-2.0.3-x64-Setup.exe`；用于 smoke 测试的未封装程序仍位于 `dsh-plugin-desktop\dist\win-unpacked\DSH Desktop.exe`。
 
 该本地命令会主动移除 Windows 证书变量，并设置 `signExecutable=false`。产物可以安装测试，但没有 Authenticode publisher，因此 Windows 可能显示 Unknown publisher 或 SmartScreen 警告。签名后的 Windows release、证书校验、安装器升级与卸载测试，以及原生 UI 和 sandbox smoke 仍是独立的发布 gate。
 
@@ -215,7 +215,7 @@ corepack.cmd yarn dist:win
 corepack.cmd yarn dist:win-portable
 ```
 
-产物为 `dsh-plugin-desktop\\dist\\DSH-Desktop-2.0.1-x64-Portable.zip`。用户解压到任意可写目录后运行其中的 `DSH Desktop.exe`，不需要安装器、管理员权限、开始菜单注册或卸载步骤。它仍会把 profile、日志和缓存写入 Windows 默认用户数据目录，因此这是便携分发方式，不是把数据完全封装在 exe 旁边的自包含沙箱。绿色 ZIP 不会交给 NSIS 自动更新流程，新版本需要手动替换并重新解压。本地构建没有签名，Windows 可能显示 Unknown publisher 或 SmartScreen 警告；签名后的绿色版仍属于正式发布 gate。
+产物为 `dsh-plugin-desktop\\dist\\DSH-Desktop-2.0.3-x64-Portable.zip`。用户解压到任意可写目录后运行其中的 `DSH Desktop.exe`，不需要安装器、管理员权限、开始菜单注册或卸载步骤。它仍会把 profile、日志和缓存写入 Windows 默认用户数据目录，因此这是便携分发方式，不是把数据完全封装在 exe 旁边的自包含沙箱。绿色 ZIP 不会交给 NSIS 自动更新流程，新版本需要手动替换并重新解压。本地构建没有签名，Windows 可能显示 Unknown publisher 或 SmartScreen 警告；签名后的绿色版仍属于正式发布 gate。
 
 ### macOS DMG 冒烟构建
 

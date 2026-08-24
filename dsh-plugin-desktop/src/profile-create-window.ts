@@ -2,6 +2,7 @@
 
 import { BrowserWindow } from 'electron'
 import { fileURLToPath } from 'node:url'
+import { revealApplication } from './electron-reveal.ts'
 import type { DesktopLocale } from './runtime.ts'
 
 const PROFILE_CREATE_SCHEME = 'dsh-profile-create:'
@@ -79,8 +80,7 @@ export class ProfileCreateWindow {
   open(): void {
     const existing = this.window
     if (existing !== undefined && !existing.isDestroyed()) {
-      existing.show()
-      existing.focus()
+      revealApplication(existing)
       return
     }
     this.disposed = false
@@ -118,7 +118,7 @@ export class ProfileCreateWindow {
     window.webContents.on('will-navigate', navigate)
     window.webContents.on('will-redirect', navigate)
     window.once('ready-to-show', () => {
-      if (!this.disposed && this.window === window && !window.isDestroyed()) window.show()
+      if (!this.disposed && this.window === window && !window.isDestroyed()) revealApplication(window)
     })
     window.on('closed', () => {
       // Electron destroys webContents before emitting BrowserWindow's `closed`.
