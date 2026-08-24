@@ -155,11 +155,16 @@ export class DesktopDialogWindow {
         }
         const renderedHeight = parseDesktopDialogLayout(href)
         if (renderedHeight === undefined || window.isDestroyed()) return
-        const bounds = window.getBounds()
+        const previousBounds = window.getBounds()
+        // The renderer reports web-content height. setBounds() consumes the
+        // outer window height and clips the footer wherever native chrome or
+        // invisible window borders consume part of that space.
+        window.setContentSize(DIALOG_WIDTH, renderedHeight, false)
+        const sizedBounds = window.getBounds()
         window.setBounds({
-          ...bounds,
-          y: bounds.y + Math.round((bounds.height - renderedHeight) / 2),
-          height: renderedHeight,
+          ...sizedBounds,
+          x: previousBounds.x + Math.round((previousBounds.width - sizedBounds.width) / 2),
+          y: previousBounds.y + Math.round((previousBounds.height - sizedBounds.height) / 2),
         }, false)
         layoutReady = true
         if (documentReady) reveal()

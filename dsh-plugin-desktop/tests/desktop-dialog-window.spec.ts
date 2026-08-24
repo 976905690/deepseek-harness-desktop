@@ -22,6 +22,11 @@ const electron = vi.hoisted(() => {
     private bounds: Electron.Rectangle
     readonly getBounds = vi.fn(() => ({ ...this.bounds }))
     readonly setBounds = vi.fn((bounds: Electron.Rectangle) => { this.bounds = { ...bounds } })
+    readonly setContentSize = vi.fn((width: number, height: number) => {
+      // Model native/invisible chrome so the test distinguishes content size
+      // from outer bounds instead of accidentally treating them as identical.
+      this.bounds = { ...this.bounds, width: width + 8, height: height + 12 }
+    })
     readonly loadFile = vi.fn(async () => {})
     readonly once = vi.fn((event: string, listener: Listener) => { this.onceListeners.set(event, listener) })
     readonly on = vi.fn((event: string, listener: Listener) => { this.listeners.set(event, listener) })
@@ -102,7 +107,8 @@ describe('DesktopDialogWindow', () => {
     const layoutEvent = { preventDefault: vi.fn() }
     navigate?.(layoutEvent, 'dsh-desktop-dialog://layout?height=236')
     expect(layoutEvent.preventDefault).toHaveBeenCalledOnce()
-    expect(window?.setBounds).toHaveBeenCalledWith({ x: 0, y: 32, width: 480, height: 236 }, false)
+    expect(window?.setContentSize).toHaveBeenCalledWith(480, 236, false)
+    expect(window?.setBounds).toHaveBeenCalledWith({ x: -4, y: 26, width: 488, height: 248 }, false)
     expect(window?.show).toHaveBeenCalledOnce()
     const event = { preventDefault: vi.fn() }
     navigate?.(event, 'dsh-desktop-dialog://response?id=0')
