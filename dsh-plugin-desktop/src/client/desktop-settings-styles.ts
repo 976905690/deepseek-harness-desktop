@@ -162,7 +162,44 @@ const CSS = `
   align-items: center;
   gap: 8px;
 }
-.dshDesktopNativeActions[data-placement="settings"] .dshDesktopActionMenu { right: 0; }
+.dshDesktopNativeActions[data-placement="settings"] .dshDesktopNativeActionMenuAnchor { position: relative; }
+.dshDesktopNativeActions[data-placement="settings"] .dshDesktopActionMenu {
+  position: absolute;
+  z-index: 2147483001;
+  top: calc(100% + 5px);
+  right: 0;
+  display: grid;
+  grid-auto-flow: row;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 220px;
+  padding: 5px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1);
+  box-shadow: 0 12px 32px color-mix(in srgb, #000 28%, transparent);
+  -webkit-app-region: no-drag;
+}
+.dshDesktopNativeActions[data-placement="settings"] .dshDesktopActionMenuItem {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 32px;
+  padding: 5px 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  text-align: start;
+  white-space: nowrap;
+}
+.dshDesktopNativeActions[data-placement="settings"] .dshDesktopActionMenuItem:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
+.dshDesktopNativeActions[data-placement="settings"] .dshDesktopActionMenuItem:disabled { cursor: default; opacity: .45; }
+.dshDesktopNativeActions[data-placement="settings"] .dshDesktopActionMenuItem svg { width: 14px; height: 14px; stroke-width: 1.8; }
+.dshDesktopNativeActions[data-placement="settings"] .dshDesktopActionMenuItem span { flex: 1; }
 .dshDesktopSettingsHeaderButton {
   display: inline-flex;
   align-items: center;
