@@ -2,7 +2,7 @@
 
 import type { BrowserWindowConstructorOptions, NativeImage } from 'electron'
 import type { DesktopPlatform, DesktopShellSpec } from './runtime.ts'
-import { WINDOWS_TITLEBAR_HEIGHT } from './window-chrome.ts'
+import { EXTENDED_TITLEBAR_HEIGHT, WINDOWS_TITLEBAR_HEIGHT } from './window-chrome.ts'
 
 /**
  * Build a secure BrowserWindow while preserving the operating system frame.
@@ -56,6 +56,29 @@ export function advancedWindowOptions(
   if (spec.mode !== 'advanced') {
     throw new Error(`dsh-plugin-desktop: unsupported advanced window mode ${spec.mode}`)
   }
+  return customChromeWindowOptions(spec, icon, platform, preload, WINDOWS_TITLEBAR_HEIGHT)
+}
+
+/** Build the visible command-bar window used by extended mode. */
+export function extendedWindowOptions(
+  spec: DesktopShellSpec,
+  icon: NativeImage,
+  platform: DesktopPlatform,
+  preload: string,
+): BrowserWindowConstructorOptions {
+  if (spec.mode !== 'extended') {
+    throw new Error(`dsh-plugin-desktop: unsupported extended window mode ${spec.mode}`)
+  }
+  return customChromeWindowOptions(spec, icon, platform, preload, EXTENDED_TITLEBAR_HEIGHT)
+}
+
+function customChromeWindowOptions(
+  spec: DesktopShellSpec,
+  icon: NativeImage,
+  platform: DesktopPlatform,
+  preload: string,
+  titlebarHeight: number,
+): BrowserWindowConstructorOptions {
   const options: BrowserWindowConstructorOptions = {
     title: platform === 'win32' ? spec.windowTitle : '',
     width: spec.width,
@@ -73,15 +96,20 @@ export function advancedWindowOptions(
     },
   }
   if (platform === 'darwin') {
-    return {
+    const custom: BrowserWindowConstructorOptions = {
       ...options,
       titleBarStyle: 'hiddenInset',
       trafficLightPosition: { x: 16, y: 16 },
-      transparent: true,
-      backgroundColor: '#00000000',
-      vibrancy: 'sidebar',
-      visualEffectState: 'followWindow',
     }
+    return spec.material === 'transparent'
+      ? {
+          ...custom,
+          transparent: true,
+          backgroundColor: '#00000000',
+          vibrancy: 'sidebar',
+          visualEffectState: 'followWindow',
+        }
+      : custom
   }
   if (platform === 'win32') {
     return {
@@ -91,16 +119,17 @@ export function advancedWindowOptions(
       titleBarOverlay: {
         color: '#00000000',
         symbolColor: '#7f858f',
-        height: WINDOWS_TITLEBAR_HEIGHT,
+        height: titlebarHeight,
       },
-      backgroundColor: '#00000000',
-      backgroundMaterial: 'mica',
+      ...(spec.material === 'off' ? {} : { backgroundColor: '#00000000' }),
+      ...(spec.material === 'acrylic' ? { transparent: true } : {}),
+      ...(spec.material === 'mica' ? { backgroundMaterial: 'mica' as const } : {}),
       hasShadow: true,
       roundedCorners: true,
       thickFrame: true,
     }
   }
-  throw new Error('dsh-plugin-desktop: advanced shell mode is supported on macOS and Windows')
+  throw new Error('dsh-plugin-desktop: custom desktop shell modes are supported on macOS and Windows')
 }
 
 /**
@@ -116,7 +145,7 @@ export function desktopWindowOptions(
   platform: DesktopPlatform,
   preload: string,
 ): BrowserWindowConstructorOptions {
-  return spec.mode === 'compatibility'
-    ? compatibilityWindowOptions(spec, icon, platform, preload)
-    : advancedWindowOptions(spec, icon, platform, preload)
+  if (spec.mode === 'compatibility') return compatibilityWindowOptions(spec, icon, platform, preload)
+  if (spec.mode === 'extended') return extendedWindowOptions(spec, icon, platform, preload)
+  return advancedWindowOptions(spec, icon, platform, preload)
 }

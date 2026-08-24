@@ -53,6 +53,7 @@ export function applyDesktopSettings(ctx: ClientContext, environment: DesktopCli
       api,
       platform: environment.platform,
       initialMode: environment.mode,
+      micaSupported: environment.micaSupported,
       desktopSettings,
       notificationSettings,
     }),

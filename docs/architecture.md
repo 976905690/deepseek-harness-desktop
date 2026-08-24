@@ -37,7 +37,7 @@ flowchart LR
 - **Web Client**：官方 Web UI 和第三方浏览器界面。它通过 loopback carrier 工作，不直接调用 Electron。
 - **Native runtime**：Electron BrowserWindow、系统托盘、文件/网络/安装器适配。`desktopRuntime` 只供 Desktop 自有 row 使用。
 
-兼容模式的 Client face 校验环境后直接返回，不注册 Desktop layout、root、sidebar 或 conversation override。高级模式才安装 Desktop-owned layout、frame 和原生材质，同时尊重上游和第三方 slot 组合。
+兼容模式的 Client face 校验环境，但不注册 Desktop layout、root、sidebar 或 conversation override。扩展窗口保留官方 layout，通过 overlay slot 加入 Desktop 操作栏，并把完整 frame 下移到操作栏下方。增强模式安装 Desktop-owned layout 与 frame。两种自定义窗口模式都会按系统能力使用原生材质，同时尊重上游和第三方 slot 组合。
 
 ### 原生 Shell generation 与平台 adapter
 

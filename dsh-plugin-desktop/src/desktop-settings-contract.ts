@@ -20,6 +20,9 @@ export const DESKTOP_MARKET_SELECT_PATH = '/api/desktop/market/select'
 /** Open the launcher-owned DSH terminal without accepting command text. */
 export const DESKTOP_TERMINAL_OPEN_PATH = '/api/desktop/terminal/open'
 
+/** Queue an orderly Desktop relaunch after acknowledging the renderer. */
+export const DESKTOP_RESTART_PATH = '/api/desktop/restart'
+
 /** Export one local diagnostic archive through the launcher-owned flow. */
 export const DESKTOP_DIAGNOSTICS_EXPORT_PATH = '/api/desktop/diagnostics/export'
 
@@ -106,6 +109,14 @@ export type DesktopTerminalOpenRequest = Readonly<Record<string, never>>
 
 /** Successful handoff to the launcher-owned terminal action. */
 export interface DesktopTerminalOpenResponse {
+  readonly accepted: true
+}
+
+/** Exact empty body accepted by the explicit restart endpoint. */
+export type DesktopRestartRequest = Readonly<Record<string, never>>
+
+/** Successful handoff to the launcher's orderly relaunch flow. */
+export interface DesktopRestartResponse {
   readonly accepted: true
 }
 

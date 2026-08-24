@@ -2,7 +2,7 @@
 
 English | [中文](plugin-services.zh.md)
 
-This document is the supported Host-side integration contract for plugin authors. It covers the public `desktopProfiles` and `desktopPnpm` Cordis services exported by DSH Desktop 2.x in both compatibility and advanced presentation modes. It does not grant third-party access to raw Electron APIs, the renderer, or launcher bootstrap state.
+This document is the supported integration contract for plugin authors. It covers the public Host services `desktopProfiles` and `desktopPnpm`, plus the Client service `desktopWindow`, exported by DSH Desktop 2.x in compatibility, extended, and advanced presentation modes. It does not grant third-party access to raw Electron APIs or launcher bootstrap state.
 
 ## Layers and data flow
 
@@ -24,6 +24,7 @@ flowchart LR
 
   subgraph Renderer["Sandboxed Web renderer"]
     Client["Desktop and third-party<br/>Web Client modules"]
+    Window["Public Client service<br/>ctx.desktopWindow"]
   end
 
   Launcher -->|"register before Loader entries"| Profiles
@@ -32,16 +33,68 @@ flowchart LR
   Bootstrap --> Pnpm
   Upstream --> Pnpm
   Runtime --> Native
+  Native -->|"validated presentation geometry"| Window
   Plugin --> Profiles
   Plugin --> Pnpm
   Upstream <-->|"loopback HTTP and WebSocket"| Client
+  Client --> Window
 ```
 
 The launcher resolves one profile before the Loader tree mounts. `desktopProfiles.current` remains fixed until that whole Cordis generation is disposed. The `desktop-pnpm` Host row builds `desktopPnpm` from launcher-private facts and the upstream subprocess service. A profile or mode switch disposes the current generation and starts a new one; service references must not cross that boundary.
 
-The renderer receives ordinary Web Client modules over the existing loopback carrier. It cannot read these Host services directly, and DSH Desktop adds no preload or Electron IPC bridge for them. A plugin with browser UI continues to use normal DSH Host routes, RPC, client metadata, services, and slots.
+The renderer receives ordinary Web Client modules over the existing loopback carrier. It cannot read the Host services directly, and DSH Desktop adds no preload or Electron IPC bridge for them. Instead, the Desktop Client provides immutable native-layout facts through `desktopWindow` for its own Cordis-fiber lifetime. A plugin with browser UI continues to use normal DSH Host routes, RPC, client metadata, services, and slots.
 
-## Public Cordis services
+## Public Client Cordis service
+
+Import the Client contract from the supported client export and inject `desktopWindow` only in browser-side code:
+
+```ts
+import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { DesktopWindowService } from 'dsh-plugin-desktop/client'
+
+export const inject = ['desktopWindow']
+
+export function apply(ctx: ClientContext): void {
+  const geometry: DesktopWindowService = ctx.desktopWindow
+  document.documentElement.style.setProperty(
+    '--example-desktop-safe-top',
+    `${geometry.safeAreaInsets.top}px`,
+  )
+}
+```
+
+### `desktopWindow`
+
+```ts
+interface DesktopWindowService {
+  readonly mode: 'compatibility' | 'extended' | 'advanced'
+  readonly platform: 'darwin' | 'win32' | 'linux'
+  readonly material: 'off' | 'transparent' | 'acrylic' | 'mica'
+  readonly micaSupported: boolean
+  readonly availableMaterials: readonly ('off' | 'transparent' | 'acrylic' | 'mica')[]
+  readonly safeAreaInsets: {
+    readonly top: number
+    readonly right: number
+    readonly bottom: number
+    readonly left: number
+  }
+  readonly dragRegion: {
+    readonly height: number
+    readonly leftInset: number
+    readonly rightInset: number
+  }
+}
+```
+
+All values remain fixed for one renderer generation, and geometry uses CSS pixels. `material` is the effective, capability-gated backdrop rather than merely the persisted preference. `availableMaterials` is `off/transparent` on macOS, `off/acrylic` on Windows 10, and adds `mica` on Windows 11 build 22621 or newer.
+
+Compatibility mode reports zero insets and a zero-height drag region because the operating system owns the ordinary frame. Extended mode reports a 52-pixel top reservation and drag band; it excludes 80 pixels on the left for macOS traffic lights or 138 pixels on the right for Windows caption controls. Desktop already shifts the complete official frame below this reservation, so ordinary upstream-slot occupants must not add it again. Advanced macOS reports a 20-pixel top content inset, a continuous 44-pixel drag band, and an 80-pixel left exclusion. Advanced Windows reports a 32-pixel top content inset and drag band with a 138-pixel right exclusion.
+
+`safeAreaInsets` describes where Desktop starts the complete upstream content surfaces. `dragRegion` separately describes the native caption hit area, so consumers must not assume that the two heights are equal. Interactive elements inside that band must apply `-webkit-app-region: no-drag`; Desktop already applies this exclusion to standard buttons, links, inputs, editable fields, menus, tabs, switches, and dialogs. The service reports geometry only: it does not expose window mutation, focus, Electron, or IPC capabilities. It is absent from an ordinary browser boot.
+
+Extended mode also declares the additive root-scoped `desktop.titlebar.action` list slot. A Web Client plugin may register compact operations there using the ordinary slot API. The command bar itself remains a drag region, so the contribution root must apply `-webkit-app-region: no-drag`; it must use Host routes or ordinary services rather than Electron APIs. The slot is absent outside extended mode, so registrations must use normal slot injection and tolerate waiting or disposal.
+
+## Public Host Cordis services
 
 Use type-only imports from the supported contract paths:
 
@@ -158,6 +211,7 @@ Invalid argv, an invalid `invokingDir`, a closed or busy generation, and a signa
 | --- | --- | --- |
 | `desktopProfiles` | Generation-scoped Host service. | Public and supported through `dsh-plugin-desktop/profile-service`. |
 | `desktopPnpm` | Generation-scoped Host service. | Public and supported through `dsh-plugin-desktop/pnpm`. |
+| `desktopWindow` | Generation-scoped Client service. | Public and supported through `dsh-plugin-desktop/client`; immutable geometry only. |
 | `desktopRuntime` | Launcher-provided native adapter used by Desktop-owned shell, tray, terminal, profile, and update rows. | Desktop-internal. Third-party plugins must not inject it or rely on its window/tray methods. |
 | `desktopPnpmBootstrap` | Absolute packaged paths, selected profile facts, Electron ABI values, and private Node helpers supplied to the `desktop-pnpm` provider. | Launcher-private. Never read, provide, intercept, or declare it as a dependency. |
 | `DesktopProfileServiceBootstrap` | Constructor input used while the launcher registers `desktopProfiles`; it is not a Cordis service. | Launcher-private implementation detail. |
@@ -331,4 +385,4 @@ There is a separate redistribution gate. The `1.2.3` manifest and README say MIT
 
 ## Stability boundary
 
-The supported plugin-author surface is the `desktopProfiles` and `desktopPnpm` service contract described here and exported by `dsh-plugin-desktop/profile-service` and `dsh-plugin-desktop/pnpm`. Launcher bootstrap values, native adapters, generated shims, state-file formats, Loader row ordering, and Electron implementation details may change without becoming third-party APIs. Keep fallbacks explicit, lifecycle-scoped, and headless-safe.
+The supported plugin-author surface is the `desktopProfiles`, `desktopPnpm`, and `desktopWindow` service contract described here and exported by `dsh-plugin-desktop/profile-service`, `dsh-plugin-desktop/pnpm`, and `dsh-plugin-desktop/client`. Launcher bootstrap values, native adapters, generated shims, state-file formats, Loader row ordering, and Electron implementation details may change without becoming third-party APIs. Keep fallbacks explicit, lifecycle-scoped, and headless-safe.

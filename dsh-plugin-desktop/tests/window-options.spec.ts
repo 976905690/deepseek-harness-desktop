@@ -5,11 +5,15 @@ import {
   advancedWindowOptions,
   compatibilityWindowOptions,
   desktopWindowOptions,
+  extendedWindowOptions,
 } from '../src/window-options.ts'
-import { WINDOWS_TITLEBAR_HEIGHT } from '../src/window-chrome.ts'
+import { EXTENDED_TITLEBAR_HEIGHT, WINDOWS_TITLEBAR_HEIGHT } from '../src/window-chrome.ts'
 
 const spec: DesktopShellSpec = {
   mode: 'compatibility',
+  macosMaterial: 'transparent',
+  windowsMaterial: 'acrylic',
+  material: 'off',
   width: 1280,
   height: 840,
   minWidth: 900,
@@ -84,7 +88,7 @@ describe('compatibility BrowserWindow options', () => {
   })
 
   it('uses hidden-inset transparent vibrancy on macOS advanced windows', () => {
-    const advanced = { ...spec, mode: 'advanced' as const }
+    const advanced = { ...spec, mode: 'advanced' as const, material: 'transparent' as const }
     const options = advancedWindowOptions(advanced, {} as NativeImage, 'darwin', preload)
 
     expect(options).toEqual(expect.objectContaining({
@@ -100,7 +104,7 @@ describe('compatibility BrowserWindow options', () => {
 
   it('uses native Windows controls, Mica, shadow, and rounded corners in advanced mode', () => {
     const options = advancedWindowOptions(
-      { ...spec, mode: 'advanced' },
+      { ...spec, mode: 'advanced', material: 'mica' },
       {} as NativeImage,
       'win32',
       preload,
@@ -118,6 +122,24 @@ describe('compatibility BrowserWindow options', () => {
       roundedCorners: true,
       thickFrame: true,
     }))
+  })
+
+  it('uses the taller native caption and capability-gated material in extended mode', () => {
+    const extended = {
+      ...spec,
+      mode: 'extended' as const,
+      material: 'acrylic' as const,
+      windowsBuild: 19_045,
+    }
+    const options = extendedWindowOptions(extended, {} as NativeImage, 'win32', preload)
+
+    expect(options).toEqual(expect.objectContaining({
+      titleBarStyle: 'hidden',
+      titleBarOverlay: expect.objectContaining({ height: EXTENDED_TITLEBAR_HEIGHT }),
+      transparent: true,
+    }))
+    expect(options).not.toHaveProperty('backgroundMaterial')
+    expect(desktopWindowOptions(extended, {} as NativeImage, 'win32', preload)).toEqual(options)
   })
 
   it('rejects advanced mode on Linux', () => {

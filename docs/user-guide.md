@@ -14,12 +14,13 @@ Profile 是一组 DSH bundle、依赖和 patch 的组合。托盘中的 **Profil
 
 切换 profile 不会把旧 profile 的插件偷偷复制到新 profile。要管理目标 profile，请在终端中显式写出 profile，或者在切换后使用终端里的默认命令。
 
-## 兼容模式与高级模式
+## 窗口模式与材质
 
 - **兼容模式**：使用上游默认 Web client 和 profile 自己的 layout/sidebar/conversation 组合。它适合希望尽量接近官方 Harness 的用户。
+- **扩展窗口**：保留完整官方布局，并把它放在跨平台操作栏下方。操作栏与上游左侧栏组成带圆角内拐角的倒 L 材质区域；终端和重启按钮仍可点击，其余操作栏区域可以拖动窗口。
 - **高级模式**：在不改变上游 Web carrier 的前提下加入 Desktop 自有的 frame、布局、Mica/vibrancy 和原生拖动区域。它适合需要更完整桌面外观的用户。
 
-切换模式会重启应用，不会在正在运行的 renderer 中热替换 root slot 或窗口材质。Linux 只提供兼容模式。
+macOS 自定义窗口模式可以打开或关闭透明材质。Windows 可关闭材质或使用原生亚克力；仅 Windows 11 build 22621 及以上在支持时显示 Mica，因此 Windows 10 使用亚克力。切换模式或材质都会重启应用，不会在正在运行的 renderer 中热替换 root slot 或窗口材质。Linux 只提供兼容模式。
 
 ## 本地 Web 端口
 
@@ -56,7 +57,7 @@ dsh plugin update
 
 ## 打开终端
 
-从托盘选择 **Open DSH Terminal**。macOS 会打开 Terminal，Windows 会优先使用 Windows Terminal，找不到时回退到 PowerShell 或命令提示符。
+可以从托盘、Desktop 设置或扩展窗口操作栏选择 **Open DSH Terminal**；设置中的旁边还提供 **重启 Desktop** 按钮。macOS 会打开 Terminal，Windows 会优先使用 Windows Terminal，找不到时回退到 PowerShell 或命令提示符。
 
 欢迎信息会显示：应用版本、当前 profile、profile 目录和 DSH home。Desktop 会在自己的 user-data 目录生成 `dsh`、`pnpm` 和 `node` 私有 shim，只对这个终端进程设置 PATH，不会修改系统 PATH 或用户 shell 配置。
 

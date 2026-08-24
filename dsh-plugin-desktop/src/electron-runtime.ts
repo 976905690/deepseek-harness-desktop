@@ -58,17 +58,20 @@ import {
 } from './windows-volume-diagnostics.ts'
 import { ElectronWorkspaceAdmission } from './workspace-admission.ts'
 import { ProfileCreateWindow, type ProfileCreateWindowOptions } from './profile-create-window.ts'
+import { windowsBuildNumber } from './window-material.ts'
 
 /** Return the presentation mode opposite the active generation. */
 export function nextDesktopShellMode(mode: DesktopShellSpec['mode']): DesktopShellSpec['mode'] {
-  return mode === 'compatibility' ? 'advanced' : 'compatibility'
+  if (mode === 'compatibility') return 'extended'
+  if (mode === 'extended') return 'advanced'
+  return 'compatibility'
 }
 
 /** Return the tray command describing the mode that will be activated. */
 export function modeToggleLabel(mode: DesktopShellSpec['mode'], locale: DesktopLocale = 'en'): string {
-  return mode === 'compatibility'
-    ? desktopTrayLabel(locale, 'switchToAdvanced')
-    : desktopTrayLabel(locale, 'switchToCompatibility')
+  if (mode === 'compatibility') return desktopTrayLabel(locale, 'switchToExtended')
+  if (mode === 'extended') return desktopTrayLabel(locale, 'switchToAdvanced')
+  return desktopTrayLabel(locale, 'switchToCompatibility')
 }
 
 /**
@@ -97,6 +100,7 @@ export const RENDERER_BOOT_TIMEOUT_MS = 30_000
 /** Native adapter used by the DSH Desktop launcher and owned by its Cordis shell plugin. */
 export class ElectronDesktopRuntime implements DesktopRuntime {
   readonly platform: DesktopPlatform
+  readonly windowsBuild: number | undefined
   private readonly platformStrategy: ElectronPlatformStrategy
   readonly updates: DesktopUpdateAdapter
 
@@ -121,6 +125,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
   ) {
     this.platformStrategy = electronPlatformStrategy()
     this.platform = this.platformStrategy.platform
+    this.windowsBuild = this.platform === 'win32' ? windowsBuildNumber() : undefined
     const platformStrategy = this.platformStrategy
     this.workspaceAdmission = new ElectronWorkspaceAdmission({
       platform: this.platform,
@@ -205,7 +210,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
           this.generation = undefined
           this.mountTask = undefined
           if (this.scheduled === spec) {
-            if (spec.mode === 'advanced') nativeTheme.themeSource = previousThemeSource
+            if (spec.mode !== 'compatibility') nativeTheme.themeSource = previousThemeSource
             this.scheduled = undefined
           }
         }
@@ -412,7 +417,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
 
   /** @inheritdoc */
   setThemeSource(source: DesktopThemeSource): void {
-    if (this.scheduled?.mode === 'advanced' && this.generation !== undefined) {
+    if (this.scheduled?.mode !== 'compatibility' && this.generation !== undefined) {
       nativeTheme.themeSource = source
       // Windows can retain the preceding DWM Mica palette until the window is
       // recomposed (for example after minimize/restore). Reapplying the active

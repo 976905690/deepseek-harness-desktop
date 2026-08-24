@@ -15,6 +15,7 @@ import type { ElectronPlatformStrategy } from './electron-platform.ts'
 import type { DesktopNotification, DesktopShellSpec } from './runtime.ts'
 import { prepareTrayIcon } from './tray-icons.ts'
 import { desktopWindowOptions } from './window-options.ts'
+import { setWindowsAcrylic } from './windows-acrylic.ts'
 
 const MIN_ZOOM_LEVEL = -4
 const MAX_ZOOM_LEVEL = 4
@@ -51,7 +52,8 @@ export class ElectronShellGeneration {
   private mounted = false
   private released = false
   private attentionCount = 0
-  private cancelPendingFullscreenHide: (() => void) | undefined
+  private prepareFullscreenReveal: (() => void) | undefined
+  private refreshNativeMaterial: (() => void) | undefined
   private cleanupListeners: (() => void) | undefined
 
   constructor(private readonly options: ElectronShellGenerationOptions) {}
@@ -68,10 +70,25 @@ export class ElectronShellGeneration {
     }
     platform.configureApplication(icon, spec.productName, this.options.buildApplicationMenuItems())
     const origin = new URL(spec.url).origin
-    if (spec.mode === 'advanced') nativeTheme.themeSource = spec.readThemeSource()
+    if (spec.mode !== 'compatibility') nativeTheme.themeSource = spec.readThemeSource()
     const window = new BrowserWindow(desktopWindowOptions(spec, icon, platform.platform, this.options.preloadPath))
     window.accessibleTitle = spec.windowTitle
     platform.configureWindow(window)
+    const refreshNativeMaterial = (): void => {
+      if (platform.platform === 'win32' && spec.material === 'acrylic') {
+        try {
+          if (!setWindowsAcrylic(window, true, nativeTheme.shouldUseDarkColors)) {
+            this.options.logError('dsh-plugin-desktop: Windows rejected the acrylic backdrop request')
+          }
+        } catch (cause) {
+          this.options.logError(`dsh-plugin-desktop: failed to apply Windows acrylic backdrop: ${cause instanceof Error ? cause.message : String(cause)}`)
+        }
+        return
+      }
+      platform.refreshThemeMaterial(window, spec.material)
+    }
+    this.refreshNativeMaterial = refreshNativeMaterial
+    refreshNativeMaterial()
     this.window = window
 
     const show = (): void => { this.show() }
@@ -79,25 +96,62 @@ export class ElectronShellGeneration {
       if (applicationNeedsReveal(window, platform.platform)) this.show()
     }
     const clearAttention = (): void => { this.clearAttention() }
-    let fullscreenHidePending = false
-    const hideAfterFullscreen = (): void => {
-      if (!fullscreenHidePending) return
-      fullscreenHidePending = false
-      if (!window.isDestroyed()) window.hide()
+    let fullscreenExitPending = false
+    let hideAfterFullscreenExit = false
+    let restoreAfterFullscreenExit = false
+    let restoreFullscreenOnShow = false
+    const finishFullscreenExit = (): void => {
+      if (!fullscreenExitPending) return
+      fullscreenExitPending = false
+      const shouldHide = hideAfterFullscreenExit
+      const shouldRestore = restoreAfterFullscreenExit
+      hideAfterFullscreenExit = false
+      restoreAfterFullscreenExit = false
+      if (window.isDestroyed()) return
+      if (shouldHide) {
+        window.hide()
+        return
+      }
+      if (shouldRestore) {
+        restoreFullscreenOnShow = false
+        window.setFullScreen(true)
+      }
     }
-    const cancelPendingFullscreenHide = (): void => {
-      if (!fullscreenHidePending) return
-      fullscreenHidePending = false
-      window.off('leave-full-screen', hideAfterFullscreen)
+    const prepareFullscreenReveal = (): void => {
+      if (!restoreFullscreenOnShow || window.isDestroyed()) return
+      if (fullscreenExitPending) {
+        hideAfterFullscreenExit = false
+        restoreAfterFullscreenExit = true
+        return
+      }
+      if (window.isFullScreen()) {
+        restoreFullscreenOnShow = false
+        return
+      }
+      restoreFullscreenOnShow = false
+      window.setFullScreen(true)
     }
-    this.cancelPendingFullscreenHide = cancelPendingFullscreenHide
+    const cleanupFullscreenTransition = (): void => {
+      if (fullscreenExitPending) window.off('leave-full-screen', finishFullscreenExit)
+      fullscreenExitPending = false
+      hideAfterFullscreenExit = false
+      restoreAfterFullscreenExit = false
+      restoreFullscreenOnShow = false
+    }
+    this.prepareFullscreenReveal = prepareFullscreenReveal
     const close = (event: Electron.Event): void => {
       if (this.options.isQuitting()) return
       event.preventDefault()
+      if (platform.platform === 'darwin' && fullscreenExitPending) {
+        hideAfterFullscreenExit = true
+        restoreAfterFullscreenExit = false
+        return
+      }
       if (platform.platform === 'darwin' && window.isFullScreen()) {
-        if (fullscreenHidePending) return
-        fullscreenHidePending = true
-        window.once('leave-full-screen', hideAfterFullscreen)
+        fullscreenExitPending = true
+        hideAfterFullscreenExit = true
+        restoreFullscreenOnShow = true
+        window.once('leave-full-screen', finishFullscreenExit)
         window.setFullScreen(false)
         return
       }
@@ -192,7 +246,7 @@ export class ElectronShellGeneration {
       window.off('focus', clearAttention)
       window.off('page-title-updated', preserveBlankTitle)
       window.off('ready-to-show', show)
-      cancelPendingFullscreenHide()
+      cleanupFullscreenTransition()
       window.webContents.off('before-input-event', handleZoomShortcut)
       window.webContents.off('will-frame-navigate', navigate)
       window.webContents.off('will-redirect', redirect)
@@ -220,9 +274,9 @@ export class ElectronShellGeneration {
   show(): void {
     const window = this.window
     if (window === undefined || window.isDestroyed()) return
-    this.cancelPendingFullscreenHide?.()
     this.clearAttention()
     revealApplication(window, this.options.platform.platform)
+    this.prepareFullscreenReveal?.()
   }
 
   notifyAttention(notification: DesktopNotification): void {
@@ -266,7 +320,7 @@ export class ElectronShellGeneration {
   }
 
   refreshThemeMaterial(): void {
-    if (this.window !== undefined && !this.window.isDestroyed()) this.options.platform.refreshThemeMaterial(this.window)
+    if (this.window !== undefined && !this.window.isDestroyed()) this.refreshNativeMaterial?.()
   }
 
   async release(): Promise<void> {
@@ -279,7 +333,8 @@ export class ElectronShellGeneration {
     this.clearAttention()
     this.window = undefined
     this.tray = undefined
-    this.cancelPendingFullscreenHide = undefined
+    this.prepareFullscreenReveal = undefined
+    this.refreshNativeMaterial = undefined
     if (window === undefined) return
 
     this.cleanupListeners?.()

@@ -31,6 +31,14 @@ import { findOverlayPackage, resolveOverlayPackage } from './package-overlay.ts'
 import { DESKTOP_DEFAULT_WEB_PORT } from './desktop-port.ts'
 import type { DesktopShellMode } from './runtime.ts'
 import {
+  DEFAULT_MACOS_WINDOW_MATERIAL,
+  DEFAULT_WINDOWS_WINDOW_MATERIAL,
+  parseMacosWindowMaterial,
+  parseWindowsWindowMaterial,
+  type MacosWindowMaterial,
+  type WindowsWindowMaterial,
+} from './window-material.ts'
+import {
   activeDesktopProfileLayers,
   desktopPluginBundleMutable,
   readDesktopDisabledBundles,
@@ -99,8 +107,8 @@ const MARKET_PACKAGE_NAMES: ReadonlySet<string> = new Set([
  */
 export function parseDesktopShellMode(value: unknown): DesktopShellMode {
   if (value === undefined) return DEFAULT_DESKTOP_SHELL_MODE
-  if (value === 'compatibility' || value === 'advanced') return value
-  throw new Error(`${BIN_NAME}: ${DESKTOP_SETTINGS_NAMESPACE}.mode must be "compatibility" or "advanced"`)
+  if (value === 'compatibility' || value === 'extended' || value === 'advanced') return value
+  throw new Error(`${BIN_NAME}: ${DESKTOP_SETTINGS_NAMESPACE}.mode must be "compatibility", "extended", or "advanced"`)
 }
 
 /** Parse the requested loopback Web port and reject values Node cannot listen on. */
@@ -114,7 +122,16 @@ export function parseDesktopPort(value: unknown): number {
 export interface DesktopStartupSettings {
   mode: DesktopShellMode
   port: number
+  macosMaterial: MacosWindowMaterial
+  windowsMaterial: WindowsWindowMaterial
 }
+
+const DEFAULT_DESKTOP_STARTUP_SETTINGS: DesktopStartupSettings = Object.freeze({
+  mode: DEFAULT_DESKTOP_SHELL_MODE,
+  port: DEFAULT_DESKTOP_PORT,
+  macosMaterial: DEFAULT_MACOS_WINDOW_MATERIAL,
+  windowsMaterial: DEFAULT_WINDOWS_WINDOW_MATERIAL,
+})
 
 /**
  * Read Desktop startup settings from one parsed settings document.
@@ -127,7 +144,7 @@ export function desktopStartupSettingsFromSettings(document: unknown): DesktopSt
   }
   const section = (document as Record<string, unknown>)[DESKTOP_SETTINGS_NAMESPACE]
   if (section === undefined) {
-    return { mode: DEFAULT_DESKTOP_SHELL_MODE, port: DEFAULT_DESKTOP_PORT }
+    return { ...DEFAULT_DESKTOP_STARTUP_SETTINGS }
   }
   if (typeof section !== 'object' || section === null || Array.isArray(section)) {
     throw new Error(`${BIN_NAME}: ${DESKTOP_SETTINGS_NAMESPACE} settings must be a map`)
@@ -136,6 +153,8 @@ export function desktopStartupSettingsFromSettings(document: unknown): DesktopSt
   return {
     mode: parseDesktopShellMode(values.mode),
     port: parseDesktopPort(values.port),
+    macosMaterial: parseMacosWindowMaterial(values.macosMaterial),
+    windowsMaterial: parseWindowsWindowMaterial(values.windowsMaterial),
   }
 }
 
@@ -156,7 +175,7 @@ export function readDesktopStartupSettings(config: SettingsFileConfig): DesktopS
     text = readFileSync(spec.filename, 'utf8')
   } catch (cause) {
     if ((cause as NodeJS.ErrnoException).code === 'ENOENT') {
-      return { mode: DEFAULT_DESKTOP_SHELL_MODE, port: DEFAULT_DESKTOP_PORT }
+      return { ...DEFAULT_DESKTOP_STARTUP_SETTINGS }
     }
     throw cause
   }
@@ -203,6 +222,10 @@ export interface PreparedDesktopProfile {
   skippedOptionalEntries: SkippedOptionalEntry[]
   /** Persisted shell mode applied after every user-owned patch. */
   mode: DesktopShellMode
+  /** Native translucency preference retained for macOS generations. */
+  macosMaterial: MacosWindowMaterial
+  /** Native backdrop preference retained for Windows generations. */
+  windowsMaterial: WindowsWindowMaterial
   /** Persisted loopback Web port applied to every startup consumer. */
   port: number
   /** Resolved file-backed settings document used by this generation. */
@@ -807,7 +830,7 @@ export function prepareDesktopProfile(
   } as SettingsFileConfig)
   const settingsDocument = resolveSettingsFileSpec(settingsConfig).filename
   hooks.onSettingsDocumentResolved?.(settingsDocument)
-  const { mode, port } = readDesktopStartupSettings(settingsConfig)
+  const { mode, port, macosMaterial, windowsMaterial } = readDesktopStartupSettings(settingsConfig)
   patches.push({
     id: 'settings',
     config: settingsConfig,
@@ -959,6 +982,8 @@ export function prepareDesktopProfile(
       ...rowConfig(desktopShell),
       mode,
       port,
+      macosMaterial,
+      windowsMaterial,
     },
   })
   return {
@@ -970,6 +995,8 @@ export function prepareDesktopProfile(
     skippedOptionalEntries,
     mode,
     port,
+    macosMaterial,
+    windowsMaterial,
     settingsDocument,
     market: desktopMarketSnapshotWithEffective(marketSelection, effectiveMarket),
     requiresDependencyMigration,

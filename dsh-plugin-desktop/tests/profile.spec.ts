@@ -635,6 +635,34 @@ virtualStoreDirMaxLength: 60
     expect(rows.find(row => row.id === 'ui-conversation')?.disabled).toBe(false)
   })
 
+  it('keeps the official layout enabled for extended window mode', () => {
+    const home = temporaryHome()
+    writeFileSync(join(home, 'settings.yaml'), [
+      'dsh-desktop:',
+      '  mode: extended',
+      '  macosMaterial: off',
+      '  windowsMaterial: mica',
+      '',
+    ].join('\n'))
+
+    const prepared = prepareDesktopProfile(undefined, home, 'win32')
+    const rows = composeEntries([prepared.patches])
+
+    expect(prepared).toEqual(expect.objectContaining({
+      mode: 'extended',
+      macosMaterial: 'off',
+      windowsMaterial: 'mica',
+    }))
+    expect(rows.find(row => row.id === 'ui-layout')?.disabled).not.toBe(true)
+    expect(rows.find(row => row.id === 'desktop-shell')).toEqual(expect.objectContaining({
+      config: expect.objectContaining({
+        mode: 'extended',
+        macosMaterial: 'off',
+        windowsMaterial: 'mica',
+      }),
+    }))
+  })
+
   it('reads JSON settings and defaults an absent desktop namespace to compatibility', () => {
     const home = temporaryHome()
     const path = join(home, 'desktop-settings.json')
@@ -644,10 +672,14 @@ virtualStoreDirMaxLength: 60
     expect(desktopStartupSettingsFromSettings({ 'dsh-desktop': { mode: 'advanced', port: 43_189 } })).toEqual({
       mode: 'advanced',
       port: 43_189,
+      macosMaterial: 'transparent',
+      windowsMaterial: 'acrylic',
     })
     expect(desktopStartupSettingsFromSettings({ 'dsh-desktop': { mode: 'advanced' } })).toEqual({
       mode: 'advanced',
       port: 43_120,
+      macosMaterial: 'transparent',
+      windowsMaterial: 'acrylic',
     })
     expect(desktopShellModeFromSettings({ unrelated: { enabled: true } })).toBe('compatibility')
   })
@@ -656,7 +688,7 @@ virtualStoreDirMaxLength: 60
     expect(() => desktopShellModeFromSettings([])).toThrow('must be a map')
     expect(() => desktopShellModeFromSettings({ 'dsh-desktop': true })).toThrow('settings must be a map')
     expect(() => desktopShellModeFromSettings({ 'dsh-desktop': { mode: 'glass' } })).toThrow(
-      'must be "compatibility" or "advanced"',
+      'must be "compatibility", "extended", or "advanced"',
     )
     for (const port of [-1, 1.5, 65_536, '43189']) {
       expect(() => desktopStartupSettingsFromSettings({ 'dsh-desktop': { port } })).toThrow(

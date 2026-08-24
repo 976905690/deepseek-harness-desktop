@@ -6,6 +6,7 @@ const PROFILE_SELECT_PATH = '/api/desktop/profiles/select'
 const PROFILE_DELETE_PATH = '/api/desktop/profiles/delete'
 const MARKET_SELECT_PATH = '/api/desktop/market/select'
 const TERMINAL_OPEN_PATH = '/api/desktop/terminal/open'
+const RESTART_PATH = '/api/desktop/restart'
 const MAX_PROFILES = 256
 const MAX_PROFILE_NAME_LENGTH = 255
 
@@ -49,6 +50,7 @@ export interface DesktopSettingsApi {
   deleteProfile(name: string): Promise<DesktopSettingsView>
   selectMarket(provider: DesktopMarketProvider): Promise<DesktopRestartAcceptance>
   openTerminal(): Promise<void>
+  restart(): Promise<void>
 }
 
 type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
@@ -179,6 +181,9 @@ export function createDesktopSettingsApi(fetcher: FetchLike = globalThis.fetch.b
     async openTerminal() {
       parseDesktopActionAcceptance(await readResponse(await post(fetcher, TERMINAL_OPEN_PATH, {})))
     },
+    async restart() {
+      parseDesktopActionAcceptance(await readResponse(await post(fetcher, RESTART_PATH, {})))
+    },
   })
 }
 
@@ -189,4 +194,5 @@ export const desktopSettingsPaths = Object.freeze({
   profileDelete: PROFILE_DELETE_PATH,
   marketSelect: MARKET_SELECT_PATH,
   terminalOpen: TERMINAL_OPEN_PATH,
+  restart: RESTART_PATH,
 })

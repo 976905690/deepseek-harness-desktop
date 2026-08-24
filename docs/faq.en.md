@@ -26,7 +26,7 @@ No separate Node.js or Harness core download is required. The installer is large
 
 ## Does DSH Desktop modify official Harness?
 
-No. The repository pins an unmodified official Harness checkout. Compatibility mode runs the upstream default Web client. Advanced mode adds Desktop-owned layout and native window presentation through plugins without editing upstream source.
+No. The repository pins an unmodified official Harness checkout. Compatibility mode runs the upstream default Web client. Extended mode adds its command bar through an official overlay slot while preserving that layout; advanced mode adds the Desktop-owned layout. Both are implemented through Desktop plugins without editing upstream source.
 
 ## Is data stored locally?
 

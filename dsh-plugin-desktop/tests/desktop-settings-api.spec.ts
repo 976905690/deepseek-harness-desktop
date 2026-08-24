@@ -13,6 +13,7 @@ import {
   handleDesktopProfileDeleteRequest,
   handleDesktopProfileRollbackRequest,
   handleDesktopProfileSelectRequest,
+  handleDesktopRestartRequest,
   handleDesktopSettingsRequest,
   handleDesktopTerminalOpenRequest,
   desktopSettingsRouteConstants,
@@ -276,6 +277,17 @@ describe('desktop settings controller', () => {
     expect(openTerminal).toHaveBeenCalledOnce()
   })
 
+  it('defers an explicit Desktop restart until after its acceptance is returned', () => {
+    const scheduleRestart = vi.fn()
+    const controller = new DesktopSettingsController(bootstrap({ scheduleRestart }))
+
+    const operation = controller.restart()
+    expect(operation.response).toEqual({ accepted: true })
+    expect(scheduleRestart).not.toHaveBeenCalled()
+    operation.afterResponse?.()
+    expect(scheduleRestart).toHaveBeenCalledOnce()
+  })
+
   it('hands native diagnostics, Profile creation, and rollback to launcher capabilities', async () => {
     const exportDiagnostics = vi.fn(async () => {})
     const openProfileCreator = vi.fn()
@@ -511,6 +523,25 @@ describe('desktop settings HTTP boundary', () => {
       expect(rejected.statusCode).toBe(req.headers.origin === ORIGIN ? 400 : 403)
     }
     expect(openTerminal).toHaveBeenCalledOnce()
+  })
+
+  it('queues an explicit restart only after an exact request has been acknowledged', async () => {
+    const scheduleRestart = vi.fn()
+    const controller = new DesktopSettingsController(bootstrap({ scheduleRestart }))
+    const accepted = response()
+
+    await handleDesktopRestartRequest(jsonRequest({}), accepted, ORIGIN, controller)
+
+    expect(accepted.statusCode).toBe(202)
+    expect(JSON.parse(accepted.body)).toEqual({ accepted: true })
+    expect(scheduleRestart).not.toHaveBeenCalled()
+    await new Promise<void>(resolve => { setImmediate(resolve) })
+    expect(scheduleRestart).toHaveBeenCalledOnce()
+
+    const rejected = response()
+    await handleDesktopRestartRequest(jsonRequest({ reason: 'untrusted' }), rejected, ORIGIN, controller)
+    expect(rejected.statusCode).toBe(400)
+    expect(scheduleRestart).toHaveBeenCalledOnce()
   })
 
   it('exports diagnostics, opens the native creator, and starts rollback only after response', async () => {

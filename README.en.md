@@ -172,9 +172,6 @@ If you would like to join our technical team, contact us at [t4wefan@qq.com](mai
 
 Ecosystem projects and developer tools around DeepSeek Harness.
 
-<details>
-<summary>Show related links</summary>
-
 | Project | About | Link |
 | --- | --- | --- |
 | dshfind | The learning & sharing community for DeepSeek Harness (DSH). | [GitHub](https://github.com/hikariming/dshfind) · [Website](https://dshfind.com) |
@@ -195,8 +192,6 @@ Ecosystem projects and developer tools around DeepSeek Harness.
 | MkSaaS · TanStarter | Commercial SaaS starter templates for indie developers. MkSaaS is built on Next.js; TanStarter on TanStack Start and Cloudflare, with AI, auth, payments, and admin baked in. | [MkSaaS](https://mksaas.com) · [TanStarter](https://tanstarter.dev) |
 
 <sub>To list your project, join the WeChat group and message @王博升Benson, or contact t4wefan@qq.com, or <a href="https://github.com/anywhere-labs/deepseek-harness-desktop/issues">open an issue</a>.</sub>
-
-</details>
 
 ## License
 

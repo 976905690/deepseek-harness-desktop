@@ -37,7 +37,7 @@ Every profile or mode switch disposes the current generation before starting the
 - **Web Client** contains the official Web UI and third-party browser contributions. It works over the loopback carrier and does not call Electron directly.
 - **Native runtime** adapts Electron BrowserWindow, the tray, filesystem/network operations, and installers. `desktopRuntime` is for Desktop-owned rows only.
 
-Compatibility mode validates its environment and returns without installing a Desktop layout, root, sidebar, or conversation override. Advanced mode installs the Desktop-owned layout, frame, and native materials while respecting upstream and third-party slot composition.
+Compatibility mode validates its environment without installing a Desktop layout, root, sidebar, or conversation override. Extended mode preserves the official layout and adds a Desktop command bar through its overlay slot, shifting the complete frame below the bar. Advanced mode installs the Desktop-owned layout and frame. Both custom-window modes use capability-gated native materials while respecting upstream and third-party slot composition.
 
 ### Native shell generation and platform adapters
 

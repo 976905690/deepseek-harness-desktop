@@ -172,9 +172,6 @@ Discord：[加入 DSH Desktop 社区](https://discord.gg/TJeGqKRNM)
 
 这里收录 DeepSeek Harness 生态项目及开发者工具。
 
-<details>
-<summary>展开友链列表</summary>
-
 | 项目 | 简介 | 链接 |
 | --- | --- | --- |
 | dshfind | DeepSeek Harness（DSH）学习与分享社区。 | [GitHub](https://github.com/hikariming/dshfind) · [官网](https://dshfind.com) |
@@ -195,8 +192,6 @@ Discord：[加入 DSH Desktop 社区](https://discord.gg/TJeGqKRNM)
 | MkSaaS · TanStarter | 面向独立开发者的商业 SaaS 启动模板。MkSaaS 基于 Next.js，TanStarter 基于 TanStack Start 与 Cloudflare，内置 AI、认证、支付和后台等常用能力。 | [MkSaaS](https://mksaas.com) · [TanStarter](https://tanstarter.dev) |
 
 <sub>如果希望收录您的项目，欢迎加入微信群并私信 @王博升Benson，或联系 t4wefan@qq.com，或<a href="https://github.com/anywhere-labs/deepseek-harness-desktop/issues">提出 issue</a>。</sub>
-
-</details>
 
 ## License
 
