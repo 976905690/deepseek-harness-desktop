@@ -10,7 +10,7 @@ Electron 可执行文件只包含最小启动代码。它获取单实例锁、�
 
 三种呈现模式都复用现有 loopback Web carrier。profile 挂载普通 `dsh-base` 与 `dsh-web-app` bundle；Host 把 HTTP 与 WebSocket surface 绑定到 `127.0.0.1` 的临时端口；Electron 在沙箱 renderer 中加载该同源页面。Electron 不维护自有插件 roster，不使用 preload bridge，renderer 也不会获得原始 Electron API。
 
-desktop package 拥有普通 Host 与 Web Client 两个 face。它的 Client face 会在所有模式下校验 Host 提供的模式、平台和经过能力门槛解析的材质 marker。兼容模式把保持不变的官方呈现放在独立 Desktop frame 下方；扩展窗口再把侧边栏纳入该 frame 的材质区域；增强模式则安装下文所述的 desktop layout service 与 root 呈现。所有模式下，第三方 Web client 都继续使用普通 DSH 模块图。
+desktop package 拥有普通 Host 与 Web Client 两个 face。它的 Client face 会在所有模式下校验 Host 提供的模式、平台和经过能力门槛解析的材质 marker。兼容模式把保持不变的官方呈现放在独立 Desktop frame 下方。扩展窗口会用 Desktop 自有 layout 与 sidebar surface 替换官方 root layout，同时继续承载官方 sidebar、conversation 和 details occupant。增强模式则使用同一套 Desktop layout 以及下文所述的内部 caption 呈现。所有模式下，第三方 Web client 都继续使用普通 DSH 模块图。
 
 托盘中的 profile 选择器会列出现有 profile，以及可延迟创建的 `desktop` 与 `web` 默认项。可选 profile 必须直接按顺序组合 `dsh-base` 与 `dsh-web-app`；headless、损坏或已经内嵌 desktop bundle 的 profile 仍会显示，但不可选择。只有 `desktop` 是 Launcher 管理的 profile：它会修复安装方拥有的前缀，同时保留第三方 bundle 的相对顺序。其他被选 profile 的 manifest、用户 patch 与依赖均保持不变。Launcher 只会为当前 generation 在 `dsh-web-app` 后插入自有 desktop layer，不会把该 layer 持久化到被选 bundle 列表。
 
@@ -65,7 +65,7 @@ Cordis row 会在 profile 激活期间登记原生窗口参数。Launcher 只在
 
 ## 扩展窗口模式
 
-扩展窗口会保留官方上游 `ui-layout`、sidebar、conversation 和 details occupant，作为兼容增强呈现。Desktop 在完整官方 frame 上方加入一条固定的 36 CSS 像素操作栏，并把整个官方 surface 下移，因此上游内容不需要再为标题栏逐个处理安全区。操作栏与完整的官方左侧栏只透出一层不会叠色的材质，组成连续的倒 L 形玻璃区域；主会话 surface 位于倒 L 内侧，内拐角使用 14 像素圆角裁切。
+扩展窗口会禁用官方上游 `ui-layout` root，并安装 Desktop 自有 root layout。该 layout 负责 sidebar、conversation、details、overlay 和 resize 几何，同时继续渲染官方 sidebar、conversation 与 details slot occupant。Desktop root 上方是一条固定的 36 CSS 像素操作栏；操作栏与 Desktop 自有 sidebar surface 只透出一层不会叠色的材质，组成连续的倒 L 形玻璃区域。conversation surface 位于倒 L 内侧，使用 10 像素内圆角，并让分隔线沿圆角绘制。
 
 居中的产品标题和模式 pill 不受两侧操作组影响。第一方操作使用紧凑图标：macOS 把它们放在红绿灯相对的右侧，Windows 则把它们放在原生标题栏按钮相对的左侧。图标可以打开 DSH 终端、打开包含普通重启与恢复模式重启的菜单，或打开开发者菜单来重载 renderer 与切换分离式开发者工具。这些固定操作通过私有同源 launcher 边界执行；页面不会获得原始 Electron 或任意命令接口。
 
@@ -221,7 +221,7 @@ corepack.cmd yarn dist:win
 
 该流程不要求 Python 或 Visual Studio C++ Build Tools。Windows 命令会直接使用 `node-pty` 内置的 x64 Node-API 二进制，而不会让 Electron Builder 从源码重新编译；如果安装包 staging tree 缺少这些二进制，packaged-runtime gate 会直接拒绝产物。
 
-`dist:win` 会拒绝非 Windows 或非 x64 宿主，先执行一组 Windows 可运行的 gate，其中包括 build、全部 TypeScript compiler face、打包与原生 shell 聚焦测试，以及 runtime-closure verifier；随后再构建 NSIS 安装向导，并校验生成的两个 PE 文件。完整跨平台 suite 仍由 CI 持有，因为其中部分 POSIX 执行测试不是 Windows 程序。安装向导支持当前用户安装或提升权限后的所有用户安装，可更改安装目录，会创建开始菜单与桌面快捷方式，并且卸载应用时保留 DSH 用户数据。版本 `2.0.5` 会输出到 `dsh-plugin-desktop\dist\DSH-Desktop-2.0.5-x64-Setup.exe`；用于 smoke 测试的未封装程序仍位于 `dsh-plugin-desktop\dist\win-unpacked\DSH Desktop.exe`。
+`dist:win` 会拒绝非 Windows 或非 x64 宿主，先执行一组 Windows 可运行的 gate，其中包括 build、全部 TypeScript compiler face、打包与原生 shell 聚焦测试，以及 runtime-closure verifier；随后再构建 NSIS 安装向导，并校验生成的两个 PE 文件。完整跨平台 suite 仍由 CI 持有，因为其中部分 POSIX 执行测试不是 Windows 程序。安装向导支持当前用户安装或提升权限后的所有用户安装，可更改安装目录，会创建开始菜单与桌面快捷方式，并且卸载应用时保留 DSH 用户数据。版本 `2.0.6` 会输出到 `dsh-plugin-desktop\dist\DSH-Desktop-2.0.6-x64-Setup.exe`；用于 smoke 测试的未封装程序仍位于 `dsh-plugin-desktop\dist\win-unpacked\DSH Desktop.exe`。
 
 该本地命令会主动移除 Windows 证书变量，并设置 `signExecutable=false`。产物可以安装测试，但没有 Authenticode publisher，因此 Windows 可能显示 Unknown publisher 或 SmartScreen 警告。签名后的 Windows release、证书校验、安装器升级与卸载测试，以及原生 UI 和 sandbox smoke 仍是独立的发布 gate。
 
@@ -233,7 +233,7 @@ corepack.cmd yarn dist:win
 corepack.cmd yarn dist:win-portable
 ```
 
-产物为 `dsh-plugin-desktop\\dist\\DSH-Desktop-2.0.5-x64-Portable.zip`。用户解压到任意可写目录后运行其中的 `DSH Desktop.exe`，不需要安装器、管理员权限、开始菜单注册或卸载步骤。它仍会把 profile、日志和缓存写入 Windows 默认用户数据目录，因此这是便携分发方式，不是把数据完全封装在 exe 旁边的自包含沙箱。绿色 ZIP 不会交给 NSIS 自动更新流程，新版本需要手动替换并重新解压。本地构建没有签名，Windows 可能显示 Unknown publisher 或 SmartScreen 警告；签名后的绿色版仍属于正式发布 gate。
+产物为 `dsh-plugin-desktop\\dist\\DSH-Desktop-2.0.6-x64-Portable.zip`。用户解压到任意可写目录后运行其中的 `DSH Desktop.exe`，不需要安装器、管理员权限、开始菜单注册或卸载步骤。它仍会把 profile、日志和缓存写入 Windows 默认用户数据目录，因此这是便携分发方式，不是把数据完全封装在 exe 旁边的自包含沙箱。绿色 ZIP 不会交给 NSIS 自动更新流程，新版本需要手动替换并重新解压。本地构建没有签名，Windows 可能显示 Unknown publisher 或 SmartScreen 警告；签名后的绿色版仍属于正式发布 gate。
 
 ### macOS DMG 冒烟构建
 

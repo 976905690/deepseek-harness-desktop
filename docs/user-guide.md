@@ -17,7 +17,7 @@ Profile 是一组 DSH bundle、依赖和 patch 的组合。托盘中的 **Profil
 ## 窗口模式与材质
 
 - **兼容模式**：保持 profile 的官方 layout/sidebar/conversation 组合完整，并把它放在独立的 36 像素 Desktop frame 下方。frame 可以拖动，图标操作仍可点击，官方 dialog 只会占用与 frame 无关的下方内容 viewport。
-- **扩展窗口**：保留同一套官方 layout 与独立 frame，再把所选材质延伸到完整官方侧边栏背后。顶部与左侧材质组成一个带圆角内拐角的倒 L 区域。
+- **扩展窗口**：安装 Desktop 自有 layout 与 sidebar surface，并在其中承载官方 sidebar、conversation 和 details occupant。36 像素顶部 frame 与左侧 sidebar surface 组成一个带圆角内拐角的倒 L 材质区域。
 - **高级模式**：在不改变上游 Web carrier 的前提下加入 Desktop 自有的 frame、布局、Mica/vibrancy 和原生拖动区域。它适合需要更完整桌面外观的用户。
 
 macOS 自定义窗口模式可以打开或关闭透明材质。Windows 可关闭材质或使用原生亚克力；仅 Windows 11 build 22621 及以上在支持时显示 Mica，因此 Windows 10 使用亚克力。切换模式或材质都会重启应用，不会在正在运行的 renderer 中热替换 root slot 或窗口材质。Linux 只提供兼容模式。

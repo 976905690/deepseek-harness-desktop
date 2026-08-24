@@ -835,14 +835,14 @@ export function prepareDesktopProfile(
     id: 'settings',
     config: settingsConfig,
   })
-  if (mode === 'advanced') {
+  if (mode === 'advanced' || mode === 'extended') {
     for (const [id, packageName] of [
       ['ui-layout', UI_LAYOUT_PACKAGE],
       ['ui-sidebar', UI_SIDEBAR_PACKAGE],
       ['ui-conversation', UI_CONVERSATION_PACKAGE],
     ] as const) {
       if (rows.get(id)?.name !== packageName) {
-        throw new Error(`${BIN_NAME}: advanced desktop mode must use ${packageName} in the ${id} row`)
+        throw new Error(`${BIN_NAME}: ${mode} desktop mode must use ${packageName} in the ${id} row`)
       }
     }
     patches.push(

@@ -635,7 +635,7 @@ virtualStoreDirMaxLength: 60
     expect(rows.find(row => row.id === 'ui-conversation')?.disabled).toBe(false)
   })
 
-  it('keeps the official layout enabled for extended window mode', () => {
+  it('replaces the official root layout for extended window mode while retaining its occupants', () => {
     const home = temporaryHome()
     writeFileSync(join(home, 'settings.yaml'), [
       'dsh-desktop:',
@@ -653,7 +653,9 @@ virtualStoreDirMaxLength: 60
       macosMaterial: 'off',
       windowsMaterial: 'mica',
     }))
-    expect(rows.find(row => row.id === 'ui-layout')?.disabled).not.toBe(true)
+    expect(rows.find(row => row.id === 'ui-layout')?.disabled).toBe(true)
+    expect(rows.find(row => row.id === 'ui-sidebar')?.disabled).toBe(false)
+    expect(rows.find(row => row.id === 'ui-conversation')?.disabled).toBe(false)
     expect(rows.find(row => row.id === 'desktop-shell')).toEqual(expect.objectContaining({
       config: expect.objectContaining({
         mode: 'extended',

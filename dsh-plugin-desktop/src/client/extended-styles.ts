@@ -37,17 +37,23 @@ body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extende
   top: var(--dsh-desktop-frame-height) !important;
   transform: translateZ(0);
 }
-body[data-dsh-desktop-mode="extended"] #root > :has(> [data-shell-overlay]) {
+body[data-dsh-desktop-mode="extended"] .dshDesktopSidebarSurface {
   --dsw-specific-sidebar-fill: transparent;
-  background: transparent !important;
-}
-body[data-dsh-desktop-mode="extended"] #root > :has(> [data-shell-overlay]) > :first-child {
+  border-right-color: transparent;
   background: var(--dsh-desktop-frame-fill) !important;
 }
-body[data-dsh-desktop-mode="extended"] #root > :has(> [data-shell-overlay]) > :nth-child(2) {
+body[data-dsh-desktop-mode="extended"] .dshDesktopConversationSurface {
+  box-sizing: border-box;
   overflow: hidden;
+  border-top: 1px solid var(--dsw-alias-border-l1);
+  border-left: 1px solid var(--dsw-alias-border-l1);
   border-top-left-radius: ${EXTENDED_INNER_CORNER_RADIUS}px;
   background: var(--dsw-alias-bg-base);
+  background-clip: padding-box;
+}
+body[data-dsh-desktop-mode="extended"] .dshDesktopDetailsSurface {
+  box-sizing: border-box;
+  border-top: 1px solid var(--dsw-alias-border-l1);
 }
 body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extended"])
   [data-dsh-desktop-content-viewport],
