@@ -78,17 +78,18 @@
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  height: 44px;
+  height: 36px;
   border-bottom: 1px solid var(--border);
   background: color-mix(in oklch, var(--background) 92%, transparent);
   user-select: none;
   -webkit-app-region: drag;
 }
 
-.dshNativeFrame[data-platform="darwin"] { padding: 0 14px 0 92px; }
-.dshNativeFrame[data-platform="win32"] { padding: 0 154px 0 16px; }
+.dshNativeFrame[data-platform="darwin"] { padding: 0 8px 0 88px; }
+.dshNativeFrame[data-platform="win32"] { padding: 0 146px 0 8px; }
 .dshNativeContent {
   box-sizing: border-box;
-  padding-top: calc(44px + var(--spacing) * 5);
+  padding-top: calc(var(--spacing) * 5);
 }
+.dshNativeFrame + .dshNativeContent { padding-top: calc(36px + var(--spacing) * 5); }
 button, a, input, textarea, select { -webkit-app-region: no-drag; }

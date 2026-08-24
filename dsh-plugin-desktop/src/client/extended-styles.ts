@@ -80,10 +80,10 @@ body[data-dsh-desktop-mode="extended"]:not([data-dsh-desktop-material="off"]) {
   -webkit-app-region: drag;
 }
 .dshDesktopFrameTitlebar[data-platform="darwin"] {
-  padding: 0 14px 0 ${MACOS_TRAFFIC_LIGHT_SAFE_WIDTH + 12}px;
+  padding: 0 8px 0 ${MACOS_TRAFFIC_LIGHT_SAFE_WIDTH + 8}px;
 }
 .dshDesktopFrameTitlebar[data-platform="win32"] {
-  padding: 0 ${WINDOWS_CAPTION_CONTROLS_WIDTH + 12}px 0 16px;
+  padding: 0 ${WINDOWS_CAPTION_CONTROLS_WIDTH + 8}px 0 8px;
 }
 .dshDesktopFrameIdentity {
   position: absolute;
@@ -113,20 +113,20 @@ body[data-dsh-desktop-mode="extended"]:not([data-dsh-desktop-material="off"]) {
 }
 .dshDesktopFrameTitlebar[data-platform="darwin"] .dshDesktopFrameActions { margin-left: auto; }
 .dshDesktopFrameTitlebar[data-platform="win32"] .dshDesktopFrameActions { margin-right: auto; }
-.dshDesktopNativeActions { display: flex; align-items: center; gap: 8px; -webkit-app-region: no-drag; }
+.dshDesktopNativeActions { display: flex; align-items: center; gap: 6px; -webkit-app-region: no-drag; }
 .dshDesktopNativeActions[data-placement="titlebar"] {
   position: relative;
-  gap: 4px;
+  gap: 3px;
 }
 .dshDesktopTitlebarIconButton {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: 26px;
+  height: 26px;
   padding: 0;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: 7px;
   background: color-mix(in srgb, var(--dsw-alias-bg-base) 34%, transparent);
   color: var(--dsw-alias-label-secondary);
   cursor: pointer;
@@ -144,12 +144,12 @@ body[data-dsh-desktop-mode="extended"]:not([data-dsh-desktop-material="off"]) {
 }
 .dshDesktopTitlebarIconButton:disabled { cursor: default; opacity: .45; }
 .dshDesktopTitlebarIconButton svg,
-.dshDesktopActionMenuItem svg { width: 16px; height: 16px; stroke-width: 1.8; }
+.dshDesktopActionMenuItem svg { width: 14px; height: 14px; stroke-width: 1.8; }
 .dshDesktopNativeActionMenuAnchor { position: relative; }
 .dshDesktopActionMenu {
   position: absolute;
   z-index: 2147483001;
-  top: calc(100% + 7px);
+  top: calc(100% + 5px);
   display: grid;
   min-width: 190px;
   padding: 5px;
@@ -181,7 +181,7 @@ body[data-dsh-desktop-mode="extended"]:not([data-dsh-desktop-material="off"]) {
 .dshDesktopActionMenuItem span { flex: 1; }
 .dshDesktopNativeActions[data-placement="titlebar"] .dshDesktopNativeActionError {
   position: absolute;
-  top: calc(100% + 7px);
+  top: calc(100% + 5px);
   width: max-content;
   padding: 7px 9px;
   border: 1px solid color-mix(in srgb, var(--dsw-alias-state-error-primary) 40%, transparent);

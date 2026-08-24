@@ -3,7 +3,10 @@
 import { BrowserWindow } from 'electron'
 import type { MessageBoxOptions, MessageBoxReturnValue } from 'electron'
 import { fileURLToPath } from 'node:url'
-import { auxiliaryWindowChromeOptions } from './auxiliary-window-options.ts'
+import {
+  auxiliaryWindowChromeOptions,
+  auxiliaryWindowHasCustomFrame,
+} from './auxiliary-window-options.ts'
 import { revealApplication } from './electron-reveal.ts'
 
 const DIALOG_SCHEME = 'dsh-desktop-dialog:'
@@ -18,6 +21,8 @@ export interface DesktopDialogOptions {
   readonly buttons: readonly string[]
   readonly defaultId?: number
   readonly cancelId?: number
+  /** Override whether this dialog exposes native close/caption controls. */
+  readonly windowControls?: boolean
 }
 
 export interface DesktopDialogResult {
@@ -67,16 +72,20 @@ export class DesktopDialogWindow {
       cancelId,
     }), 'utf8').toString('base64url')
     const parent = this.parent !== undefined && !this.parent.isDestroyed() ? this.parent : undefined
+    // Parented modal dialogs are action surfaces, not independently navigable
+    // windows. They stay frameless unless a caller explicitly opts into native
+    // controls; standalone notices keep ordinary close controls.
+    const windowControls = this.options.windowControls ?? parent === undefined
     const window = new BrowserWindow({
       title: this.options.title,
-      ...auxiliaryWindowChromeOptions(),
+      ...auxiliaryWindowChromeOptions(process.platform, windowControls),
       width: 480,
       height: this.options.detail === undefined ? 230 : 300,
       minWidth: 420,
       minHeight: 210,
       maxWidth: 620,
       maxHeight: 440,
-      resizable: true,
+      resizable: windowControls,
       maximizable: false,
       fullscreenable: false,
       show: false,
@@ -117,7 +126,11 @@ export class DesktopDialogWindow {
       window.once('ready-to-show', () => { revealApplication(window) })
       window.on('closed', () => { finish(cancelId) })
       void window.loadFile(DIALOG_DOCUMENT, {
-        query: { state, platform: process.platform },
+        query: {
+          state,
+          platform: process.platform,
+          frame: String(auxiliaryWindowHasCustomFrame(process.platform, windowControls)),
+        },
       }).catch((cause: unknown) => {
         if (settled) return
         settled = true

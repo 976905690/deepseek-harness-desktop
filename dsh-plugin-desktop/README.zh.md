@@ -51,7 +51,7 @@ Linux 只支持兼容模式。其托盘模式命令会被禁用，自定义窗�
 
 ## 兼容模式
 
-`dsh-desktop.mode` 默认为 `compatibility`。在 macOS 与 Windows 上，该模式会在当前 DSH profile 的官方 Web surface 上方创建一条独立的 44 CSS 像素 Desktop frame，并保留原生红绿灯或窗口按钮。居中的标识、模式 pill、拖动区域与图标操作只属于该 frame；完整官方页面从它下方开始，不参与 frame 的布局或安全区计算。Linux 保留普通原生 frame 作为兼容 fallback。
+`dsh-desktop.mode` 默认为 `compatibility`。在 macOS 与 Windows 上，该模式会在当前 DSH profile 的官方 Web surface 上方创建一条独立的 36 CSS 像素 Desktop frame，并保留原生红绿灯或窗口按钮。居中的标识、模式 pill、拖动区域与图标操作只属于该 frame；完整官方页面从它下方开始，不参与 frame 的布局或安全区计算。Linux 保留普通原生 frame 作为兼容 fallback。
 
 desktop Client module 会校验模式与平台 marker，在兼容模式下只注册独立 frame overlay 与固定 launcher 操作，不替换任何官方呈现。它不提供或替换 `layout` service，不注册 `root` 或 `sidebar` occupant，也不改动 conversation surface。Desktop 自有的启动健康报告和本地文件夹拖放属于能力 effect；兼容模式仍会保留被选 profile 自身的 layout、sidebar 与 conversation 组合，普通 `desktop` 与 `web` profile 因而会原样保留官方 row。上游 dialog 仍是内容 overlay，并被限制在 Desktop frame 下方。
 
@@ -65,13 +65,13 @@ Cordis row 会在 profile 激活期间登记原生窗口参数。Launcher 只在
 
 ## 扩展窗口模式
 
-扩展窗口会保留官方上游 `ui-layout`、sidebar、conversation 和 details occupant，作为兼容增强呈现。Desktop 在完整官方 frame 上方加入一条固定的 44 CSS 像素操作栏，并把整个官方 surface 下移，因此上游内容不需要再为标题栏逐个处理安全区。操作栏与完整的官方左侧栏只透出一层不会叠色的材质，组成连续的倒 L 形玻璃区域；主会话 surface 位于倒 L 内侧，内拐角使用 14 像素圆角裁切。
+扩展窗口会保留官方上游 `ui-layout`、sidebar、conversation 和 details occupant，作为兼容增强呈现。Desktop 在完整官方 frame 上方加入一条固定的 36 CSS 像素操作栏，并把整个官方 surface 下移，因此上游内容不需要再为标题栏逐个处理安全区。操作栏与完整的官方左侧栏只透出一层不会叠色的材质，组成连续的倒 L 形玻璃区域；主会话 surface 位于倒 L 内侧，内拐角使用 14 像素圆角裁切。
 
 居中的产品标题和模式 pill 不受两侧操作组影响。第一方操作使用紧凑图标：macOS 把它们放在红绿灯相对的右侧，Windows 则把它们放在原生标题栏按钮相对的左侧。图标可以打开 DSH 终端、打开包含普通重启与恢复模式重启的菜单，或打开开发者菜单来重载 renderer 与切换分离式开发者工具。这些固定操作通过私有同源 launcher 边界执行；页面不会获得原始 Electron 或任意命令接口。
 
 即使上游 overlay 打开，操作栏仍会保持可见且可以拖动窗口。macOS 红绿灯和 Windows 原生标题栏按钮保留各自命中区域；第一方图标以及注册到可叠加 `desktop.titlebar.action` slot 的 contribution 会明确退出拖动区域，因此仍可正常点击。
 
-DOM 会把操作栏声明为 Desktop frame，并把下移后的上游 root 声明为它的 content viewport。全视口上游对话框——包括 portal 到 `body` 的对话框——都会被限制在这个 content viewport 内，因此 mask 与卡片会从 44 像素 frame 下方开始，不会再压暗或拦截顶栏。
+DOM 会把操作栏声明为 Desktop frame，并把下移后的上游 root 声明为它的 content viewport。全视口上游对话框——包括 portal 到 `body` 的对话框——都会被限制在这个 content viewport 内，因此 mask 与卡片会从 36 像素 frame 下方开始，不会再压暗或拦截顶栏。
 
 自定义窗口材质独立于模式设置。macOS 可选“关闭”或“透明材质”；Windows 可选“关闭”和原生“亚克力”，仅 Windows 11 build 22621 及以上显示 Mica。Windows 10 因此使用真正的原生亚克力，而不是 CSS 模拟。已持久化但系统不支持的 Mica 会按能力门槛回退到亚克力。切换模式或材质都会执行有序重启。
 
@@ -87,7 +87,7 @@ desktop Client 会在所有呈现模式中提供不可变的 `desktopWindow` 原
 
 desktop sidebar surface 会把上游 sidebar-fill token 局部设为透明，因此官方 sidebar 与 session 列表渐隐可以透出原生材质，而无需改变其组件样式。
 
-在 macOS 上，增强窗口使用 hidden-inset 标题栏、定位后的红黄绿按钮与可选的原生 `sidebar` vibrancy。其 90 CSS 像素收起列会把官方 56 像素 rail 居中放在 desktop 自有的红绿灯顶部 inset 下方。Desktop 自有的一条连续透明 44 CSS 像素拖动带，会从红绿灯右侧横跨 sidebar 顶部以及 conversation/details 的完整宽度，并且在 overlay 打开时仍可拖动。Conversation 与 details 的完整 surface 仍保留 20 CSS 像素内容 inset；`desktopWindow` 会把这个 inset 与更高的拖动命中区域分别报告。按钮、链接、输入框、可编辑字段、菜单、标签页、开关、对话框与显式 `.dshDesktopNoDrag` contribution 会通过精确的 `app-region: no-drag` 排除规则保持可交互。在 Windows 上，官方 sidebar 保持兼容模式几何：收起 56 像素、默认展开 280 像素，并沿用相同的上游过渡行为；透明 surface 会透出当前系统支持且用户选择的材质。窗口使用带原生控件的隐藏标题栏、按需启用的透明 overlay、阴影、圆角与粗可调整边框。Desktop 自有的 32 CSS 像素 caption row 会横跨 Windows 的 conversation 与 details 两列；完整的上游 slot surface 从该行下方开始，因此官方与第三方 Header contribution 会保持原有相对布局，无需针对具体元素设置 caption offset。Linux 会拒绝增强模式，而不会静默降级到与持久化设置不同的呈现。
+在 macOS 上，增强窗口使用 hidden-inset 标题栏、定位后的红黄绿按钮与可选的原生 `sidebar` vibrancy。其 90 CSS 像素收起列会把官方 56 像素 rail 居中放在 desktop 自有的红绿灯顶部 inset 下方。Desktop 自有的一条连续透明 36 CSS 像素 frame，会从红绿灯右侧横跨 sidebar 顶部以及 conversation/details 的完整宽度，并且在 overlay 打开时仍可拖动；conversation/details 的完整 surface 从同一条 36 像素区域下方开始。按钮、链接、输入框、可编辑字段、菜单、标签页、开关、对话框与显式 `.dshDesktopNoDrag` contribution 会通过精确的 `app-region: no-drag` 排除规则保持可交互。在 Windows 上，官方 sidebar 保持兼容模式几何：收起 56 像素、默认展开 280 像素，并沿用相同的上游过渡行为；透明 surface 会透出当前系统支持且用户选择的材质。窗口使用带原生控件的隐藏标题栏、按需启用的透明 overlay、阴影、圆角与粗可调整边框。Desktop 自有的 36 CSS 像素 caption row 会横跨 Windows 的 conversation 与 details 两列；完整的上游 slot surface 从该行下方开始，因此官方与第三方 Header contribution 会保持原有相对布局，无需针对具体元素设置 caption offset。Linux 会拒绝增强模式，而不会静默降级到与持久化设置不同的呈现。
 
 ## 开发
 
@@ -176,9 +176,9 @@ Release operator 必须先发布两个平台产物，再让版本可被发现。
 
 在 macOS 与 Windows 上，**打开 DSH 终端** 会打开以当前激活 profile 为工作目录的系统终端。设置页标题区会在它旁边提供重启菜单，其中包含 **重启 Desktop** 和 **重启到恢复模式**；任何重启路径都会先显示确认，再开始有序 Cordis shutdown 和 Electron relaunch。终端欢迎信息会显示应用版本、当前 profile、profile 目录与 DSH home，并列出配置与插件管理命令。在该终端内，裸 `dsh`、`dsh --dump-config`，以及没有选择 profile 的 plugin 子命令都会默认使用当前激活 profile；显式 `--profile` 与上游 `web` alias 会保留原有含义。DSH Desktop 会在自身 user-data 目录下按 profile 生成私有 `dsh`、`pnpm` 与 `node` shim，设置 `DSH_HOME`，使用当前 profile 作为工作目录，并且只在该终端的 `PATH` 前置 shim 目录；之后切换 profile 不会改变已经打开的终端命令。它不会修改全局环境或 shell 启动文件。macOS launcher 会先保留用户的交互式 zsh 或 bash 设置，再恢复 desktop 自有变量。Windows 会依次选择 PowerShell 7、Windows PowerShell 或命令提示符，并在新的 Windows Terminal 窗口中打开；如果 `wt.exe` 不可用，则由私有 `cmd start` broker 创建可见控制台。同步启动失败与 broker 非正常退出会使用 Desktop dialog surface。Linux 不组合该终端命令。
 
-Desktop 的确认、警告、错误与结果统一使用基于 shadcn 的 `DesktopDialogWindow`。每个 dialog 都是独立、沙箱化的模态 `BrowserWindow`，在可用时以当前 Desktop 窗口为 parent；它不是官方 Web 页面内部的组件或 portal。窗口使用共享的空白 44 像素 utility frame，把 Escape 或关闭窗口映射为有界取消操作，并只向 main process 返回一次本地结果。操作系统的打开文件和保存文件选择器仍保持原生，因为它们负责选择系统路径，而不是展示 Desktop 操作。
+Desktop 的确认、警告、错误与结果统一使用基于 shadcn 的 `DesktopDialogWindow`。每个 dialog 都是独立、沙箱化的模态 `BrowserWindow`，在可用时以当前 Desktop 窗口为 parent；它不是官方 Web 页面内部的组件或 portal。作为 parent 子窗口的纯操作 dialog 不显示窗口按钮，也不会渲染空白 frame；只有独立显示并带有 macOS 红绿灯或 Windows 窗口按钮的 dialog 才使用共享的 36 像素 utility frame。Escape 或可用的窗口关闭操作会映射为有界取消，并且只向 main process 返回一次本地结果。操作系统的打开文件和保存文件选择器仍保持原生，因为它们负责选择系统路径，而不是展示 Desktop 操作。
 
-恢复模式同样使用独立的 Desktop-owned 窗口与空白 44 像素 frame。其完整 shadcn 页面先说明进入恢复模式的原因，再把操作分成 **插件管理**、**回滚**、**切换配置** 与 **诊断** 四个 Tab。新增 Profile 窗口使用同一套无标题 utility frame。恢复操作和任何重启请求都会打开 `DesktopDialogWindow` 确认，而不会把 modal 放进恢复页面里。
+恢复模式同样使用独立的 Desktop-owned 窗口；当存在 macOS 红绿灯或 Windows 窗口按钮时显示空白 36 像素 frame。其完整 shadcn 页面先说明进入恢复模式的原因，再把操作分成 **插件管理**、**回滚**、**切换配置** 与 **诊断** 四个 Tab。新增 Profile 窗口也只在实际存在这些窗口按钮时使用无标题 utility frame。恢复操作和任何重启请求都会打开 `DesktopDialogWindow` 确认，而不会把 modal 放进恢复页面里。
 
 ## 日志与诊断
 

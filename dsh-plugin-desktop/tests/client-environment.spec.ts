@@ -57,10 +57,10 @@ describe('desktop client environment', () => {
 
 describe('advanced desktop layout', () => {
   it('owns native caption geometry without targeting feature headers', () => {
-    expect(MACOS_TITLEBAR_HEIGHT).toBe(20)
-    expect(MACOS_DRAG_REGION_HEIGHT).toBe(44)
-    expect(MACOS_DRAG_REGION_HEIGHT).toBeGreaterThan(MACOS_TITLEBAR_HEIGHT)
-    expect(WINDOWS_TITLEBAR_HEIGHT).toBe(32)
+    expect(MACOS_TITLEBAR_HEIGHT).toBe(36)
+    expect(MACOS_DRAG_REGION_HEIGHT).toBe(36)
+    expect(MACOS_DRAG_REGION_HEIGHT).toBe(MACOS_TITLEBAR_HEIGHT)
+    expect(WINDOWS_TITLEBAR_HEIGHT).toBe(36)
     let css = ''
     const remove = vi.fn()
     const style = {
@@ -271,7 +271,7 @@ describe('independent Desktop frame', () => {
     try {
       const dispose = installExtendedStyles()
       expect(css).toContain(`padding-top: ${DESKTOP_FRAME_HEIGHT}px`)
-      expect(DESKTOP_FRAME_HEIGHT).toBe(44)
+      expect(DESKTOP_FRAME_HEIGHT).toBe(36)
       expect(css).toMatch(/\[role="presentation"\]:has\(> \[aria-modal="true"\]\),[\s\S]*> \[aria-modal="true"\] \{[\s\S]*top: var\(--dsh-desktop-frame-height\) !important;/)
       expect(css).toContain('#root > :has(> [data-shell-overlay])')
       expect(css).toMatch(/#root > :has\(> \[data-shell-overlay\]\) \{[^}]*--dsw-specific-sidebar-fill: transparent;/)
@@ -284,8 +284,11 @@ describe('independent Desktop frame', () => {
       expect(css).toContain('[data-platform="darwin"] .dshDesktopFrameActions { margin-left: auto; }')
       expect(css).toContain('[data-platform="win32"] .dshDesktopFrameActions { margin-right: auto; }')
       expect(css).toMatch(/\.dshDesktopTitlebarIconButton \{[^}]*-webkit-app-region: no-drag;/)
+      expect(css).toMatch(/\.dshDesktopTitlebarIconButton \{[^}]*width: 26px;[^}]*height: 26px;[^}]*border-radius: 7px;/)
+      expect(css).toMatch(/\.dshDesktopTitlebarIconButton svg,[^}]*width: 14px;[^}]*height: 14px;/)
       expect(css).toContain('.dshDesktopActionMenu')
-      expect(css).toContain(`padding: 0 ${WINDOWS_CAPTION_CONTROLS_WIDTH + 12}px 0 16px`)
+      expect(css).toContain(`padding: 0 ${WINDOWS_CAPTION_CONTROLS_WIDTH + 8}px 0 8px`)
+      expect(css).toContain(`padding: 0 8px 0 ${MACOS_TRAFFIC_LIGHT_SAFE_WIDTH + 8}px`)
       expect(appendChild).toHaveBeenCalledWith(style)
       dispose()
       expect(remove).toHaveBeenCalledOnce()
