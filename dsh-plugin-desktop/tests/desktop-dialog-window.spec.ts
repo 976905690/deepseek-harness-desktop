@@ -103,10 +103,10 @@ describe('DesktopDialogWindow', () => {
     window?.onceListeners.get('ready-to-show')?.()
     expect(window?.show).not.toHaveBeenCalled()
     const preferredSize = window?.webListeners.get('preferred-size-changed')
-    preferredSize?.({}, { width: 492, height: 167 })
+    preferredSize?.({}, { width: 492, height: 134 })
     expect(window?.setContentSize).not.toHaveBeenCalled()
     window?.webListeners.get('did-finish-load')?.()
-    expect(window?.setContentSize).toHaveBeenCalledWith(480, 167, false)
+    expect(window?.setContentSize).toHaveBeenCalledWith(480, 166, false)
     expect(window?.setBounds).not.toHaveBeenCalled()
     expect(window?.show).toHaveBeenCalledOnce()
     const event = { preventDefault: vi.fn() }

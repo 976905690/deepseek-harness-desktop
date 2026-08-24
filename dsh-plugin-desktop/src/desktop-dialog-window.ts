@@ -14,6 +14,8 @@ const DIALOG_DOCUMENT = fileURLToPath(new URL('./native-ui/desktop-dialog.html',
 const MAX_BUTTONS = 4
 const DIALOG_WIDTH = 480
 const DIALOG_INITIAL_HEIGHT = 300
+/** Electron omits the 2rem shadcn action row from the reported preferred height. */
+const DIALOG_PREFERRED_HEIGHT_OFFSET = 32
 const DIALOG_REVEAL_FALLBACK_MS = 250
 
 export interface DesktopDialogOptions {
@@ -167,7 +169,7 @@ export class DesktopDialogWindow {
       window.webContents.on('will-redirect', navigate)
       window.webContents.on('preferred-size-changed', (_event, size) => {
         if (!Number.isSafeInteger(size.height) || size.height <= 0) return
-        preferredHeight = size.height
+        preferredHeight = size.height + DIALOG_PREFERRED_HEIGHT_OFFSET
         applyPreferredSize()
       })
       window.webContents.on('did-finish-load', () => {
