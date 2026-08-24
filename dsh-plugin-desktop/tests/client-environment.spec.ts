@@ -57,9 +57,9 @@ describe('desktop client environment', () => {
 
 describe('advanced desktop layout', () => {
   it('owns native caption geometry without targeting feature headers', () => {
-    expect(MACOS_TITLEBAR_HEIGHT).toBe(20)
+    expect(MACOS_TITLEBAR_HEIGHT).toBe(36)
     expect(MACOS_DRAG_REGION_HEIGHT).toBe(36)
-    expect(MACOS_DRAG_REGION_HEIGHT).toBeGreaterThan(MACOS_TITLEBAR_HEIGHT)
+    expect(MACOS_DRAG_REGION_HEIGHT).toBe(MACOS_TITLEBAR_HEIGHT)
     expect(WINDOWS_TITLEBAR_HEIGHT).toBe(36)
     let css = ''
     const remove = vi.fn()

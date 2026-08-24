@@ -1,5 +1,5 @@
-/** Compact visual inset reserved above enhanced-mode content on macOS. */
-export const MACOS_TITLEBAR_HEIGHT = 20
+/** Height of the continuous enhanced-mode caption row on macOS. */
+export const MACOS_TITLEBAR_HEIGHT = 36
 
 /** Height of the macOS native drag hit regions in CSS pixels. */
 export const MACOS_DRAG_REGION_HEIGHT = 36
