@@ -361,6 +361,24 @@ export async function handleDesktopRestartRequest(
   finishPostResponse(res, 202, controller.restart(), 'restart Desktop', reportError)
 }
 
+/** Queue an orderly recovery-mode relaunch from an exact empty request. */
+export async function handleDesktopRecoveryRestartRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  expectedOrigin: string,
+  controller: DesktopSettingsController,
+  reportError: (operation: string, cause: unknown) => void = () => {},
+): Promise<void> {
+  if (req.method !== 'POST') return finishJson(res, 405, error('method not allowed'), 'POST')
+  if (!isSameOriginLoopbackRequest(req, expectedOrigin, true)) {
+    return finishJson(res, 403, error('forbidden'))
+  }
+  const value = await parsePostBody(req, res)
+  if (value === INVALID_BODY) return
+  if (!isEmptyRequest(value)) return finishJson(res, 400, error('invalid recovery restart request'))
+  finishPostResponse(res, 202, controller.restartToRecovery(), 'restart Desktop in recovery mode', reportError)
+}
+
 /** Reload the renderer after acknowledging an exact empty same-origin request. */
 export async function handleDesktopRendererReloadRequest(
   req: IncomingMessage,

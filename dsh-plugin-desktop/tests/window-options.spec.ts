@@ -7,7 +7,7 @@ import {
   desktopWindowOptions,
   extendedWindowOptions,
 } from '../src/window-options.ts'
-import { EXTENDED_TITLEBAR_HEIGHT, WINDOWS_TITLEBAR_HEIGHT } from '../src/window-chrome.ts'
+import { DESKTOP_FRAME_HEIGHT, WINDOWS_TITLEBAR_HEIGHT } from '../src/window-chrome.ts'
 
 const spec: DesktopShellSpec = {
   mode: 'compatibility',
@@ -35,7 +35,7 @@ const spec: DesktopShellSpec = {
 const preload = '/tmp/preload.cjs'
 
 describe('compatibility BrowserWindow options', () => {
-  it('preserves the native frame and enables renderer isolation', () => {
+  it('uses an independent 44px macOS frame and enables renderer isolation', () => {
     const icon = {} as NativeImage
     const options = compatibilityWindowOptions(spec, icon, 'darwin', preload)
 
@@ -47,6 +47,8 @@ describe('compatibility BrowserWindow options', () => {
       minHeight: 640,
       show: false,
       icon,
+      titleBarStyle: 'hiddenInset',
+      trafficLightPosition: { x: 16, y: 16 },
       webPreferences: {
         preload,
         contextIsolation: true,
@@ -55,27 +57,41 @@ describe('compatibility BrowserWindow options', () => {
         webSecurity: true,
       },
     }))
-    for (const option of [
-      'frame',
-      'titleBarStyle',
-      'titleBarOverlay',
-      'trafficLightPosition',
-      'transparent',
-      'vibrancy',
-      'visualEffectState',
-      'backgroundMaterial',
-      'roundedCorners',
-      'thickFrame',
-    ]) {
-      expect(options).not.toHaveProperty(option)
-    }
+    expect(options).not.toHaveProperty('titleBarOverlay')
+    expect(DESKTOP_FRAME_HEIGHT).toBe(44)
   })
 
-  it('uses the native Windows caption while hiding the application menu', () => {
+  it('uses an independent Windows frame with native controls on the left-side action layout', () => {
     const options = compatibilityWindowOptions(spec, {} as NativeImage, 'win32', preload)
 
     expect(options.title).toBe('DeepSeek Harness Desktop')
     expect(options.autoHideMenuBar).toBe(true)
+    expect(options.titleBarStyle).toBe('hidden')
+    expect(options.titleBarOverlay).toEqual(expect.objectContaining({ height: DESKTOP_FRAME_HEIGHT }))
+  })
+
+  it('keeps the ordinary native frame as the Linux compatibility fallback', () => {
+    const options = compatibilityWindowOptions(spec, {} as NativeImage, 'linux', preload)
+
+    expect(options).not.toHaveProperty('titleBarStyle')
+    expect(options).not.toHaveProperty('titleBarOverlay')
+    expect(options).not.toHaveProperty('trafficLightPosition')
+  })
+
+  it('reveals transparent material behind the macOS compatibility frame', () => {
+    const options = compatibilityWindowOptions(
+      { ...spec, material: 'transparent' },
+      {} as NativeImage,
+      'darwin',
+      preload,
+    )
+
+    expect(options).toEqual(expect.objectContaining({
+      transparent: true,
+      backgroundColor: '#00000000',
+      vibrancy: 'sidebar',
+      visualEffectState: 'followWindow',
+    }))
   })
 
   it('rejects an advanced spec before BrowserWindow construction', () => {
@@ -135,11 +151,11 @@ describe('compatibility BrowserWindow options', () => {
 
     expect(options).toEqual(expect.objectContaining({
       titleBarStyle: 'hidden',
-      titleBarOverlay: expect.objectContaining({ height: EXTENDED_TITLEBAR_HEIGHT }),
+      titleBarOverlay: expect.objectContaining({ height: DESKTOP_FRAME_HEIGHT }),
       transparent: true,
     }))
     expect(options).not.toHaveProperty('backgroundMaterial')
-    expect(EXTENDED_TITLEBAR_HEIGHT).toBe(44)
+    expect(DESKTOP_FRAME_HEIGHT).toBe(44)
     expect(desktopWindowOptions(extended, {} as NativeImage, 'win32', preload)).toEqual(options)
   })
 
@@ -152,7 +168,7 @@ describe('compatibility BrowserWindow options', () => {
     )
 
     expect(options.trafficLightPosition).toEqual({ x: 16, y: 16 })
-    expect(EXTENDED_TITLEBAR_HEIGHT).toBe(44)
+    expect(DESKTOP_FRAME_HEIGHT).toBe(44)
   })
 
   it('rejects advanced mode on Linux', () => {

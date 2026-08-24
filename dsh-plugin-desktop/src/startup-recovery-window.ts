@@ -1,12 +1,14 @@
 /** Host-independent Electron recovery window for profile startup failures. */
 
-import { app, BrowserWindow, screen, shell } from 'electron'
+import { app, BrowserWindow, dialog, screen, shell } from 'electron'
 import { execFile } from 'node:child_process'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { basename, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { auxiliaryWindowChromeOptions } from './auxiliary-window-options.ts'
 import type { DesktopLocale } from './runtime.ts'
 import { applicationNeedsReveal, revealApplication } from './electron-reveal.ts'
+import { desktopRestartConfirmationCopy } from './tray-locale.ts'
 import {
   DesktopStartupRecoveryController,
   type DesktopStartupRecoveryDisablePreview,
@@ -60,6 +62,8 @@ export interface DesktopStartupRecoveryWindowOptions {
   readonly locale: DesktopLocale
   readonly failureStage: DesktopStartupFailureStage
   readonly failureDetail: string
+  /** True when the user intentionally entered recovery before Host boot. */
+  readonly requested?: boolean
   readonly exportDiagnostics: (signal: AbortSignal) => Promise<string>
   /** Open the launcher-owned terminal even when the Host did not start. */
   readonly openTerminal?: () => void | Promise<void>
@@ -160,6 +164,7 @@ export interface DesktopStartupRecoveryViewModel {
   readonly locale: DesktopLocale
   readonly failureStage: DesktopStartupFailureStage
   readonly failureDetail: string
+  readonly requested?: boolean
   readonly snapshot?: DesktopStartupRecoverySnapshot
   readonly snapshotError?: string
   readonly diagnostics: RecoveryDiagnosticsState
@@ -534,6 +539,7 @@ export class DesktopStartupRecoveryWindow {
     this.refreshProfiles()
     const window = new BrowserWindow({
       title: COPY[this.options.locale].title,
+      ...auxiliaryWindowChromeOptions(),
       ...desktopStartupRecoveryWindowBounds(),
       show: false,
       autoHideMenuBar: true,
@@ -686,7 +692,20 @@ export class DesktopStartupRecoveryWindow {
       } else if (action.action === 'open-profile-directory') {
         await this.openConfigurationPath('profileDirectory')
       } else if (action.action === 'restart') {
-        this.finish('restart')
+        const copy = desktopRestartConfirmationCopy(this.options.locale)
+        const window = this.window
+        if (window === undefined || window.isDestroyed()) return
+        const result = await dialog.showMessageBox(window, {
+          type: 'question',
+          title: copy.title,
+          message: copy.message,
+          detail: copy.detail,
+          buttons: [copy.confirm, copy.cancel],
+          defaultId: 1,
+          cancelId: 1,
+          noLink: true,
+        })
+        if (result.response === 0) this.finish('restart')
         return
       } else if (action.action === 'quit') {
         await this.ensureDiagnostics()
@@ -777,6 +796,7 @@ export class DesktopStartupRecoveryWindow {
       locale: this.options.locale,
       failureStage: this.options.failureStage,
       failureDetail: this.options.failureDetail,
+      ...(this.options.requested === true ? { requested: true } : {}),
       ...(this.snapshot === undefined ? {} : { snapshot: this.snapshot }),
       ...(this.snapshotError === undefined ? {} : { snapshotError: this.snapshotError }),
       diagnostics: this.diagnostics,
@@ -792,7 +812,7 @@ export class DesktopStartupRecoveryWindow {
       ...(this.options.rollbackLastKnownGood === undefined ? {} : { rollbackLastKnownGoodAvailable: true }),
     }
     const state = Buffer.from(JSON.stringify(model), 'utf8').toString('base64url')
-    await window.loadFile(RECOVERY_DOCUMENT, { query: { state } })
+    await window.loadFile(RECOVERY_DOCUMENT, { query: { state, platform: process.platform } })
   }
 
   private finish(result: RecoveryWindowResult): void {

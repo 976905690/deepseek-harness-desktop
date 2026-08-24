@@ -1,4 +1,4 @@
-/** Visible extended-window command bar portalled above the upstream root. */
+/** Independent Desktop frame portalled above the upstream content viewport. */
 
 import { createPortal } from 'react-dom'
 import type {
@@ -8,45 +8,48 @@ import type { DesktopSettingsApi } from './desktop-settings-api.ts'
 import type { DesktopClientEnvironment } from './environment.ts'
 import { DesktopNativeActions } from './DesktopNativeActions.tsx'
 
-export interface ExtendedTitlebarInjected {
+export interface DesktopFrameTitlebarInjected {
   readonly environment: DesktopClientEnvironment
 }
 
-export type ExtendedTitlebarProps = PropsRuntime<'shell.overlay'>
+export type DesktopFrameTitlebarProps = PropsRuntime<'shell.overlay'>
   & PropsLocale<'desktop.settings'>
   & PropsRenderSlots<'desktop.titlebar.action'>
-  & InjectFace<ExtendedTitlebarInjected>
+  & InjectFace<DesktopFrameTitlebarInjected>
 
-/** Inverted-L horizontal command surface; the upstream root starts below it. */
-export function ExtendedTitlebar({ environment, renderSlot, t }: ExtendedTitlebarProps) {
+/** Horizontal frame surface; the unrelated upstream content starts below it. */
+export function DesktopFrameTitlebar({ environment, renderSlot, t }: DesktopFrameTitlebarProps) {
   return createPortal((
     <header
-      className="dshDesktopExtendedTitlebar"
+      className="dshDesktopFrameTitlebar"
+      data-dsh-desktop-frame="titlebar"
       data-platform={environment.platform}
       data-material={environment.material}
     >
-      <div className="dshDesktopExtendedIdentity">
-        <span className="dshDesktopExtendedProduct">DSH Desktop</span>
-        <span className="dshDesktopExtendedMode">{t('extendedMode')}</span>
+      <div className="dshDesktopFrameIdentity">
+        <span className="dshDesktopFrameProduct">DSH Desktop</span>
+        <span className="dshDesktopFrameMode">
+          {t(environment.mode === 'compatibility' ? 'compatibilityMode' : 'extendedMode')}
+        </span>
       </div>
-      <div className="dshDesktopExtendedActions">
+      <div className="dshDesktopFrameActions">
         {renderSlot('desktop.titlebar.action', {})}
       </div>
     </header>
   ), document.body)
 }
 
-export interface ExtendedTitlebarNativeActionsInjected {
+export interface DesktopFrameTitlebarNativeActionsInjected {
   readonly api: Pick<
     DesktopSettingsApi,
-    'openTerminal' | 'restart' | 'reloadRenderer' | 'toggleDeveloperTools'
+    'openTerminal' | 'restart' | 'restartToRecovery' | 'reloadRenderer' | 'toggleDeveloperTools'
   >
 }
 
-export type ExtendedTitlebarNativeActionsProps = PropsRuntime<'desktop.titlebar.action'>
+export type DesktopFrameTitlebarNativeActionsProps = PropsRuntime<'desktop.titlebar.action'>
   & PropsLocale<'desktop.settings'>
-  & InjectFace<ExtendedTitlebarNativeActionsInjected>
+  & InjectFace<DesktopFrameTitlebarNativeActionsInjected>
 
-export function ExtendedTitlebarNativeActions({ api, t }: ExtendedTitlebarNativeActionsProps) {
+export function DesktopFrameTitlebarNativeActions({ api, t }: DesktopFrameTitlebarNativeActionsProps) {
   return <DesktopNativeActions api={api} t={t} placement="titlebar" />
 }

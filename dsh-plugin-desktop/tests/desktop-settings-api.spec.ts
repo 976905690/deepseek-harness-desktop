@@ -72,6 +72,7 @@ function bootstrap(
     readMarket: () => market(),
     selectMarket: async provider => market(provider),
     scheduleRestart: () => {},
+    scheduleRecoveryRestart: () => {},
     openTerminal: () => {},
     reloadRenderer: () => {},
     toggleDeveloperTools: () => {},

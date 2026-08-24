@@ -21,7 +21,10 @@ describe('desktop window material capabilities', () => {
   it('keeps platform preferences portable while capability-gating the generation', () => {
     expect(effectiveDesktopWindowMaterial(
       'compatibility', 'win32', 'transparent', 'mica', 22_631,
-    )).toBe('off')
+    )).toBe('mica')
+    expect(effectiveDesktopWindowMaterial(
+      'compatibility', 'darwin', 'transparent', 'mica', undefined,
+    )).toBe('transparent')
     expect(effectiveDesktopWindowMaterial(
       'extended', 'darwin', 'transparent', 'mica', undefined,
     )).toBe('transparent')

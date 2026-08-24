@@ -1,44 +1,70 @@
-/** Visible inverted-L glass presentation for the extended window mode. */
+/** Independent frame shared by compatibility and inverted-L extended modes. */
 
 import {
   EXTENDED_INNER_CORNER_RADIUS,
-  EXTENDED_TITLEBAR_HEIGHT,
+  DESKTOP_FRAME_HEIGHT,
   MACOS_TRAFFIC_LIGHT_SAFE_WIDTH,
   WINDOWS_CAPTION_CONTROLS_WIDTH,
 } from '../window-chrome.ts'
 
-const STYLE_ID = 'dsh-desktop-extended-styles'
+const STYLE_ID = 'dsh-desktop-framed-styles'
 
 const CSS = `
-html:has(body[data-dsh-desktop-mode="extended"]),
-body[data-dsh-desktop-mode="extended"],
-body[data-dsh-desktop-mode="extended"] #root { width: 100%; height: 100%; }
-body[data-dsh-desktop-mode="extended"] { margin: 0; overflow: hidden; background: transparent !important; }
-body[data-dsh-desktop-mode="extended"] #root {
+html:has(body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extended"])),
+body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extended"]),
+body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extended"]) #root {
+  width: 100%;
+  height: 100%;
+}
+body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extended"]) {
+  --dsh-desktop-frame-height: ${DESKTOP_FRAME_HEIGHT}px;
+  margin: 0;
+  overflow: hidden;
+  background: transparent !important;
+}
+body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extended"]) #root {
   box-sizing: border-box;
   width: 100%;
   height: 100%;
-  padding-top: ${EXTENDED_TITLEBAR_HEIGHT}px;
+  padding-top: ${DESKTOP_FRAME_HEIGHT}px;
+}
+/* The custom frame owns the top band. Full-viewport upstream dialogs own only
+   the content viewport below it, including dialogs portalled to body. */
+body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extended"])
+  [role="presentation"]:has(> [aria-modal="true"]),
+body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extended"])
+  > [aria-modal="true"] {
+  top: var(--dsh-desktop-frame-height) !important;
+  transform: translateZ(0);
 }
 body[data-dsh-desktop-mode="extended"] #root > :has(> [data-shell-overlay]) {
   --dsw-specific-sidebar-fill: transparent;
   background: transparent !important;
 }
 body[data-dsh-desktop-mode="extended"] #root > :has(> [data-shell-overlay]) > :first-child {
-  background: var(--dsh-desktop-extended-glass-fill) !important;
+  background: var(--dsh-desktop-frame-fill) !important;
 }
 body[data-dsh-desktop-mode="extended"] #root > :has(> [data-shell-overlay]) > :nth-child(2) {
   overflow: hidden;
   border-top-left-radius: ${EXTENDED_INNER_CORNER_RADIUS}px;
   background: var(--dsw-alias-bg-base);
 }
-body[data-dsh-desktop-mode="extended"][data-dsh-desktop-material="off"] {
-  --dsh-desktop-extended-glass-fill: var(--dsw-alias-bg-layer-1);
+body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extended"])
+  [data-dsh-desktop-content-viewport],
+body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extended"])
+  [data-dsh-desktop-frame="titlebar"] {
+  isolation: isolate;
+}
+body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extended"])[data-dsh-desktop-material="off"] {
+  --dsh-desktop-frame-fill: var(--dsw-alias-bg-layer-1);
+}
+body[data-dsh-desktop-mode="compatibility"]:not([data-dsh-desktop-material="off"]) {
+  --dsh-desktop-frame-fill: color-mix(in srgb, var(--dsw-alias-bg-base) 54%, transparent);
 }
 body[data-dsh-desktop-mode="extended"]:not([data-dsh-desktop-material="off"]) {
-  --dsh-desktop-extended-glass-fill: color-mix(in srgb, var(--dsw-alias-bg-base) 18%, transparent);
+  --dsh-desktop-frame-fill: color-mix(in srgb, var(--dsw-alias-bg-base) 18%, transparent);
 }
-.dshDesktopExtendedTitlebar {
+.dshDesktopFrameTitlebar {
   position: fixed;
   z-index: 2147483000;
   top: 0;
@@ -47,19 +73,19 @@ body[data-dsh-desktop-mode="extended"]:not([data-dsh-desktop-material="off"]) {
   display: flex;
   align-items: center;
   box-sizing: border-box;
-  height: ${EXTENDED_TITLEBAR_HEIGHT}px;
-  background: var(--dsh-desktop-extended-glass-fill);
+  height: ${DESKTOP_FRAME_HEIGHT}px;
+  background: var(--dsh-desktop-frame-fill);
   color: var(--dsw-alias-label-primary);
   user-select: none;
   -webkit-app-region: drag;
 }
-.dshDesktopExtendedTitlebar[data-platform="darwin"] {
+.dshDesktopFrameTitlebar[data-platform="darwin"] {
   padding: 0 14px 0 ${MACOS_TRAFFIC_LIGHT_SAFE_WIDTH + 12}px;
 }
-.dshDesktopExtendedTitlebar[data-platform="win32"] {
+.dshDesktopFrameTitlebar[data-platform="win32"] {
   padding: 0 ${WINDOWS_CAPTION_CONTROLS_WIDTH + 12}px 0 16px;
 }
-.dshDesktopExtendedIdentity {
+.dshDesktopFrameIdentity {
   position: absolute;
   left: 50%;
   display: flex;
@@ -69,8 +95,8 @@ body[data-dsh-desktop-mode="extended"]:not([data-dsh-desktop-material="off"]) {
   transform: translateX(-50%);
   pointer-events: none;
 }
-.dshDesktopExtendedProduct { font-size: 13px; font-weight: 600; white-space: nowrap; }
-.dshDesktopExtendedMode {
+.dshDesktopFrameProduct { font-size: 13px; font-weight: 600; white-space: nowrap; }
+.dshDesktopFrameMode {
   padding: 2px 8px;
   border: 1px solid var(--dsw-alias-border-l2);
   border-radius: 999px;
@@ -78,15 +104,15 @@ body[data-dsh-desktop-mode="extended"]:not([data-dsh-desktop-material="off"]) {
   font-size: 11px;
   white-space: nowrap;
 }
-.dshDesktopExtendedActions {
+.dshDesktopFrameActions {
   position: relative;
   display: flex;
   align-items: center;
   min-width: 0;
   -webkit-app-region: no-drag;
 }
-.dshDesktopExtendedTitlebar[data-platform="darwin"] .dshDesktopExtendedActions { margin-left: auto; }
-.dshDesktopExtendedTitlebar[data-platform="win32"] .dshDesktopExtendedActions { margin-right: auto; }
+.dshDesktopFrameTitlebar[data-platform="darwin"] .dshDesktopFrameActions { margin-left: auto; }
+.dshDesktopFrameTitlebar[data-platform="win32"] .dshDesktopFrameActions { margin-right: auto; }
 .dshDesktopNativeActions { display: flex; align-items: center; gap: 8px; -webkit-app-region: no-drag; }
 .dshDesktopNativeActions[data-placement="titlebar"] {
   position: relative;
@@ -118,8 +144,9 @@ body[data-dsh-desktop-mode="extended"]:not([data-dsh-desktop-material="off"]) {
 }
 .dshDesktopTitlebarIconButton:disabled { cursor: default; opacity: .45; }
 .dshDesktopTitlebarIconButton svg,
-.dshDesktopDeveloperMenuItem svg { width: 16px; height: 16px; stroke-width: 1.8; }
-.dshDesktopDeveloperMenu {
+.dshDesktopActionMenuItem svg { width: 16px; height: 16px; stroke-width: 1.8; }
+.dshDesktopNativeActionMenuAnchor { position: relative; }
+.dshDesktopActionMenu {
   position: absolute;
   z-index: 2147483001;
   top: calc(100% + 7px);
@@ -132,9 +159,9 @@ body[data-dsh-desktop-mode="extended"]:not([data-dsh-desktop-material="off"]) {
   box-shadow: 0 12px 32px color-mix(in srgb, #000 28%, transparent);
   -webkit-app-region: no-drag;
 }
-.dshDesktopExtendedTitlebar[data-platform="darwin"] .dshDesktopDeveloperMenu { right: 0; }
-.dshDesktopExtendedTitlebar[data-platform="win32"] .dshDesktopDeveloperMenu { left: 0; }
-.dshDesktopDeveloperMenuItem {
+.dshDesktopFrameTitlebar[data-platform="darwin"] .dshDesktopActionMenu { right: 0; }
+.dshDesktopFrameTitlebar[data-platform="win32"] .dshDesktopActionMenu { left: 0; }
+.dshDesktopActionMenuItem {
   display: flex;
   align-items: center;
   gap: 9px;
@@ -149,9 +176,9 @@ body[data-dsh-desktop-mode="extended"]:not([data-dsh-desktop-material="off"]) {
   font-size: 12px;
   text-align: start;
 }
-.dshDesktopDeveloperMenuItem:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
-.dshDesktopDeveloperMenuItem:disabled { cursor: default; opacity: .45; }
-.dshDesktopDeveloperMenuItem span { flex: 1; }
+.dshDesktopActionMenuItem:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
+.dshDesktopActionMenuItem:disabled { cursor: default; opacity: .45; }
+.dshDesktopActionMenuItem span { flex: 1; }
 .dshDesktopNativeActions[data-placement="titlebar"] .dshDesktopNativeActionError {
   position: absolute;
   top: calc(100% + 7px);
@@ -161,8 +188,8 @@ body[data-dsh-desktop-mode="extended"]:not([data-dsh-desktop-material="off"]) {
   border-radius: 8px;
   background: var(--dsw-alias-bg-layer-1);
 }
-.dshDesktopExtendedTitlebar[data-platform="darwin"] .dshDesktopNativeActionError { right: 0; }
-.dshDesktopExtendedTitlebar[data-platform="win32"] .dshDesktopNativeActionError { left: 0; }
+.dshDesktopFrameTitlebar[data-platform="darwin"] .dshDesktopNativeActionError { right: 0; }
+.dshDesktopFrameTitlebar[data-platform="win32"] .dshDesktopNativeActionError { left: 0; }
 .dshDesktopNativeActionError {
   max-width: 260px;
   color: var(--dsw-alias-state-error-primary);
@@ -175,7 +202,7 @@ export function installExtendedStyles(): () => void {
   const style = document.createElement('style')
   style.id = STYLE_ID
   style.dataset.plugin = 'dsh-plugin-desktop'
-  style.dataset.pluginCss = 'dsh-plugin-desktop/extended-shell'
+  style.dataset.pluginCss = 'dsh-plugin-desktop/framed-shell'
   style.textContent = CSS
   document.head.appendChild(style)
   return () => { style.remove() }

@@ -7,6 +7,7 @@ const PROFILE_DELETE_PATH = '/api/desktop/profiles/delete'
 const MARKET_SELECT_PATH = '/api/desktop/market/select'
 const TERMINAL_OPEN_PATH = '/api/desktop/terminal/open'
 const RESTART_PATH = '/api/desktop/restart'
+const RECOVERY_RESTART_PATH = '/api/desktop/restart/recovery'
 const RENDERER_RELOAD_PATH = '/api/desktop/developer/reload'
 const DEVELOPER_TOOLS_TOGGLE_PATH = '/api/desktop/developer/devtools'
 const MAX_PROFILES = 256
@@ -53,6 +54,7 @@ export interface DesktopSettingsApi {
   selectMarket(provider: DesktopMarketProvider): Promise<DesktopRestartAcceptance>
   openTerminal(): Promise<void>
   restart(): Promise<void>
+  restartToRecovery(): Promise<void>
   reloadRenderer(): Promise<void>
   toggleDeveloperTools(): Promise<void>
 }
@@ -188,6 +190,9 @@ export function createDesktopSettingsApi(fetcher: FetchLike = globalThis.fetch.b
     async restart() {
       parseDesktopActionAcceptance(await readResponse(await post(fetcher, RESTART_PATH, {})))
     },
+    async restartToRecovery() {
+      parseDesktopActionAcceptance(await readResponse(await post(fetcher, RECOVERY_RESTART_PATH, {})))
+    },
     async reloadRenderer() {
       parseDesktopActionAcceptance(await readResponse(await post(fetcher, RENDERER_RELOAD_PATH, {})))
     },
@@ -205,6 +210,7 @@ export const desktopSettingsPaths = Object.freeze({
   marketSelect: MARKET_SELECT_PATH,
   terminalOpen: TERMINAL_OPEN_PATH,
   restart: RESTART_PATH,
+  recoveryRestart: RECOVERY_RESTART_PATH,
   rendererReload: RENDERER_RELOAD_PATH,
   developerToolsToggle: DEVELOPER_TOOLS_TOGGLE_PATH,
 })

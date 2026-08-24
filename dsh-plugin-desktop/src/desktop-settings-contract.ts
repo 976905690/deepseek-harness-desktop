@@ -23,6 +23,9 @@ export const DESKTOP_TERMINAL_OPEN_PATH = '/api/desktop/terminal/open'
 /** Queue an orderly Desktop relaunch after acknowledging the renderer. */
 export const DESKTOP_RESTART_PATH = '/api/desktop/restart'
 
+/** Queue an orderly relaunch that opens the recovery assistant before Host boot. */
+export const DESKTOP_RECOVERY_RESTART_PATH = '/api/desktop/restart/recovery'
+
 /** Reload the renderer through the launcher without exposing Electron APIs. */
 export const DESKTOP_RENDERER_RELOAD_PATH = '/api/desktop/developer/reload'
 
@@ -125,6 +128,12 @@ export type DesktopRestartRequest = Readonly<Record<string, never>>
 export interface DesktopRestartResponse {
   readonly accepted: true
 }
+
+/** Exact empty body accepted by the recovery-restart endpoint. */
+export type DesktopRecoveryRestartRequest = Readonly<Record<string, never>>
+
+/** Successful handoff to the launcher's recovery relaunch flow. */
+export type DesktopRecoveryRestartResponse = DesktopRestartResponse
 
 /** Exact empty body accepted by the renderer-reload endpoint. */
 export type DesktopRendererReloadRequest = Readonly<Record<string, never>>

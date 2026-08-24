@@ -36,6 +36,7 @@ import {
   DESKTOP_PROFILE_ROLLBACK_PATH,
   DESKTOP_PROFILE_SELECT_PATH,
   DESKTOP_RESTART_PATH,
+  DESKTOP_RECOVERY_RESTART_PATH,
   DESKTOP_RENDERER_RELOAD_PATH,
   DESKTOP_SETTINGS_PATH,
   DESKTOP_TERMINAL_OPEN_PATH,
@@ -50,6 +51,7 @@ import {
   handleDesktopProfileRollbackRequest,
   handleDesktopProfileSelectRequest,
   handleDesktopRestartRequest,
+  handleDesktopRecoveryRestartRequest,
   handleDesktopRendererReloadRequest,
   handleDesktopSettingsRequest,
   handleDesktopTerminalOpenRequest,
@@ -224,6 +226,7 @@ export function apply(ctx: Context, config: Config): void {
       [DESKTOP_MARKET_SELECT_PATH, handleDesktopMarketSelectRequest],
       [DESKTOP_TERMINAL_OPEN_PATH, handleDesktopTerminalOpenRequest],
       [DESKTOP_RESTART_PATH, handleDesktopRestartRequest],
+      [DESKTOP_RECOVERY_RESTART_PATH, handleDesktopRecoveryRestartRequest],
       [DESKTOP_RENDERER_RELOAD_PATH, handleDesktopRendererReloadRequest],
       [DESKTOP_DEVELOPER_TOOLS_TOGGLE_PATH, handleDesktopDeveloperToolsToggleRequest],
       [DESKTOP_DIAGNOSTICS_EXPORT_PATH, handleDesktopDiagnosticsExportRequest],
@@ -316,7 +319,7 @@ export function apply(ctx: Context, config: Config): void {
       if (pending !== undefined) clearImmediate(pending)
     }
   }, 'dsh-plugin-desktop: restart after startup setting change')
-  if (config.mode !== 'compatibility') {
+  if (runtime.platform !== 'linux') {
     ctx.on('settings/updated', (namespace, next) => {
       if (namespace !== UI_THEME_SETTINGS_NAMESPACE) return
       runtime.setThemeSource((next as ThemeSettings).preference)

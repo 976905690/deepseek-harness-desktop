@@ -94,6 +94,8 @@ interface DesktopWindowService {
 
 扩展窗口还会声明一个可叠加、root-scoped 的 `desktop.titlebar.action` list slot。Web Client 插件可以通过普通 slot API 在这里注册紧凑操作。操作栏本身始终是拖动区域，因此 contribution 根节点必须设置 `-webkit-app-region: no-drag`，并通过 Host route 或普通 service 完成功能，不能调用 Electron API。该 slot 在其他模式中不存在，所以 registration 必须使用普通 slot injection，并能正确等待或 dispose。第一方图标组在 macOS 位于右侧、在 Windows 位于左侧；居中的标题不参与 contribution 几何。Renderer 重载与开发者工具切换是第一方私有 launcher 操作，不会加入公开的 `desktopWindow` service。
 
+Desktop 会用 `data-dsh-desktop-frame="titlebar"` 标记操作栏，并用 `data-dsh-desktop-content-viewport` 标记上游 root。即使全视口对话框 portal 到 `document.body`，它仍属于 content overlay：Desktop 会把它的 presentation root 偏移到 frame 下方。插件不能把 modal portal 到标题栏中，也不能再次补偿这个 offset。
+
 ## 公开 Host Cordis service
 
 请从受支持的 contract 路径执行 type-only import：

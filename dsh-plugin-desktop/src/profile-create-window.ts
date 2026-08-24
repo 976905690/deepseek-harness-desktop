@@ -2,6 +2,7 @@
 
 import { BrowserWindow } from 'electron'
 import { fileURLToPath } from 'node:url'
+import { auxiliaryWindowChromeOptions } from './auxiliary-window-options.ts'
 import { revealApplication } from './electron-reveal.ts'
 import type { DesktopLocale } from './runtime.ts'
 
@@ -88,6 +89,7 @@ export class ProfileCreateWindow {
     const copy = COPY[this.options.locale]
     const window = new BrowserWindow({
       title: copy.title,
+      ...auxiliaryWindowChromeOptions(),
       width: 480,
       height: 360,
       minWidth: 420,
@@ -125,7 +127,9 @@ export class ProfileCreateWindow {
       // Accessing window.webContents here can itself throw during a restart.
       if (this.window === window) this.window = undefined
     })
-    void window.loadFile(PROFILE_CREATE_DOCUMENT, { query: { locale: this.options.locale } }).catch(() => {
+    void window.loadFile(PROFILE_CREATE_DOCUMENT, {
+      query: { locale: this.options.locale, platform: process.platform },
+    }).catch(() => {
       if (!this.disposed && this.window === window) window.close()
     })
   }

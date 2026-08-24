@@ -48,7 +48,10 @@ export function effectiveDesktopWindowMaterial(
   windowsMaterial: WindowsWindowMaterial,
   windowsBuild: number | undefined,
 ): DesktopWindowMaterial {
-  if (mode === 'compatibility' || platform === 'linux') return 'off'
+  // Material now applies to every non-Linux presentation. Keep mode in the
+  // resolver signature so callers cannot accidentally bypass shell context.
+  void mode
+  if (platform === 'linux') return 'off'
   if (platform === 'darwin') return macosMaterial
   if (windowsMaterial === 'mica' && !windowsSupportsMica(windowsBuild)) {
     return windowsSupportsAcrylic(windowsBuild) ? 'acrylic' : 'off'

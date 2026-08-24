@@ -94,6 +94,8 @@ Compatibility mode reports zero insets and a zero-height drag region because the
 
 Extended mode also declares the additive root-scoped `desktop.titlebar.action` list slot. A Web Client plugin may register compact operations there using the ordinary slot API. The command bar itself remains a drag region, so the contribution root must apply `-webkit-app-region: no-drag`; it must use Host routes or ordinary services rather than Electron APIs. The slot is absent outside extended mode, so registrations must use normal slot injection and tolerate waiting or disposal. The first-party icon group sits on the right on macOS and the left on Windows; the centered title does not define contribution geometry. Renderer reload and Developer Tools toggling are private first-party launcher operations, not additions to the public `desktopWindow` service.
 
+Desktop marks the command bar with `data-dsh-desktop-frame="titlebar"` and the upstream root with `data-dsh-desktop-content-viewport`. Full-viewport dialogs remain content overlays even when they portal to `document.body`: Desktop offsets their presentation root below the frame. Plugins must not portal a modal into the titlebar or compensate for this offset again.
+
 ## Public Host Cordis services
 
 Use type-only imports from the supported contract paths:

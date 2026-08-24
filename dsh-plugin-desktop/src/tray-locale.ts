@@ -61,6 +61,49 @@ export interface DesktopDiagnosticsPrivacyCopy {
   readonly cancel: string
 }
 
+export interface DesktopRestartConfirmationCopy {
+  readonly title: string
+  readonly message: string
+  readonly detail: string
+  readonly confirm: string
+  readonly cancel: string
+}
+
+const restartConfirmationCopy: Record<DesktopLocale, Record<'normal' | 'recovery', DesktopRestartConfirmationCopy>> = {
+  en: {
+    normal: {
+      title: 'Restart DSH Desktop',
+      message: 'Restart DSH Desktop now?',
+      detail: 'Running operations and unsent input may be interrupted. Saved settings remain pending if you cancel.',
+      confirm: 'Restart',
+      cancel: 'Cancel',
+    },
+    recovery: {
+      title: 'Restart in Recovery Mode',
+      message: 'Restart DSH Desktop in Recovery Mode?',
+      detail: 'The next launch opens the recovery assistant before the Profile and plugin Host start. Running operations and unsent input may be interrupted.',
+      confirm: 'Restart in Recovery Mode',
+      cancel: 'Cancel',
+    },
+  },
+  zh: {
+    normal: {
+      title: '重启 DSH Desktop',
+      message: '现在重启 DSH Desktop？',
+      detail: '正在运行的操作和未发送的输入可能会中断。如果取消，已保存的设置会继续等待下次重启生效。',
+      confirm: '重启',
+      cancel: '取消',
+    },
+    recovery: {
+      title: '重启到恢复模式',
+      message: '重启 DSH Desktop 并进入恢复模式？',
+      detail: '下次启动会在 Profile 和插件 Host 运行前打开恢复助手。正在运行的操作和未发送的输入可能会中断。',
+      confirm: '重启到恢复模式',
+      cancel: '取消',
+    },
+  },
+}
+
 const diagnosticsPrivacyCopy: Record<DesktopLocale, DesktopDiagnosticsPrivacyCopy> = {
   en: {
     title: 'Export Diagnostics',
@@ -95,4 +138,12 @@ export function desktopTrayLabel(
 /** Resolve the native privacy confirmation shown before diagnostics export. */
 export function desktopDiagnosticsPrivacyCopy(locale: DesktopLocale): DesktopDiagnosticsPrivacyCopy {
   return diagnosticsPrivacyCopy[locale]
+}
+
+/** Resolve the native confirmation shown before every ordinary relaunch request. */
+export function desktopRestartConfirmationCopy(
+  locale: DesktopLocale,
+  target: 'normal' | 'recovery' = 'normal',
+): DesktopRestartConfirmationCopy {
+  return restartConfirmationCopy[locale][target]
 }

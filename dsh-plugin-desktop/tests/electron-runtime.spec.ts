@@ -1,7 +1,7 @@
 import { basename, dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DesktopShellSpec } from '../src/runtime.ts'
-import { EXTENDED_TITLEBAR_HEIGHT } from '../src/window-chrome.ts'
+import { DESKTOP_FRAME_HEIGHT } from '../src/window-chrome.ts'
 
 const terminal = vi.hoisted(() => ({ open: vi.fn() }))
 const diagnostics = vi.hoisted(() => ({ export: vi.fn() }))
@@ -314,7 +314,7 @@ describe('Electron desktop runtime', () => {
     vi.restoreAllMocks()
   })
 
-  it('uses the native macOS frame, Dock icon, and template tray image', async () => {
+  it('uses the independent macOS compatibility frame, Dock icon, and template tray image', async () => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
     electron.app.getPreferredSystemLanguages.mockReturnValue(['zh-Hans-CN', 'en-US'])
     const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
@@ -331,6 +331,8 @@ describe('Electron desktop runtime', () => {
       width: 1280,
       height: 840,
       show: false,
+      titleBarStyle: 'hiddenInset',
+      trafficLightPosition: { x: 16, y: 16 },
       webPreferences: {
         preload: expect.stringMatching(/preload\.cjs$/),
         contextIsolation: true,
@@ -340,22 +342,9 @@ describe('Electron desktop runtime', () => {
       },
     }))
     expect(options).not.toHaveProperty('autoHideMenuBar')
-    for (const option of [
-      'frame',
-      'titleBarStyle',
-      'titleBarOverlay',
-      'trafficLightPosition',
-      'transparent',
-      'vibrancy',
-      'visualEffectState',
-      'backgroundMaterial',
-      'roundedCorners',
-      'thickFrame',
-    ]) {
-      expect(options).not.toHaveProperty(option)
-    }
+    expect(options).not.toHaveProperty('titleBarOverlay')
     expect(electron.browserWindows[0]?.accessibleTitle).toBe('DeepSeek Harness Desktop')
-    expect(spec.readThemeSource).not.toHaveBeenCalled()
+    expect(spec.readThemeSource).toHaveBeenCalledOnce()
     expect(electron.nativeTheme.themeSource).toBe('system')
     expect(electron.browserWindows[0]?.removeMenu).not.toHaveBeenCalled()
     expect(electron.app.dock.setIcon).toHaveBeenCalledWith(electron.appIcon)
@@ -1857,7 +1846,7 @@ describe('Electron desktop runtime', () => {
 
     expect(electron.browserWindowOptions[0]).toEqual(expect.objectContaining({
       transparent: true,
-      titleBarOverlay: expect.objectContaining({ height: EXTENDED_TITLEBAR_HEIGHT }),
+      titleBarOverlay: expect.objectContaining({ height: DESKTOP_FRAME_HEIGHT }),
     }))
     expect(electron.browserWindowOptions[0]).not.toHaveProperty('backgroundMaterial')
     expect(windowsAcrylic.set).toHaveBeenCalledOnce()

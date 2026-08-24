@@ -228,6 +228,9 @@ export interface DesktopRuntime {
   /** Request orderly Cordis teardown followed by an Electron relaunch. */
   requestRestart(): Promise<void>
 
+  /** Request orderly teardown followed by a one-shot recovery-mode relaunch. */
+  requestRecoveryRestart(): Promise<void>
+
   /** Allow the final native quit after the Cordis tree has disposed. */
   prepareToQuit(): void
 }

@@ -13,8 +13,8 @@ export const WINDOWS_TITLEBAR_HEIGHT = 32
 /** Width reserved for the three native Windows caption controls in CSS pixels. */
 export const WINDOWS_CAPTION_CONTROLS_WIDTH = 138
 
-/** Visible cross-platform command-bar height used by extended-window mode. */
-export const EXTENDED_TITLEBAR_HEIGHT = 44
+/** Height of the independent Desktop frame used by compatibility and extended modes. */
+export const DESKTOP_FRAME_HEIGHT = 44
 
 /** Radius of the content corner inside the inverted-L glass frame. */
 export const EXTENDED_INNER_CORNER_RADIUS = 14

@@ -71,6 +71,8 @@ The centered product title and mode pill remain independent from the action grou
 
 The command bar remains visible and draggable while upstream overlays are open. macOS traffic lights and Windows caption controls keep their native hit regions; first-party icons and contributions registered in the additive `desktop.titlebar.action` slot explicitly opt out of dragging and remain clickable.
 
+The DOM declares the command bar as the Desktop frame and the shifted upstream root as its content viewport. Full-viewport upstream dialogs—including body-portalled dialogs—are bounded to that content viewport, so their mask and card start below the 44-pixel frame instead of darkening or intercepting it.
+
 Custom-window material is independent from mode. macOS offers **Off** and **Transparent**. Windows offers **Off** and native **Acrylic**; **Mica** appears only on Windows 11 build 22621 or newer. Windows 10 therefore uses native Acrylic rather than a CSS imitation. An unsupported persisted Mica preference is capability-gated to Acrylic. Changing mode or material performs an orderly restart.
 
 ## Advanced mode

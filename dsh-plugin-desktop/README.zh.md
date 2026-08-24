@@ -71,6 +71,8 @@ Cordis row 会在 profile 激活期间登记原生窗口参数。Launcher 只在
 
 即使上游 overlay 打开，操作栏仍会保持可见且可以拖动窗口。macOS 红绿灯和 Windows 原生标题栏按钮保留各自命中区域；第一方图标以及注册到可叠加 `desktop.titlebar.action` slot 的 contribution 会明确退出拖动区域，因此仍可正常点击。
 
+DOM 会把操作栏声明为 Desktop frame，并把下移后的上游 root 声明为它的 content viewport。全视口上游对话框——包括 portal 到 `body` 的对话框——都会被限制在这个 content viewport 内，因此 mask 与卡片会从 44 像素 frame 下方开始，不会再压暗或拦截顶栏。
+
 自定义窗口材质独立于模式设置。macOS 可选“关闭”或“透明材质”；Windows 可选“关闭”和原生“亚克力”，仅 Windows 11 build 22621 及以上显示 Mica。Windows 10 因此使用真正的原生亚克力，而不是 CSS 模拟。已持久化但系统不支持的 Mica 会按能力门槛回退到亚克力。切换模式或材质都会执行有序重启。
 
 ## 高级模式

@@ -101,6 +101,11 @@ import {
 } from './windows-volume-diagnostics.ts'
 import type { RendererBootReport } from './renderer-boot-contract.ts'
 import { desktopLocaleFromLanguageTag } from './tray-locale.ts'
+import {
+  desktopDefaultRelaunchArguments,
+  desktopRecoveryModeRequested,
+  desktopRecoveryRelaunchArguments,
+} from './relaunch-arguments.ts'
 
 const BIN_NAME = 'dsh-plugin-desktop'
 const PRODUCT_NAME = 'DSH Desktop'
@@ -284,6 +289,7 @@ async function start(): Promise<void> {
   let protectedInstallVerificationActive = false
   let startupStage: DesktopStartupFailureStage = 'electron-ready'
   const appVersion = desktopProductVersion()
+  const recoveryModeRequested = desktopRecoveryModeRequested()
   try {
     logSink = new LogFileSink(join(app.getPath('userData'), 'logs'), {
       maxFileBytes: 10 * 1024 * 1024,
@@ -341,7 +347,9 @@ async function start(): Promise<void> {
   const nativeExit = createDesktopExitCoordinator(
     {
       prepareToQuit: () => { runtime.prepareToQuit() },
-      relaunch: () => { app.relaunch() },
+      relaunch: args => {
+        app.relaunch({ args: [...(args ?? desktopDefaultRelaunchArguments())] })
+      },
       exit: code => { app.exit(code) },
     },
     () => {
@@ -356,13 +364,17 @@ async function start(): Promise<void> {
     },
   )
   let restartRequested = false
-  runtime = new ElectronDesktopRuntime(async () => {
+  runtime = new ElectronDesktopRuntime(async target => {
     if (shutdown === undefined) {
       throw new Error('dsh-plugin-desktop: shutdown coordinator is not ready')
     }
     if (restartRequested) return
     restartRequested = true
-    nativeExit.requestRelaunch()
+    nativeExit.requestRelaunch(
+      target === 'recovery'
+        ? desktopRecoveryRelaunchArguments()
+        : desktopDefaultRelaunchArguments(),
+    )
     await shutdown.request(0)
   }, (report) => {
     if (report.status === 'failed') {
@@ -391,6 +403,7 @@ async function start(): Promise<void> {
   const openStartupRecoveryWindow = async (
     failureDetail: string,
     controller: DesktopStartupRecoveryController | undefined,
+    requested = false,
   ): Promise<'restart' | 'quit' | 'unavailable'> => {
     if (!app.isReady()) return 'unavailable'
     try {
@@ -402,6 +415,7 @@ async function start(): Promise<void> {
         locale: desktopLocaleFromLanguageTag(app.getLocale()),
         failureStage: startupStage,
         failureDetail: maskSecrets(failureDetail),
+        ...(requested ? { requested: true } : {}),
         exportDiagnostics: async signal => await exportDesktopDiagnostics(app.getPath('userData'), {
           appVersion,
           crashDumpsDir: app.getPath('crashDumps'),
@@ -594,6 +608,18 @@ async function start(): Promise<void> {
       electronLogger.error(
         `${BIN_NAME}: deferred plugin install recovery (${recoveryClaim.reason}) for ${recoveryClaim.transaction.packageName}`,
       )
+    }
+    if (recoveryModeRequested) {
+      const recoveryResult = await openStartupRecoveryWindow(
+        'Recovery mode was requested from the Desktop restart menu.',
+        startupRecoveryController,
+        true,
+      )
+      startupRecoveryController.dispose()
+      startupRecoveryController = undefined
+      if (recoveryResult === 'restart') nativeExit.requestRelaunch()
+      await shutdown.request(recoveryResult === 'restart' ? 0 : 1)
+      return
     }
     startupStage = 'profile-composition'
     lifecycleRecorder.transitionStartupStage(startupStage)
@@ -981,6 +1007,13 @@ async function start(): Promise<void> {
             prepared.market.effective,
           ),
           scheduleRestart: scheduleSettingsRestart,
+          scheduleRecoveryRestart: () => {
+            void runtime.requestRecoveryRestart().catch((cause: unknown) => {
+              hostCtx.logger.error(
+                `${BIN_NAME}: failed to restart in recovery mode: ${cause instanceof Error ? cause.message : String(cause)}`,
+              )
+            })
+          },
           openTerminal: () => { runtime.openTerminal() },
           reloadRenderer: () => { runtime.reloadRenderer() },
           toggleDeveloperTools: () => { runtime.toggleDeveloperTools() },

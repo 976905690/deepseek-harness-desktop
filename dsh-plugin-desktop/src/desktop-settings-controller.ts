@@ -16,6 +16,7 @@ import type {
   DesktopProfileRollbackResponse,
   DesktopProfileSelectResponse,
   DesktopRestartResponse,
+  DesktopRecoveryRestartResponse,
   DesktopRendererReloadResponse,
   DesktopSettingsMarketView,
   DesktopSettingsProfileView,
@@ -36,6 +37,8 @@ export interface DesktopSettingsControllerBootstrap {
   selectMarket(provider: DesktopMarketProvider): Promise<DesktopMarketSnapshot>
   /** Queue an orderly restart after a response confirms persisted selection. */
   scheduleRestart(): void
+  /** Queue an orderly restart into the pre-Host recovery assistant. */
+  scheduleRecoveryRestart(): void
   /** Open the launcher-owned DSH terminal. */
   openTerminal(): void
   /** Reload the mounted renderer after its HTTP acknowledgement is delivered. */
@@ -165,6 +168,14 @@ export class DesktopSettingsController {
     return Object.freeze({
       response: Object.freeze({ accepted: true }),
       afterResponse: () => { this.bootstrap.scheduleRestart() },
+    })
+  }
+
+  /** Acknowledge the renderer before queueing a recovery-mode relaunch. */
+  restartToRecovery(): DesktopSettingsPostResponse<DesktopRecoveryRestartResponse> {
+    return Object.freeze({
+      response: Object.freeze({ accepted: true }),
+      afterResponse: () => { this.bootstrap.scheduleRecoveryRestart() },
     })
   }
 

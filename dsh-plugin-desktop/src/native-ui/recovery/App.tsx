@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   FilePenLine,
   FolderOpen,
+  LifeBuoy,
   PackageX,
   Plus,
   Power,
@@ -18,6 +19,7 @@ import { buttonVariants } from '../components/ui/button.tsx'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card.tsx'
 import { ScrollArea } from '../components/ui/scroll-area.tsx'
 import { cn } from '../lib/utils.ts'
+import { DesktopFrame } from '../shared/DesktopFrame.tsx'
 
 const SCHEME = 'dsh-recovery:'
 
@@ -80,6 +82,7 @@ interface RecoveryState {
   readonly locale: Locale
   readonly failureStage: FailureStage
   readonly failureDetail: string
+  readonly requested?: boolean
   readonly snapshot?: RecoverySnapshot
   readonly snapshotError?: string
   readonly diagnostics: { readonly status: 'saving' | 'saved' | 'failed'; readonly filename?: string }
@@ -98,6 +101,9 @@ interface RecoveryState {
 interface Copy {
   readonly title: string
   readonly lead: string
+  readonly requestedLead: string
+  readonly requestedMode: string
+  readonly requestedBody: string
   readonly currentProfile: string
   readonly startupError: string
   readonly failureStage: string
@@ -149,6 +155,9 @@ const COPY: Record<Locale, Copy> = {
   en: {
     title: 'DSH Desktop Recovery',
     lead: 'The active Profile could not start. Diagnose the problem, restore a healthy configuration, or choose another Profile.',
+    requestedLead: 'Recovery Mode was opened before the active Profile and plugin Host started. You can inspect or repair the local configuration safely.',
+    requestedMode: 'Recovery Mode',
+    requestedBody: 'Opened from the Desktop restart menu before ordinary startup.',
     currentProfile: 'Current',
     startupError: 'Startup error',
     failureStage: 'Failure stage',
@@ -208,6 +217,9 @@ const COPY: Record<Locale, Copy> = {
   zh: {
     title: 'DSH Desktop 恢复助手',
     lead: '当前配置无法启动。你可以诊断问题、恢复健康配置，或切换到其他配置。',
+    requestedLead: '恢复模式已在当前配置和插件 Host 启动前打开。你可以安全地检查或修复本地配置。',
+    requestedMode: '恢复模式',
+    requestedBody: '已从 Desktop 重启菜单进入，并暂停普通启动流程。',
     currentProfile: '当前',
     startupError: '启动错误',
     failureStage: '失败阶段',
@@ -382,16 +394,16 @@ function RecoveryContent({ state, copy }: { readonly state: RecoveryState; reado
 
 export function RecoveryApp(): JSX.Element {
   const state = decodeState()
-  if (state === undefined) return <main className="flex min-h-screen items-center justify-center p-6"><Alert variant="destructive"><AlertTriangle /><AlertTitle>DSH Desktop Recovery</AlertTitle><AlertDescription>The recovery state could not be read. Quit and start DSH Desktop again.</AlertDescription></Alert></main>
+  if (state === undefined) return <><DesktopFrame /><main className="dshNativeContent flex h-screen items-center justify-center p-6"><Alert variant="destructive"><AlertTriangle /><AlertTitle>DSH Desktop Recovery</AlertTitle><AlertDescription>The recovery state could not be read. Quit and start DSH Desktop again.</AlertDescription></Alert></main></>
   const copy = COPY[state.locale]
-  return <main className={cn('h-screen overflow-hidden p-5 sm:p-7', state.busy && 'pointer-events-none opacity-70')}><div className="mx-auto flex h-full w-full max-w-3xl flex-col gap-4">
-    <header className="shrink-0 space-y-2"><h1 className="text-2xl font-semibold tracking-tight">{copy.title}</h1><p className="text-sm leading-relaxed text-muted-foreground">{copy.lead}</p>{state.snapshot === undefined ? null : <p className="text-xs text-muted-foreground">{copy.currentProfile}: {state.snapshot.profileName}</p>}</header>
+  return <><DesktopFrame /><main className={cn('dshNativeContent h-screen overflow-hidden p-5 sm:p-7', state.busy && 'pointer-events-none opacity-70')}><div className="mx-auto flex h-full w-full max-w-3xl flex-col gap-4">
+    <header className="shrink-0 space-y-2"><h1 className="text-2xl font-semibold tracking-tight">{copy.title}</h1><p className="text-sm leading-relaxed text-muted-foreground">{state.requested === true ? copy.requestedLead : copy.lead}</p>{state.snapshot === undefined ? null : <p className="text-xs text-muted-foreground">{copy.currentProfile}: {state.snapshot.profileName}</p>}</header>
     <ScrollArea className="min-h-0 flex-1 pr-3"><div className="space-y-4 pb-2">
-      <Card><CardHeader><CardTitle>{copy.startupError}</CardTitle><CardDescription>{copy.failureStage}: {copy.stageLabels[state.failureStage]}</CardDescription></CardHeader><CardContent><pre className="max-h-36 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-muted p-3 text-xs leading-relaxed">{state.failureDetail}</pre></CardContent></Card>
+      {state.requested === true ? <Alert><LifeBuoy /><AlertTitle>{copy.requestedMode}</AlertTitle><AlertDescription>{copy.requestedBody}</AlertDescription></Alert> : <Card><CardHeader><CardTitle>{copy.startupError}</CardTitle><CardDescription>{copy.failureStage}: {copy.stageLabels[state.failureStage]}</CardDescription></CardHeader><CardContent><pre className="max-h-36 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-muted p-3 text-xs leading-relaxed">{state.failureDetail}</pre></CardContent></Card>}
       {state.snapshotError === undefined ? null : <Alert variant="destructive"><AlertTriangle /><AlertTitle>{copy.plugins}</AlertTitle><AlertDescription>{state.snapshotError}</AlertDescription></Alert>}
       {state.notice === undefined ? null : <Notice notice={state.notice} />}
       {state.busy ? <Card><CardContent className="flex items-center gap-2 pt-6 text-sm"><RefreshCw className="animate-spin" />{copy.working}</CardContent></Card> : <RecoveryContent copy={copy} state={state} />}
     </div></ScrollArea>
     <footer className="flex shrink-0 flex-wrap justify-end gap-2">{state.restartReady || state.snapshot?.pendingInstall === undefined ? <Action action="restart" icon={<RotateCcw />} variant={state.restartReady ? 'default' : 'outline'}>{copy.restart}</Action> : null}<Action action="quit" icon={<Power />}>{copy.quit}</Action></footer>
-  </div></main>
+  </div></main></>
 }

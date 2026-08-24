@@ -42,6 +42,7 @@ import { exportDesktopDiagnostics } from './diagnostic-export.ts'
 import {
   desktopDiagnosticsPrivacyCopy,
   desktopLocaleFromLanguageTag,
+  desktopRestartConfirmationCopy,
   desktopTrayLabel,
 } from './tray-locale.ts'
 import {
@@ -116,9 +117,10 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
   private updateCleanupTask: Promise<void> | undefined
   private rendererHealthGate: DesktopRendererHealthGate | undefined
   private profileCreateWindow: ProfileCreateWindow | undefined
+  private restartRequest: Promise<void> | undefined
 
   constructor(
-    private readonly restart: () => Promise<void>,
+    private readonly restart: (target?: 'recovery') => Promise<void>,
     private readonly onRendererBoot: (report: RendererBootReport) => boolean | void = () => {},
     private readonly logger: DesktopLogger | undefined = undefined,
     workspaceVolumeQuery: WindowsVolumeQuery | undefined = undefined,
@@ -210,7 +212,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
           this.generation = undefined
           this.mountTask = undefined
           if (this.scheduled === spec) {
-            if (spec.mode !== 'compatibility') nativeTheme.themeSource = previousThemeSource
+            if (this.platform !== 'linux') nativeTheme.themeSource = previousThemeSource
             this.scheduled = undefined
           }
         }
@@ -433,7 +435,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
 
   /** @inheritdoc */
   setThemeSource(source: DesktopThemeSource): void {
-    if (this.scheduled?.mode !== 'compatibility' && this.generation !== undefined) {
+    if (this.platform !== 'linux' && this.generation !== undefined) {
       nativeTheme.themeSource = source
       // Windows can retain the preceding DWM Mica palette until the window is
       // recomposed (for example after minimize/restore). Reapplying the active
@@ -444,7 +446,42 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
 
   /** @inheritdoc */
   async requestRestart(): Promise<void> {
-    await this.restart()
+    if (this.quitting) return
+    if (this.restartRequest !== undefined) return await this.restartRequest
+    const request = this.confirmAndRestart('normal').finally(() => {
+      if (this.restartRequest === request) this.restartRequest = undefined
+    })
+    this.restartRequest = request
+    await request
+  }
+
+  /** @inheritdoc */
+  async requestRecoveryRestart(): Promise<void> {
+    if (this.quitting) return
+    if (this.restartRequest !== undefined) return await this.restartRequest
+    const request = this.confirmAndRestart('recovery').finally(() => {
+      if (this.restartRequest === request) this.restartRequest = undefined
+    })
+    this.restartRequest = request
+    await request
+  }
+
+  private async confirmAndRestart(target: 'normal' | 'recovery'): Promise<void> {
+    const copy = desktopRestartConfirmationCopy(this.currentLocale, target)
+    const options: Electron.MessageBoxOptions = {
+      type: 'question',
+      title: copy.title,
+      message: copy.message,
+      detail: copy.detail,
+      buttons: [copy.confirm, copy.cancel],
+      defaultId: 1,
+      cancelId: 1,
+      noLink: true,
+    }
+    const result = this.generation === undefined
+      ? await dialog.showMessageBox(options)
+      : await this.generation.showMessageBox(options)
+    if (result.response === 0) await this.restart(target === 'recovery' ? 'recovery' : undefined)
   }
 
   /** @inheritdoc */
