@@ -7,7 +7,12 @@ import {
   desktopWindowOptions,
   extendedWindowOptions,
 } from '../src/window-options.ts'
-import { DESKTOP_FRAME_HEIGHT, WINDOWS_TITLEBAR_HEIGHT } from '../src/window-chrome.ts'
+import {
+  ADVANCED_MACOS_TRAFFIC_LIGHT_TOP,
+  ADVANCED_WINDOWS_TITLEBAR_HEIGHT,
+  DESKTOP_FRAME_HEIGHT,
+  DESKTOP_FRAME_MACOS_TRAFFIC_LIGHT_TOP,
+} from '../src/window-chrome.ts'
 
 const spec: DesktopShellSpec = {
   mode: 'compatibility',
@@ -48,7 +53,7 @@ describe('compatibility BrowserWindow options', () => {
       show: false,
       icon,
       titleBarStyle: 'hiddenInset',
-      trafficLightPosition: { x: 16, y: 12 },
+      trafficLightPosition: { x: 16, y: DESKTOP_FRAME_MACOS_TRAFFIC_LIGHT_TOP },
       webPreferences: {
         preload,
         contextIsolation: true,
@@ -109,7 +114,7 @@ describe('compatibility BrowserWindow options', () => {
 
     expect(options).toEqual(expect.objectContaining({
       titleBarStyle: 'hiddenInset',
-      trafficLightPosition: { x: 16, y: 12 },
+      trafficLightPosition: { x: 16, y: ADVANCED_MACOS_TRAFFIC_LIGHT_TOP },
       transparent: true,
       backgroundColor: '#00000000',
       vibrancy: 'sidebar',
@@ -131,7 +136,7 @@ describe('compatibility BrowserWindow options', () => {
       titleBarOverlay: {
         color: '#00000000',
         symbolColor: '#7f858f',
-        height: WINDOWS_TITLEBAR_HEIGHT,
+        height: ADVANCED_WINDOWS_TITLEBAR_HEIGHT,
       },
       backgroundMaterial: 'mica',
       hasShadow: true,
@@ -167,7 +172,7 @@ describe('compatibility BrowserWindow options', () => {
       preload,
     )
 
-    expect(options.trafficLightPosition).toEqual({ x: 16, y: 12 })
+    expect(options.trafficLightPosition).toEqual({ x: 16, y: DESKTOP_FRAME_MACOS_TRAFFIC_LIGHT_TOP })
     expect(DESKTOP_FRAME_HEIGHT).toBe(36)
   })
 

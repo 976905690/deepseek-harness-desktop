@@ -2,11 +2,11 @@
 
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import {
-  MACOS_DRAG_REGION_HEIGHT,
-  MACOS_TITLEBAR_HEIGHT,
+  ADVANCED_MACOS_CONTENT_INSET,
+  ADVANCED_MACOS_DRAG_REGION_HEIGHT,
+  ADVANCED_WINDOWS_TITLEBAR_HEIGHT,
   MACOS_TRAFFIC_LIGHT_SAFE_WIDTH,
   WINDOWS_CAPTION_CONTROLS_WIDTH,
-  WINDOWS_TITLEBAR_HEIGHT,
   DESKTOP_FRAME_HEIGHT,
 } from '../window-chrome.ts'
 import type { DesktopWindowService } from './contracts.ts'
@@ -65,9 +65,9 @@ export function desktopWindowService(environment: DesktopClientEnvironment): Des
     return Object.freeze({
       ...environment,
       availableMaterials,
-      safeAreaInsets: frozenInsets(MACOS_TITLEBAR_HEIGHT),
+      safeAreaInsets: frozenInsets(ADVANCED_MACOS_CONTENT_INSET),
       dragRegion: frozenDragRegion(
-        MACOS_DRAG_REGION_HEIGHT,
+        ADVANCED_MACOS_DRAG_REGION_HEIGHT,
         MACOS_TRAFFIC_LIGHT_SAFE_WIDTH,
         0,
       ),
@@ -77,9 +77,9 @@ export function desktopWindowService(environment: DesktopClientEnvironment): Des
     return Object.freeze({
       ...environment,
       availableMaterials,
-      safeAreaInsets: frozenInsets(WINDOWS_TITLEBAR_HEIGHT),
+      safeAreaInsets: frozenInsets(ADVANCED_WINDOWS_TITLEBAR_HEIGHT),
       dragRegion: frozenDragRegion(
-        WINDOWS_TITLEBAR_HEIGHT,
+        ADVANCED_WINDOWS_TITLEBAR_HEIGHT,
         0,
         WINDOWS_CAPTION_CONTROLS_WIDTH,
       ),

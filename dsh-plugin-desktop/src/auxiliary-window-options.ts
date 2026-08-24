@@ -1,7 +1,7 @@
 /** Shared custom frame options for Desktop-owned auxiliary windows. */
 
 import type { BrowserWindowConstructorOptions } from 'electron'
-import { DESKTOP_FRAME_HEIGHT, MACOS_TRAFFIC_LIGHT_TOP } from './window-chrome.ts'
+import { DESKTOP_FRAME_HEIGHT, DESKTOP_FRAME_MACOS_TRAFFIC_LIGHT_TOP } from './window-chrome.ts'
 
 /** Whether a renderer-owned frame is needed below visible native controls. */
 export function auxiliaryWindowHasCustomFrame(
@@ -27,7 +27,7 @@ export function auxiliaryWindowChromeOptions(
   if (platform === 'darwin') {
     return {
       titleBarStyle: 'hiddenInset',
-      trafficLightPosition: { x: 16, y: MACOS_TRAFFIC_LIGHT_TOP },
+      trafficLightPosition: { x: 16, y: DESKTOP_FRAME_MACOS_TRAFFIC_LIGHT_TOP },
     }
   }
   if (platform === 'win32') {

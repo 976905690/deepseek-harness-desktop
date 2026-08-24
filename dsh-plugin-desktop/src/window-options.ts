@@ -3,9 +3,10 @@
 import type { BrowserWindowConstructorOptions, NativeImage } from 'electron'
 import type { DesktopPlatform, DesktopShellSpec } from './runtime.ts'
 import {
+  ADVANCED_MACOS_TRAFFIC_LIGHT_TOP,
+  ADVANCED_WINDOWS_TITLEBAR_HEIGHT,
   DESKTOP_FRAME_HEIGHT,
-  MACOS_TRAFFIC_LIGHT_TOP,
-  WINDOWS_TITLEBAR_HEIGHT,
+  DESKTOP_FRAME_MACOS_TRAFFIC_LIGHT_TOP,
 } from './window-chrome.ts'
 
 function baseWindowOptions(
@@ -49,7 +50,10 @@ export function compatibilityWindowOptions(
     throw new Error(`dsh-plugin-desktop: unsupported compatibility window mode ${spec.mode}`)
   }
   if (platform === 'darwin' || platform === 'win32') {
-    return customChromeWindowOptions(spec, icon, platform, preload, DESKTOP_FRAME_HEIGHT)
+    return customChromeWindowOptions(spec, icon, platform, preload, {
+      titlebarHeight: DESKTOP_FRAME_HEIGHT,
+      macosTrafficLightTop: DESKTOP_FRAME_MACOS_TRAFFIC_LIGHT_TOP,
+    })
   }
   const options = baseWindowOptions(spec, icon, platform, preload)
   if (platform === 'linux') return options
@@ -72,7 +76,10 @@ export function advancedWindowOptions(
   if (spec.mode !== 'advanced') {
     throw new Error(`dsh-plugin-desktop: unsupported advanced window mode ${spec.mode}`)
   }
-  return customChromeWindowOptions(spec, icon, platform, preload, WINDOWS_TITLEBAR_HEIGHT)
+  return customChromeWindowOptions(spec, icon, platform, preload, {
+    titlebarHeight: ADVANCED_WINDOWS_TITLEBAR_HEIGHT,
+    macosTrafficLightTop: ADVANCED_MACOS_TRAFFIC_LIGHT_TOP,
+  })
 }
 
 /** Build the visible command-bar window used by extended mode. */
@@ -85,7 +92,15 @@ export function extendedWindowOptions(
   if (spec.mode !== 'extended') {
     throw new Error(`dsh-plugin-desktop: unsupported extended window mode ${spec.mode}`)
   }
-  return customChromeWindowOptions(spec, icon, platform, preload, DESKTOP_FRAME_HEIGHT)
+  return customChromeWindowOptions(spec, icon, platform, preload, {
+    titlebarHeight: DESKTOP_FRAME_HEIGHT,
+    macosTrafficLightTop: DESKTOP_FRAME_MACOS_TRAFFIC_LIGHT_TOP,
+  })
+}
+
+interface CustomChromeGeometry {
+  readonly titlebarHeight: number
+  readonly macosTrafficLightTop: number
 }
 
 function customChromeWindowOptions(
@@ -93,14 +108,14 @@ function customChromeWindowOptions(
   icon: NativeImage,
   platform: DesktopPlatform,
   preload: string,
-  titlebarHeight: number,
+  geometry: CustomChromeGeometry,
 ): BrowserWindowConstructorOptions {
   const options = baseWindowOptions(spec, icon, platform, preload)
   if (platform === 'darwin') {
     const custom: BrowserWindowConstructorOptions = {
       ...options,
       titleBarStyle: 'hiddenInset',
-      trafficLightPosition: { x: 16, y: MACOS_TRAFFIC_LIGHT_TOP },
+      trafficLightPosition: { x: 16, y: geometry.macosTrafficLightTop },
     }
     return spec.material === 'transparent'
       ? {
@@ -120,7 +135,7 @@ function customChromeWindowOptions(
       titleBarOverlay: {
         color: '#00000000',
         symbolColor: '#7f858f',
-        height: titlebarHeight,
+        height: geometry.titlebarHeight,
       },
       ...(spec.material === 'off' ? {} : { backgroundColor: '#00000000' }),
       ...(spec.material === 'acrylic' ? { transparent: true } : {}),

@@ -37,7 +37,7 @@ flowchart LR
 - **Web Client**：官方 Web UI 和第三方浏览器界面。它通过 loopback carrier 工作，不直接调用 Electron。
 - **Native runtime**：Electron BrowserWindow、系统托盘、文件/网络/安装器适配。`desktopRuntime` 只供 Desktop 自有 row 使用。
 
-兼容模式的 Client face 会校验环境，并且只通过 overlay slot 加入一条独立的 36 像素 Desktop frame；官方 layout、root、sidebar 与 conversation 作为完全无关的内容 viewport 从它下方开始。扩展窗口会禁用官方 root layout，安装 Desktop 自有 layout/sidebar surface，并在倒 L 材质 frame 中继续承载官方 sidebar、conversation 与 details occupant。增强模式使用同一套 Desktop 自有 layout 与内部 caption row。macOS 与 Windows 会按系统能力使用原生材质，同时不改变上游 occupant slot 的所有权。
+兼容模式的 Client face 会校验环境，并且只通过 overlay slot 加入一条独立的 36 像素 Desktop frame；官方 layout、root、sidebar 与 conversation 作为完全无关的内容 viewport 从它下方开始。扩展窗口会禁用官方 root layout，安装自己独立注册的 Desktop layout/sidebar surface，并在倒 L 材质 frame 中继续承载官方 sidebar、conversation 与 details occupant。增强模式保留独立 root registration 与最初的紧凑内部 caption 几何。macOS 与 Windows 会按系统能力使用原生材质，同时不改变上游 occupant slot 的所有权。
 
 Desktop 级确认、警告、错误与结果不会进入 Web Client 组件树。`DesktopDialogWindow` 会创建独立、沙箱化的模态 `BrowserWindow`，应用共享的空白 utility frame，并在可能时以当前 generation 窗口为 parent，只接受一次有界本地结果。恢复模式与新增 Profile 是使用同一套无标题 frame 的独立 Desktop-owned 窗口。恢复页面本身使用 shadcn，先展示原因，再提供四个工作流 Tab；破坏性恢复操作会把确认交回 `DesktopDialogWindow`。
 

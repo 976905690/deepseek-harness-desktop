@@ -1,22 +1,25 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import { apply } from '../src/client/index.ts'
+import { AdvancedFrame } from '../src/client/AdvancedFrame.tsx'
+import { applyAdvancedShell } from '../src/client/advanced-shell.ts'
 import { provideDesktopLayout } from '../src/client/layout-service.ts'
 import { parseDesktopClientEnvironment } from '../src/client/environment.ts'
+import { ExtendedFrame } from '../src/client/ExtendedFrame.tsx'
 import { applyExtendedShell } from '../src/client/extended-shell.ts'
 import { installExtendedStyles } from '../src/client/extended-styles.ts'
 import {
   computeDesktopColumns, DesktopLayoutState, MACOS_SIDEBAR_COLLAPSED, SIDEBAR_COLLAPSED,
 } from '../src/client/layout-state.ts'
-import { installAdvancedStyles } from '../src/client/styles.ts'
+import { installDesktopOwnedStyles } from '../src/client/styles.ts'
 import { desktopWindowService, provideDesktopWindow } from '../src/client/window-service.ts'
 import {
+  ADVANCED_MACOS_CONTENT_INSET,
+  ADVANCED_MACOS_DRAG_REGION_HEIGHT,
+  ADVANCED_WINDOWS_TITLEBAR_HEIGHT,
   DESKTOP_FRAME_HEIGHT,
-  MACOS_DRAG_REGION_HEIGHT,
-  MACOS_TITLEBAR_HEIGHT,
   MACOS_TRAFFIC_LIGHT_SAFE_WIDTH,
   WINDOWS_CAPTION_CONTROLS_WIDTH,
-  WINDOWS_TITLEBAR_HEIGHT,
 } from '../src/window-chrome.ts'
 
 describe('desktop client environment', () => {
@@ -57,10 +60,10 @@ describe('desktop client environment', () => {
 
 describe('advanced desktop layout', () => {
   it('owns native caption geometry without targeting feature headers', () => {
-    expect(MACOS_TITLEBAR_HEIGHT).toBe(36)
-    expect(MACOS_DRAG_REGION_HEIGHT).toBe(36)
-    expect(MACOS_DRAG_REGION_HEIGHT).toBe(MACOS_TITLEBAR_HEIGHT)
-    expect(WINDOWS_TITLEBAR_HEIGHT).toBe(36)
+    expect(ADVANCED_MACOS_CONTENT_INSET).toBe(20)
+    expect(ADVANCED_MACOS_DRAG_REGION_HEIGHT).toBe(32)
+    expect(ADVANCED_MACOS_DRAG_REGION_HEIGHT).toBeGreaterThan(ADVANCED_MACOS_CONTENT_INSET)
+    expect(ADVANCED_WINDOWS_TITLEBAR_HEIGHT).toBe(32)
     let css = ''
     const remove = vi.fn()
     const style = {
@@ -76,7 +79,7 @@ describe('advanced desktop layout', () => {
     })
 
     try {
-      const dispose = installAdvancedStyles()
+      const dispose = installDesktopOwnedStyles()
       expect(css).toMatch(/\.dshDesktopFrame \{[^}]*transition: grid-template-columns var\(--ds-transition-duration-slow\) var\(--ds-ease-in-out\);/)
       expect(css).toMatch(/\.dshDesktopFrame\[data-dragging\] \{ transition: none; \}/)
       expect(css).toMatch(/\.dshDesktopFrame\[data-details-collapsed\] \.dshDesktopDetailsSurface \{ border-left: none; \}/)
@@ -85,16 +88,16 @@ describe('advanced desktop layout', () => {
       expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[\s\S]*\.dshDesktopFrame,[\s\S]*\.dshDesktopResizeHandle \{ transition: none !important; \}/)
       expect(css).toMatch(/\.dshDesktopSidebarSurface\s*\{[^}]*--dsw-specific-sidebar-fill:\s*transparent;/)
       expect(css).toMatch(/data-desktop-platform="darwin"\]\[data-sidebar-collapsed\][^{]*\.dshDesktopUpstreamSidebar \{[^}]*width:\s*56px;[^}]*margin:\s*0 auto;/)
-      expect(css).toMatch(new RegExp(`data-desktop-mode="advanced"\\]\\[data-desktop-platform="darwin"\\] \\.dshDesktopUpstreamSidebar \\{[^}]*padding-top: ${MACOS_TITLEBAR_HEIGHT}px;`))
+      expect(css).toMatch(new RegExp(`data-desktop-mode="advanced"\\]\\[data-desktop-platform="darwin"\\] \\.dshDesktopUpstreamSidebar \\{[^}]*padding-top: ${ADVANCED_MACOS_CONTENT_INSET}px;`))
       expect(css).not.toMatch(/\.dshDesktopUpstreamSidebar \{[^}]*-webkit-app-region: no-drag;/)
-      expect(css).toContain(`grid-template-rows: ${MACOS_TITLEBAR_HEIGHT}px minmax(0, 1fr)`)
+      expect(css).toContain(`grid-template-rows: ${ADVANCED_MACOS_CONTENT_INSET}px minmax(0, 1fr)`)
       expect(css).toMatch(/\.dshDesktopFrame\[data-desktop-mode="advanced"\]\[data-desktop-platform="darwin"\] \.dshDesktopSidebarSurface \{[^}]*grid-row: 1 \/ -1;/)
       expect(css).not.toMatch(/data-desktop-platform="darwin"\] \.dshDesktopSidebarSurface \{[^}]*-webkit-app-region: no-drag;/)
       expect(css).toMatch(/\.dshDesktopFrame\[data-desktop-mode="advanced"\]\[data-desktop-platform="darwin"\] \.dshDesktopConversationSurface,\s*\.dshDesktopFrame\[data-desktop-mode="advanced"\]\[data-desktop-platform="darwin"\] \.dshDesktopDetailsSurface \{ grid-row: 2; \}/)
-      expect(css).toMatch(new RegExp(`data-desktop-platform="darwin"\\] \\.dshDesktopSidebarSurface::before \\{[^}]*left: ${MACOS_TRAFFIC_LIGHT_SAFE_WIDTH}px;[^}]*height: ${MACOS_DRAG_REGION_HEIGHT}px;[^}]*-webkit-app-region: drag;`))
+      expect(css).toMatch(new RegExp(`data-desktop-platform="darwin"\\] \\.dshDesktopSidebarSurface::before \\{[^}]*left: ${MACOS_TRAFFIC_LIGHT_SAFE_WIDTH}px;[^}]*height: ${ADVANCED_MACOS_DRAG_REGION_HEIGHT}px;[^}]*-webkit-app-region: drag;`))
       expect(css).not.toMatch(/data-desktop-platform="darwin"\] \.dshDesktopSidebarSurface::before \{[^}]*z-index:/)
       expect(css).toMatch(/\.dshDesktopMacCaptionRow \{[^}]*position: relative;[^}]*grid-column: 2 \/ -1;[^}]*grid-row: 1;/)
-      expect(css).toMatch(new RegExp(`\\.dshDesktopMacCaptionRow::before \\{[^}]*height: ${MACOS_DRAG_REGION_HEIGHT}px;[^}]*-webkit-app-region: drag;`))
+      expect(css).toMatch(new RegExp(`\\.dshDesktopMacCaptionRow::before \\{[^}]*height: ${ADVANCED_MACOS_DRAG_REGION_HEIGHT}px;[^}]*-webkit-app-region: drag;`))
       expect(css).not.toMatch(/\.dshDesktopMacCaptionRow::before \{[^}]*z-index:/)
       expect(css).not.toMatch(/data-desktop-platform="darwin"\] \.dshDesktopSidebarSurface \{[^}]*-webkit-app-region:\s*drag;/)
       expect(css).not.toContain('[data-phase')
@@ -103,7 +106,7 @@ describe('advanced desktop layout', () => {
       expect(css).toContain('[role="switch"]')
       expect(css).not.toMatch(/html:has\(\[aria-modal="true"\]\) \.dshDesktopMacCaptionRow/)
       expect(css).not.toMatch(/html:has\(\[aria-modal="true"\]\) \.dshDesktopSidebarSurface/)
-      expect(css).toContain(`grid-template-rows: ${WINDOWS_TITLEBAR_HEIGHT}px minmax(0, 1fr)`)
+      expect(css).toContain(`grid-template-rows: ${ADVANCED_WINDOWS_TITLEBAR_HEIGHT}px minmax(0, 1fr)`)
       expect(css).toMatch(/\.dshDesktopFrame\[data-desktop-mode="advanced"\]\[data-desktop-platform="win32"\] \.dshDesktopSidebarSurface \{ grid-row: 1 \/ -1; \}/)
       expect(css).toMatch(/\.dshDesktopFrame\[data-desktop-mode="advanced"\]\[data-desktop-platform="win32"\] \.dshDesktopConversationSurface,\s*\.dshDesktopFrame\[data-desktop-mode="advanced"\]\[data-desktop-platform="win32"\] \.dshDesktopDetailsSurface \{ grid-row: 2; \}/)
       expect(css).toMatch(/\.dshDesktopWindowsCaptionRow \{[^}]*grid-column: 2 \/ -1;[^}]*grid-row: 1;/)
@@ -137,6 +140,74 @@ describe('advanced desktop layout', () => {
     expect(disposed).toBe(true)
   })
 
+  it('keeps the enhanced root registration independent from the extended frame', () => {
+    const registrations: Array<Record<string, unknown>> = []
+    const occupants: unknown[] = []
+    const disposers: Array<() => void> = []
+    const dataset: Record<string, string> = {}
+    vi.stubGlobal('document', {
+      body: {
+        dataset,
+        removeAttribute: vi.fn(),
+        setAttribute: vi.fn(),
+        style: { setProperty: vi.fn(), removeProperty: vi.fn() },
+      },
+      documentElement: { style: { colorScheme: '', removeProperty: vi.fn() } },
+      createElement: vi.fn(() => ({
+        content: '',
+        dataset: {},
+        isConnected: false,
+        name: '',
+        remove: vi.fn(),
+        style: { setProperty: vi.fn(), removeProperty: vi.fn() },
+        textContent: '',
+      })),
+      head: { appendChild: vi.fn() },
+    })
+    vi.stubGlobal('getComputedStyle', () => ({ backgroundColor: 'rgb(0, 0, 0)' }))
+    const ctx = {
+      effect: vi.fn((mount: () => void | (() => void)) => {
+        const dispose = mount()
+        if (typeof dispose === 'function') disposers.push(dispose)
+      }),
+      reflect: { provide: vi.fn(() => () => {}) },
+      theme: {
+        getTheme: vi.fn(() => ({ active: { colorScheme: 'dark', tokens: {} } })),
+      },
+      on: vi.fn(() => () => {}),
+      slots: {
+        register: vi.fn((options: Record<string, unknown>, occupant: unknown) => {
+          registrations.push(options)
+          occupants.push(occupant)
+          return () => {}
+        }),
+      },
+    } as unknown as ClientContext
+
+    try {
+      applyAdvancedShell(ctx, {
+        mode: 'advanced',
+        platform: 'darwin',
+        material: 'transparent',
+        micaSupported: false,
+      })
+      expect(registrations).toHaveLength(1)
+      expect(occupants).toEqual([AdvancedFrame])
+      const rootInject = (registrations[0]?.inject as () => Record<string, unknown>)()
+      expect(rootInject).toMatchObject({ platform: 'darwin' })
+      expect(rootInject).not.toHaveProperty('mode')
+      expect(dataset).toMatchObject({
+        dshDesktopMode: 'advanced',
+        dshDesktopPlatform: 'darwin',
+        dshDesktopMaterial: 'transparent',
+      })
+      disposers.forEach(dispose => { dispose() })
+      expect(dataset).toEqual({})
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('reports generation-stable safe areas and drag geometry to client plugins', () => {
     expect(desktopWindowService({
       mode: 'compatibility', platform: 'darwin', material: 'off', micaSupported: false,
@@ -162,9 +233,9 @@ describe('advanced desktop layout', () => {
       material: 'transparent',
       micaSupported: false,
       availableMaterials: ['off', 'transparent'],
-      safeAreaInsets: { top: MACOS_TITLEBAR_HEIGHT, right: 0, bottom: 0, left: 0 },
+      safeAreaInsets: { top: ADVANCED_MACOS_CONTENT_INSET, right: 0, bottom: 0, left: 0 },
       dragRegion: {
-        height: MACOS_DRAG_REGION_HEIGHT,
+        height: ADVANCED_MACOS_DRAG_REGION_HEIGHT,
         leftInset: MACOS_TRAFFIC_LIGHT_SAFE_WIDTH,
         rightInset: 0,
       },
@@ -180,9 +251,9 @@ describe('advanced desktop layout', () => {
       material: 'acrylic',
       micaSupported: false,
       availableMaterials: ['off', 'acrylic'],
-      safeAreaInsets: { top: WINDOWS_TITLEBAR_HEIGHT, right: 0, bottom: 0, left: 0 },
+      safeAreaInsets: { top: ADVANCED_WINDOWS_TITLEBAR_HEIGHT, right: 0, bottom: 0, left: 0 },
       dragRegion: {
-        height: WINDOWS_TITLEBAR_HEIGHT,
+        height: ADVANCED_WINDOWS_TITLEBAR_HEIGHT,
         leftInset: 0,
         rightInset: WINDOWS_CAPTION_CONTROLS_WIDTH,
       },
@@ -298,6 +369,7 @@ describe('independent Desktop frame', () => {
 
   it('owns the extended root and exposes its independent frame action seat', () => {
     const registrations: Array<Record<string, unknown>> = []
+    const occupants: unknown[] = []
     const disposers: Array<() => void> = []
     const dataset: Record<string, string> = {}
     const rootDataset: Record<string, string> = {}
@@ -338,8 +410,9 @@ describe('independent Desktop frame', () => {
       on: vi.fn(() => () => {}),
       slots: {
         inject: vi.fn((_name: string, mount: () => unknown) => mount()),
-        register: vi.fn((options: Record<string, unknown>) => {
+        register: vi.fn((options: Record<string, unknown>, occupant: unknown) => {
           registrations.push(options)
+          occupants.push(occupant)
           return () => {}
         }),
       },
@@ -362,10 +435,12 @@ describe('independent Desktop frame', () => {
         },
       })
       expect(registrations[0]?.inject).toBeTypeOf('function')
-      expect((registrations[0]?.inject as () => Record<string, unknown>)()).toMatchObject({
-        mode: 'extended',
+      const rootInject = (registrations[0]?.inject as () => Record<string, unknown>)()
+      expect(rootInject).toMatchObject({
         platform: 'win32',
       })
+      expect(rootInject).not.toHaveProperty('mode')
+      expect(occupants[0]).toBe(ExtendedFrame)
       expect(registrations[1]).toMatchObject({
         name: 'shell.overlay',
         id: 'desktop-frame-titlebar',
