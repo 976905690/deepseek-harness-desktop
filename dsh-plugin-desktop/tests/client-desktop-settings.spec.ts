@@ -2,7 +2,11 @@ import { describe, expect, it, vi } from 'vitest'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { ClientContext, SettingsScope } from '@deepseek-ai/dsh-client-runtime/client'
-import { DesktopNativeActions } from '../src/client/DesktopNativeActions.tsx'
+import {
+  DesktopDeveloperMenuItems,
+  DesktopNativeActions,
+  DesktopRestartMenuItems,
+} from '../src/client/DesktopNativeActions.tsx'
 import { DesktopSettingsSection } from '../src/client/DesktopSettingsSection.tsx'
 import { DesktopTerminalSettingsAction } from '../src/client/DesktopTerminalSettingsAction.tsx'
 import {
@@ -170,6 +174,29 @@ describe('Desktop native action presentation', () => {
     expect(markup).toContain('Restart Desktop')
     expect(markup).toContain('aria-haspopup="menu"')
     expect(markup).not.toContain('Developer options')
+  })
+
+  it('groups reload with both restart actions and leaves only Developer Tools in its menu', () => {
+    const restartMarkup = renderToStaticMarkup(createElement(DesktopRestartMenuItems, {
+      busy: false,
+      t,
+      onReload: vi.fn(),
+      onRestart: vi.fn(),
+      onRestartToRecovery: vi.fn(),
+    }))
+    const developerMarkup = renderToStaticMarkup(createElement(DesktopDeveloperMenuItems, {
+      busy: false,
+      t,
+      onToggleDeveloperTools: vi.fn(),
+    }))
+
+    expect(restartMarkup.match(/role="menuitem"/g)).toHaveLength(3)
+    expect(restartMarkup.indexOf('Reload renderer')).toBeLessThan(restartMarkup.indexOf('Restart Desktop'))
+    expect(restartMarkup.indexOf('Restart Desktop')).toBeLessThan(restartMarkup.indexOf('Restart in Recovery Mode'))
+    expect(restartMarkup).not.toContain('Toggle Developer Tools')
+    expect(developerMarkup.match(/role="menuitem"/g)).toHaveLength(1)
+    expect(developerMarkup).toContain('Toggle Developer Tools')
+    expect(developerMarkup).not.toContain('Reload renderer')
   })
 
   it('installs a self-contained vertical settings menu in every presentation mode', () => {

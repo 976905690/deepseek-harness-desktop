@@ -6,7 +6,10 @@ import { DesktopNativeActions } from './DesktopNativeActions.tsx'
 
 /** Registration-side capabilities for native Desktop actions. */
 export interface DesktopTerminalSettingsActionInjected {
-  readonly api: Pick<DesktopSettingsApi, 'openTerminal' | 'restart'>
+  readonly api: Pick<
+    DesktopSettingsApi,
+    'openTerminal' | 'restart' | 'restartToRecovery' | 'reloadRenderer' | 'toggleDeveloperTools'
+  >
 }
 
 /** Renderer-composed terminal action props. */
