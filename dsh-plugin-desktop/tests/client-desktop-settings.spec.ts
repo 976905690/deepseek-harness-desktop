@@ -67,7 +67,8 @@ describe('Desktop settings API', () => {
         || path === desktopSettingsPaths.restart
         || path === desktopSettingsPaths.recoveryRestart
         || path === desktopSettingsPaths.rendererReload
-        || path === desktopSettingsPaths.developerToolsToggle) {
+        || path === desktopSettingsPaths.developerToolsToggle
+        || path === desktopSettingsPaths.diagnosticsExport) {
         return json({ accepted: true })
       }
       return path === desktopSettingsPaths.settings || path === desktopSettingsPaths.profileCreate || path === desktopSettingsPaths.profileDelete
@@ -86,6 +87,7 @@ describe('Desktop settings API', () => {
     await expect(api.restartToRecovery()).resolves.toBeUndefined()
     await expect(api.reloadRenderer()).resolves.toBeUndefined()
     await expect(api.toggleDeveloperTools()).resolves.toBeUndefined()
+    await expect(api.exportDiagnostics()).resolves.toBeUndefined()
 
     expect(fetcher.mock.calls.map(call => call[0])).toEqual([
       desktopSettingsPaths.settings,
@@ -98,6 +100,7 @@ describe('Desktop settings API', () => {
       desktopSettingsPaths.recoveryRestart,
       desktopSettingsPaths.rendererReload,
       desktopSettingsPaths.developerToolsToggle,
+      desktopSettingsPaths.diagnosticsExport,
     ])
     expect(fetcher.mock.calls[1]?.[1]).toMatchObject({
       method: 'POST',
@@ -131,6 +134,10 @@ describe('Desktop settings API', () => {
       method: 'POST',
       body: JSON.stringify({}),
     })
+    expect(fetcher.mock.calls[10]?.[1]).toMatchObject({
+      method: 'POST',
+      body: JSON.stringify({}),
+    })
   })
 
   it('does not reflect an untrusted error body into its public error', async () => {
@@ -142,6 +149,7 @@ describe('Desktop settings API', () => {
 
 describe('Desktop native action presentation', () => {
   const api = {
+    exportDiagnostics: vi.fn(async () => {}),
     openTerminal: vi.fn(async () => {}),
     restart: vi.fn(async () => {}),
     restartToRecovery: vi.fn(async () => {}),
@@ -171,6 +179,7 @@ describe('Desktop native action presentation', () => {
     }))
 
     expect(markup).toContain('Open DSH Terminal')
+    expect(markup).toContain('Export Diagnostics')
     expect(markup).toContain('Restart Desktop')
     expect(markup).toContain('aria-haspopup="menu"')
     expect(markup).not.toContain('Developer options')
