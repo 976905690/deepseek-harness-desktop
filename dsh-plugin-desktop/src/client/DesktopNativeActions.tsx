@@ -6,16 +6,67 @@ import type { DesktopSettingsApi } from './desktop-settings-api.ts'
 import type { DesktopSettingsLocaleKey } from './desktop-settings-locales.ts'
 
 export interface DesktopNativeActionsProps {
-  readonly api: Pick<DesktopSettingsApi, 'openTerminal' | 'restart'>
-    & Partial<Pick<DesktopSettingsApi, 'restartToRecovery' | 'reloadRenderer' | 'toggleDeveloperTools'>>
+  readonly api: Pick<
+    DesktopSettingsApi,
+    'openTerminal' | 'restart' | 'restartToRecovery' | 'reloadRenderer' | 'toggleDeveloperTools'
+  >
   readonly t: (key: DesktopSettingsLocaleKey) => string
   readonly placement: 'settings' | 'titlebar'
+}
+
+interface DesktopRestartMenuItemsProps {
+  readonly busy: boolean
+  readonly t: DesktopNativeActionsProps['t']
+  readonly onReload: () => void
+  readonly onRestart: () => void
+  readonly onRestartToRecovery: () => void
+}
+
+/** Shared restart-menu order for Settings and the independent Desktop title bar. */
+export function DesktopRestartMenuItems({
+  busy, t, onReload, onRestart, onRestartToRecovery,
+}: DesktopRestartMenuItemsProps) {
+  return (
+    <>
+      <button type="button" className="dshDesktopActionMenuItem" role="menuitem" disabled={busy} onClick={onReload}>
+        <RefreshCw aria-hidden="true" /><span>{t('reloadRenderer')}</span>
+      </button>
+      <button type="button" className="dshDesktopActionMenuItem" role="menuitem" disabled={busy} onClick={onRestart}>
+        <RotateCw aria-hidden="true" /><span>{t('restartDesktop')}</span>
+      </button>
+      <button type="button" className="dshDesktopActionMenuItem" role="menuitem" disabled={busy} onClick={onRestartToRecovery}>
+        <LifeBuoy aria-hidden="true" /><span>{t('restartToRecovery')}</span>
+      </button>
+    </>
+  )
+}
+
+/** Developer menu intentionally owns only the Developer Tools toggle. */
+export function DesktopDeveloperMenuItems({
+  busy, t, onToggleDeveloperTools,
+}: {
+  readonly busy: boolean
+  readonly t: DesktopNativeActionsProps['t']
+  readonly onToggleDeveloperTools: () => void
+}) {
+  return (
+    <button
+      type="button"
+      className="dshDesktopActionMenuItem"
+      role="menuitem"
+      disabled={busy}
+      onClick={onToggleDeveloperTools}
+    >
+      <Bug aria-hidden="true" />
+      <span>{t('toggleDeveloperTools')}</span>
+    </button>
+  )
 }
 
 export function DesktopNativeActions({ api, t, placement }: DesktopNativeActionsProps) {
   const [opening, setOpening] = useState(false)
   const [restarting, setRestarting] = useState(false)
-  const [developerAction, setDeveloperAction] = useState<'reload' | 'devtools'>()
+  const [rendererAction, setRendererAction] = useState<'reload' | 'devtools'>()
   const [restartMenuOpen, setRestartMenuOpen] = useState(false)
   const [developerMenuOpen, setDeveloperMenuOpen] = useState(false)
   const [failed, setFailed] = useState<'terminal' | 'restart' | 'reload' | 'devtools'>()
@@ -42,7 +93,7 @@ export function DesktopNativeActions({ api, t, placement }: DesktopNativeActions
     }
   }, [developerMenuOpen, restartMenuOpen])
 
-  const busy = opening || restarting || developerAction !== undefined
+  const busy = opening || restarting || rendererAction !== undefined
 
   const open = (): void => {
     if (busy) return
@@ -59,27 +110,22 @@ export function DesktopNativeActions({ api, t, placement }: DesktopNativeActions
     setRestartMenuOpen(false)
     setFailed(undefined)
     const operation = recovery ? api.restartToRecovery : api.restart
-    if (operation === undefined) {
-      setFailed('restart')
-      setRestarting(false)
-      return
-    }
     void operation()
       .catch(() => { setFailed('restart') })
       .finally(() => { setRestarting(false) })
   }
 
-  const runDeveloperAction = (action: 'reload' | 'devtools'): void => {
+  const runRendererAction = (action: 'reload' | 'devtools'): void => {
     if (busy) return
     const operation = action === 'reload' ? api.reloadRenderer : api.toggleDeveloperTools
-    if (operation === undefined) return
-    setDeveloperAction(action)
+    setRendererAction(action)
     setDeveloperMenuOpen(false)
+    setRestartMenuOpen(false)
     setFailed(undefined)
     void operation().catch(() => {
       setFailed(action)
     }).finally(() => {
-      setDeveloperAction(undefined)
+      setRendererAction(undefined)
     })
   }
 
@@ -119,12 +165,13 @@ export function DesktopNativeActions({ api, t, placement }: DesktopNativeActions
           </button>
           {restartMenuOpen && (
             <div className="dshDesktopActionMenu" role="menu">
-              <button type="button" className="dshDesktopActionMenuItem" role="menuitem" disabled={busy} onClick={() => { restart() }}>
-                <RotateCw aria-hidden="true" /><span>{t('restartDesktop')}</span>
-              </button>
-              <button type="button" className="dshDesktopActionMenuItem" role="menuitem" disabled={busy} onClick={() => { restart(true) }}>
-                <LifeBuoy aria-hidden="true" /><span>{t('restartToRecovery')}</span>
-              </button>
+              <DesktopRestartMenuItems
+                busy={busy}
+                t={t}
+                onReload={() => { runRendererAction('reload') }}
+                onRestart={() => { restart() }}
+                onRestartToRecovery={() => { restart(true) }}
+              />
             </div>
           )}
         </div>
@@ -165,12 +212,13 @@ export function DesktopNativeActions({ api, t, placement }: DesktopNativeActions
         </button>
         {restartMenuOpen && (
           <div className="dshDesktopActionMenu" role="menu">
-            <button type="button" className="dshDesktopActionMenuItem" role="menuitem" disabled={busy} onClick={() => { restart() }}>
-              <RotateCw aria-hidden="true" /><span>{t('restartDesktop')}</span>
-            </button>
-            <button type="button" className="dshDesktopActionMenuItem" role="menuitem" disabled={busy} onClick={() => { restart(true) }}>
-              <LifeBuoy aria-hidden="true" /><span>{t('restartToRecovery')}</span>
-            </button>
+            <DesktopRestartMenuItems
+              busy={busy}
+              t={t}
+              onReload={() => { runRendererAction('reload') }}
+              onRestart={() => { restart() }}
+              onRestartToRecovery={() => { restart(true) }}
+            />
           </div>
         )}
       </div>
@@ -192,26 +240,11 @@ export function DesktopNativeActions({ api, t, placement }: DesktopNativeActions
         </button>
         {developerMenuOpen && (
           <div className="dshDesktopActionMenu" role="menu">
-            <button
-              type="button"
-              className="dshDesktopActionMenuItem"
-              role="menuitem"
-              disabled={busy}
-              onClick={() => { runDeveloperAction('reload') }}
-            >
-              <RefreshCw aria-hidden="true" />
-              <span>{t('reloadRenderer')}</span>
-            </button>
-            <button
-              type="button"
-              className="dshDesktopActionMenuItem"
-              role="menuitem"
-              disabled={busy}
-              onClick={() => { runDeveloperAction('devtools') }}
-            >
-              <Bug aria-hidden="true" />
-              <span>{t('toggleDeveloperTools')}</span>
-            </button>
+            <DesktopDeveloperMenuItems
+              busy={busy}
+              t={t}
+              onToggleDeveloperTools={() => { runRendererAction('devtools') }}
+            />
           </div>
         )}
       </div>
