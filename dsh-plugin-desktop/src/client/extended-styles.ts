@@ -40,7 +40,10 @@ body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extende
 body[data-dsh-desktop-mode="extended"] .dshDesktopSidebarSurface {
   --dsw-specific-sidebar-fill: transparent;
   border-right-color: transparent;
-  background: var(--dsh-desktop-frame-fill) !important;
+  background: transparent !important;
+}
+body[data-dsh-desktop-mode="extended"] .dshDesktopFrame {
+  background: var(--dsh-desktop-frame-fill);
 }
 body[data-dsh-desktop-mode="extended"] .dshDesktopConversationSurface {
   box-sizing: border-box;
