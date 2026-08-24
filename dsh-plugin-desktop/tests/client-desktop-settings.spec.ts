@@ -20,6 +20,7 @@ import {
   DESKTOP_SHELL_SETTINGS_NAMESPACE,
 } from '../src/client/desktop-settings.ts'
 import { en, type DesktopSettingsLocaleKey } from '../src/client/desktop-settings-locales.ts'
+import { installDesktopSettingsStyles } from '../src/client/desktop-settings-styles.ts'
 
 const VIEW: DesktopSettingsView = {
   current: 'desktop',
@@ -169,6 +170,34 @@ describe('Desktop native action presentation', () => {
     expect(markup).toContain('Restart Desktop')
     expect(markup).toContain('aria-haspopup="menu"')
     expect(markup).not.toContain('Developer options')
+  })
+
+  it('installs a self-contained vertical settings menu in every presentation mode', () => {
+    let css = ''
+    const remove = vi.fn()
+    const style = {
+      id: '',
+      get textContent() { return css },
+      set textContent(value: string) { css = value },
+      remove,
+    }
+    const appendChild = vi.fn()
+    vi.stubGlobal('document', {
+      getElementById: () => null,
+      createElement: () => style,
+      head: { appendChild },
+    })
+
+    try {
+      const dispose = installDesktopSettingsStyles()
+      expect(css).toMatch(/data-placement="settings"\] \.dshDesktopActionMenu \{[^}]*position: absolute;[^}]*display: grid;[^}]*grid-auto-flow: row;[^}]*grid-template-columns: minmax\(0, 1fr\);[^}]*min-width: 220px;/)
+      expect(css).toMatch(/data-placement="settings"\] \.dshDesktopActionMenuItem \{[^}]*display: flex;[^}]*width: 100%;[^}]*white-space: nowrap;/)
+      expect(appendChild).toHaveBeenCalledWith(style)
+      dispose()
+      expect(remove).toHaveBeenCalledOnce()
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })
 
