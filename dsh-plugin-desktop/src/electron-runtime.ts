@@ -498,12 +498,25 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
       title: notification.title,
       body: notification.body,
     })
+    nativeNotification.once('click', () => { this.show() })
     nativeNotification.show()
+  }
+
+  private async showUpdateMessageBox(options: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> {
+    return this.generation === undefined
+      ? await dialog.showMessageBox(options)
+      : await this.generation.showMessageBox(options)
+  }
+
+  private async showUpdateSaveDialog(options: Electron.SaveDialogOptions): Promise<Electron.SaveDialogReturnValue> {
+    return this.generation === undefined
+      ? await dialog.showSaveDialog(options)
+      : await this.generation.showSaveDialog(options)
   }
 
   /** Ask before making the fixed download endpoint's counted request. */
   private async confirmUpdateDownload(version: string): Promise<boolean> {
-    const result = await dialog.showMessageBox({
+    const result = await this.showUpdateMessageBox({
       type: 'info',
       title: 'DSH Desktop Update Available',
       message: `DSH Desktop ${version} is available.`,
@@ -519,7 +532,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
   /** Report one user-triggered check without exposing network or response details. */
   private async showManualUpdateCheckResult(result: UpdateCheckResult | null): Promise<void> {
     if (result === null) {
-      await dialog.showMessageBox({
+      await this.showUpdateMessageBox({
         type: 'warning',
         title: 'Unable to Check for Updates',
         message: 'DSH Desktop could not check for updates.',
@@ -532,7 +545,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
     }
 
     if (result.status === 'up-to-date') {
-      await dialog.showMessageBox({
+      await this.showUpdateMessageBox({
         type: 'info',
         title: 'DSH Desktop Is Up to Date',
         message: 'No newer version of DSH Desktop is available.',
@@ -544,7 +557,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
       return
     }
 
-    await dialog.showMessageBox({
+    await this.showUpdateMessageBox({
       type: 'info',
       title: 'DSH Desktop Update Available',
       message: `DSH Desktop ${result.latestVersion} is available.`,
@@ -583,7 +596,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
       const openError = await shell.openPath(artifactPath)
       if (openError !== '') throw new Error(`dsh-plugin-desktop: failed to open update disk image: ${openError}`)
       signal.throwIfAborted()
-      await dialog.showMessageBox({
+      await this.showUpdateMessageBox({
         type: 'info',
         title: 'DSH Desktop Update Downloaded',
         message: `DSH Desktop ${version} is ready to install.`,
@@ -595,7 +608,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
       return
     }
 
-    const result = await dialog.showMessageBox({
+    const result = await this.showUpdateMessageBox({
       type: 'info',
       title: 'DSH Desktop Update Downloaded',
       message: `DSH Desktop ${version} is ready to install.`,
@@ -620,7 +633,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
     const zh = this.currentLocale === 'zh'
     const filename = desktopUpdateFilename(this.platform, version)
     const extension = this.platform === 'darwin' ? 'dmg' : 'exe'
-    const result = await dialog.showSaveDialog({
+    const result = await this.showUpdateSaveDialog({
       title: zh ? '保存更新安装包' : 'Save Update Installer',
       defaultPath: join(app.getPath('downloads'), filename),
       buttonLabel: zh ? '保存并下载' : 'Save and Download',
@@ -650,7 +663,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
     const artifact = await pendingDesktopUpdateArtifact(userDataPath, PRODUCT_VERSION, this.platform)
     if (artifact === undefined) return
     const zh = this.currentLocale === 'zh'
-    const result = await dialog.showMessageBox({
+    const result = await this.showUpdateMessageBox({
       type: 'question',
       title: zh ? '删除更新安装包' : 'Remove Update Installer',
       message: zh

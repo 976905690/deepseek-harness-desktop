@@ -1445,6 +1445,9 @@ describe('Electron desktop runtime', () => {
     updater.download.mockResolvedValueOnce('/tmp/DSH-Desktop-2.1.0-mac.dmg')
     const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
     const runtime = new ElectronDesktopRuntime(async () => {})
+    const release = runtime.schedule(spec)
+    await runtime.mountScheduled()
+    const activeWindow = electron.browserWindows[0]
 
     await expect(runtime.updates.request('https://www.dshdesktop.cn/api/desktop/version', { method: 'GET' }))
       .resolves.toBe(response)
@@ -1462,17 +1465,23 @@ describe('Electron desktop runtime', () => {
       currentVersion: '2.0.0',
       latestVersion: '2.0.0',
     })
-    expect(electron.dialog.showMessageBox).toHaveBeenLastCalledWith(expect.objectContaining({
-      title: 'DSH Desktop Is Up to Date',
-      detail: 'Installed version: 2.0.0',
-      buttons: ['OK'],
-    }))
+    expect(electron.dialog.showMessageBox).toHaveBeenLastCalledWith(
+      activeWindow,
+      expect.objectContaining({
+        title: 'DSH Desktop Is Up to Date',
+        detail: 'Installed version: 2.0.0',
+        buttons: ['OK'],
+      }),
+    )
 
     await runtime.updates.showManualCheckResult(null)
-    expect(electron.dialog.showMessageBox).toHaveBeenLastCalledWith(expect.objectContaining({
-      title: 'Unable to Check for Updates',
-      buttons: ['OK'],
-    }))
+    expect(electron.dialog.showMessageBox).toHaveBeenLastCalledWith(
+      activeWindow,
+      expect.objectContaining({
+        title: 'Unable to Check for Updates',
+        buttons: ['OK'],
+      }),
+    )
 
     electron.dialog.showMessageBox.mockResolvedValueOnce({ response: 1, checkboxChecked: false })
     await expect(runtime.updates.confirmDownload('2.1.0')).resolves.toBe(false)
@@ -1486,10 +1495,13 @@ describe('Electron desktop runtime', () => {
       filePath: '/tmp/Downloads/DSH-Desktop-2.1.0-mac.dmg',
     })
     await runtime.updates.downloadAndOpen('2.1.0', controller.signal)
-    expect(electron.dialog.showSaveDialog).toHaveBeenCalledWith(expect.objectContaining({
-      defaultPath: join('/tmp/Downloads', 'DSH-Desktop-2.1.0-mac.dmg'),
-      filters: [{ name: 'Disk Image', extensions: ['dmg'] }],
-    }))
+    expect(electron.dialog.showSaveDialog).toHaveBeenCalledWith(
+      activeWindow,
+      expect.objectContaining({
+        defaultPath: join('/tmp/Downloads', 'DSH-Desktop-2.1.0-mac.dmg'),
+        filters: [{ name: 'Disk Image', extensions: ['dmg'] }],
+      }),
+    )
     expect(updater.download).toHaveBeenCalledWith({
       platform: 'darwin',
       version: '2.1.0',
@@ -1503,10 +1515,13 @@ describe('Electron desktop runtime', () => {
       version: '2.1.0',
       path: '/tmp/DSH-Desktop-2.1.0-mac.dmg',
     })
-    expect(electron.dialog.showMessageBox).toHaveBeenLastCalledWith(expect.objectContaining({
-      title: 'DSH Desktop Update Downloaded',
-      buttons: ['OK'],
-    }))
+    expect(electron.dialog.showMessageBox).toHaveBeenLastCalledWith(
+      activeWindow,
+      expect.objectContaining({
+        title: 'DSH Desktop Update Downloaded',
+        buttons: ['OK'],
+      }),
+    )
 
     runtime.updates.notify({
       title: 'Profile Recovered',
@@ -1518,7 +1533,13 @@ describe('Electron desktop runtime', () => {
       body: 'Reopened the last-known-good profile.',
     })
     expect(notification?.show).toHaveBeenCalledOnce()
-    expect(notification?.once).not.toHaveBeenCalled()
+    expect(notification?.once).toHaveBeenCalledWith('click', expect.any(Function))
+    const click = notification?.once.mock.calls.find(([event]) => event === 'click')?.[1]
+    click()
+    expect(activeWindow?.show).toHaveBeenCalledOnce()
+    expect(activeWindow?.focus).toHaveBeenCalledOnce()
+
+    await release()
   })
 
   it('starts the downloaded Windows installer before requesting orderly exit', async () => {
@@ -1654,11 +1675,14 @@ describe('Electron desktop runtime', () => {
     await runtime.mountScheduled()
     await vi.waitFor(() => { expect(updater.resolve).toHaveBeenCalledOnce() })
 
-    expect(electron.dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({
-      title: 'Remove Update Installer',
-      detail: expect.stringContaining(artifact.path),
-      buttons: ['Delete Installer', 'Keep Installer'],
-    }))
+    expect(electron.dialog.showMessageBox).toHaveBeenCalledWith(
+      electron.browserWindows[0],
+      expect.objectContaining({
+        title: 'Remove Update Installer',
+        detail: expect.stringContaining(artifact.path),
+        buttons: ['Delete Installer', 'Keep Installer'],
+      }),
+    )
     expect(updater.resolve).toHaveBeenCalledWith('/tmp/dsh-desktop-user-data', artifact, remove)
   })
 

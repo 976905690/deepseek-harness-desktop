@@ -246,6 +246,20 @@ export class ElectronShellGeneration {
       : await dialog.showOpenDialog(window, options)
   }
 
+  async showMessageBox(options: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> {
+    const window = this.window
+    return window === undefined || window.isDestroyed()
+      ? await dialog.showMessageBox(options)
+      : await dialog.showMessageBox(window, options)
+  }
+
+  async showSaveDialog(options: Electron.SaveDialogOptions): Promise<Electron.SaveDialogReturnValue> {
+    const window = this.window
+    return window === undefined || window.isDestroyed()
+      ? await dialog.showSaveDialog(options)
+      : await dialog.showSaveDialog(window, options)
+  }
+
   refreshTrayMenu(): void {
     if (this.tray === undefined) return
     this.tray.setContextMenu(Menu.buildFromTemplate(this.options.buildTrayTemplate()))
