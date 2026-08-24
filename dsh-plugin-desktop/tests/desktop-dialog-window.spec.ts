@@ -89,8 +89,8 @@ describe('DesktopDialogWindow', () => {
       closable: false,
       resizable: false,
       height: 300,
-      minHeight: 200,
     }))
+    expect(window?.options).not.toHaveProperty('minHeight')
     expect(window?.options).not.toHaveProperty('titleBarStyle')
     expect(window?.loadFile).toHaveBeenCalledWith(
       expect.stringMatching(/[\\/]native-ui[\\/]desktop-dialog\.html$/u),
@@ -124,8 +124,8 @@ describe('DesktopDialogWindow', () => {
     expect(electron.windows[0]?.options).toEqual(expect.objectContaining({
       titleBarStyle: 'hiddenInset',
       trafficLightPosition: { x: 16, y: 12 },
-      minHeight: 236,
     }))
+    expect(electron.windows[0]?.options).not.toHaveProperty('minHeight')
     expect(electron.windows[0]?.loadFile).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({ query: expect.objectContaining({ frame: 'true' }) }),
