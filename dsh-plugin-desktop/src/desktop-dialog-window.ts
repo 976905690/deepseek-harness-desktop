@@ -8,14 +8,12 @@ import {
   auxiliaryWindowHasCustomFrame,
 } from './auxiliary-window-options.ts'
 import { revealApplication } from './electron-reveal.ts'
-import { DESKTOP_FRAME_HEIGHT } from './window-chrome.ts'
 
 const DIALOG_SCHEME = 'dsh-desktop-dialog:'
 const DIALOG_DOCUMENT = fileURLToPath(new URL('./native-ui/desktop-dialog.html', import.meta.url))
 const MAX_BUTTONS = 4
 const DIALOG_WIDTH = 480
 const DIALOG_INITIAL_HEIGHT = 300
-const DIALOG_MIN_CONTENT_HEIGHT = 200
 const DIALOG_MAX_HEIGHT = 440
 const DIALOG_REVEAL_FALLBACK_MS = 250
 
@@ -97,14 +95,12 @@ export class DesktopDialogWindow {
     // controls; standalone notices keep ordinary close controls.
     const windowControls = this.options.windowControls ?? parent === undefined
     const customFrame = auxiliaryWindowHasCustomFrame(process.platform, windowControls)
-    const minimumHeight = DIALOG_MIN_CONTENT_HEIGHT + (customFrame ? DESKTOP_FRAME_HEIGHT : 0)
     const window = new BrowserWindow({
       title: this.options.title,
       ...auxiliaryWindowChromeOptions(process.platform, windowControls),
       width: DIALOG_WIDTH,
       height: DIALOG_INITIAL_HEIGHT,
       minWidth: 420,
-      minHeight: minimumHeight,
       maxWidth: 620,
       maxHeight: DIALOG_MAX_HEIGHT,
       resizable: windowControls,
@@ -160,11 +156,10 @@ export class DesktopDialogWindow {
         const renderedHeight = parseDesktopDialogLayout(href)
         if (renderedHeight === undefined || window.isDestroyed()) return
         const bounds = window.getBounds()
-        const height = Math.max(minimumHeight, renderedHeight)
         window.setBounds({
           ...bounds,
-          y: bounds.y + Math.round((bounds.height - height) / 2),
-          height,
+          y: bounds.y + Math.round((bounds.height - renderedHeight) / 2),
+          height: renderedHeight,
         }, false)
         layoutReady = true
         if (documentReady) reveal()
