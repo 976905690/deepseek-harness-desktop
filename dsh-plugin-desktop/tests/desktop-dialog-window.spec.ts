@@ -51,7 +51,6 @@ vi.mock('electron', () => ({ app: electron.app, BrowserWindow: electron.BrowserW
 
 import {
   DesktopDialogWindow,
-  parseDesktopDialogLayout,
   parseDesktopDialogResponse,
 } from '../src/desktop-dialog-window.ts'
 
@@ -67,10 +66,6 @@ describe('DesktopDialogWindow', () => {
     expect(parseDesktopDialogResponse('dsh-desktop-dialog://response?id=-1', 2)).toBeUndefined()
     expect(parseDesktopDialogResponse('dsh-desktop-dialog://response?id=1&command=bad', 2)).toBeUndefined()
     expect(parseDesktopDialogResponse('https://response/?id=1', 2)).toBeUndefined()
-    expect(parseDesktopDialogLayout('dsh-desktop-dialog://layout?height=236')).toBe(236)
-    expect(parseDesktopDialogLayout('dsh-desktop-dialog://layout?height=0')).toBeUndefined()
-    expect(parseDesktopDialogLayout('dsh-desktop-dialog://layout?height=441')).toBeUndefined()
-    expect(parseDesktopDialogLayout('dsh-desktop-dialog://layout?height=236&width=900')).toBeUndefined()
   })
 
   it('creates a frameless parented modal shadcn window and returns its explicit response', async () => {
@@ -94,8 +89,11 @@ describe('DesktopDialogWindow', () => {
       closable: false,
       resizable: false,
       height: 300,
+      useContentSize: true,
+      webPreferences: expect.objectContaining({ enablePreferredSizeMode: true }),
     }))
     expect(window?.options).not.toHaveProperty('minHeight')
+    expect(window?.options).not.toHaveProperty('maxHeight')
     expect(window?.options).not.toHaveProperty('titleBarStyle')
     expect(window?.loadFile).toHaveBeenCalledWith(
       expect.stringMatching(/[\\/]native-ui[\\/]desktop-dialog\.html$/u),
@@ -104,11 +102,12 @@ describe('DesktopDialogWindow', () => {
     const navigate = window?.webListeners.get('will-navigate')
     window?.onceListeners.get('ready-to-show')?.()
     expect(window?.show).not.toHaveBeenCalled()
-    const layoutEvent = { preventDefault: vi.fn() }
-    navigate?.(layoutEvent, 'dsh-desktop-dialog://layout?height=236')
-    expect(layoutEvent.preventDefault).toHaveBeenCalledOnce()
-    expect(window?.setContentSize).toHaveBeenCalledWith(480, 236, false)
-    expect(window?.setBounds).toHaveBeenCalledWith({ x: -4, y: 26, width: 488, height: 248 }, false)
+    const preferredSize = window?.webListeners.get('preferred-size-changed')
+    preferredSize?.({}, { width: 492, height: 167 })
+    expect(window?.setContentSize).not.toHaveBeenCalled()
+    window?.webListeners.get('did-finish-load')?.()
+    expect(window?.setContentSize).toHaveBeenCalledWith(480, 167, false)
+    expect(window?.setBounds).not.toHaveBeenCalled()
     expect(window?.show).toHaveBeenCalledOnce()
     const event = { preventDefault: vi.fn() }
     navigate?.(event, 'dsh-desktop-dialog://response?id=0')
