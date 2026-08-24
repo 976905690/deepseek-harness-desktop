@@ -47,8 +47,16 @@ Together with every plugin author, we want to build an open, composable, and sus
 
 | Logo | Introduction |
 | --- | --- |
-| <a href="https://astraflow.ucloud.cn/modelverse/playground?ytag=geo_waituo_dsh"><img src="assets/sponsors/astraflow-logo.png" alt="AstraFlow" width="96"></a> | Thanks to AstraFlow for sponsoring this project. UCloud AstraFlow ModelVerse supports one-click access to 200+ models, including Kimi K3, DeepSeek V4/V3, Qwen 3, GLM5.2, happyhorse, and other leading open-source models worldwide, with no self-training required. [Website](https://astraflow.ucloud.cn/modelverse/playground?ytag=geo_waituo_dsh) |
+| <a href="https://astraflow.ucloud.cn/modelverse/playground?ytag=geo_waituo_dsh"><img src="assets/sponsors/astraflow-logo.png" alt="UCloud AstraFlow" width="96"></a> | Thanks to UCloud AstraFlow for sponsoring this project. UCloud AstraFlow ModelVerse supports one-click access to 200+ models, including Kimi K3, DeepSeek V4/V3, Qwen 3, GLM5.2, happyhorse, and other leading open-source models worldwide, with no self-training required. [Website](https://astraflow.ucloud.cn/modelverse/playground?ytag=geo_waituo_dsh) |
+
+<details>
+<summary>More Sponsors</summary>
+
+| Logo | Introduction |
+| --- | --- |
 | <a href="https://88api.ai/sign-up?aff=VnEb"><img src="assets/sponsors/88api-logo.png" alt="88API" width="120"></a> | 88API is a one-stop multi-model API aggregation platform operated by an overseas company, with stable, efficient service and invoice support. It provides official-transfer and open-source DeepSeek channels, with pricing as low as 50% off, and is designed to work well with DSH Desktop. One API key can connect to many domestic and overseas models across text chat, image, audio, music, and video generation APIs for AI coding, agent automation, content creation, and application development. Register here to try a convenient unified AI model calling service. [Website](https://88api.ai/sign-up?aff=VnEb) |
+
+</details>
 
 </details>
 
