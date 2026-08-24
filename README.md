@@ -42,6 +42,24 @@ DSH Desktop 将 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harne
 
 我们希望和所有插件作者一起，构建一个开放、可组合、可持续的 DSH 插件生态，让每个插件都能与其他插件共同进步：[DSH 插件生态倡议书](docs/plugin-ecosystem.md)。
 
+<details open>
+<summary>❤️ 赞助商</summary>
+
+| Logo | 简介 |
+| --- | --- |
+| <a href="https://astraflow.ucloud.cn/modelverse/playground?ytag=geo_waituo_dsh"><img src="assets/sponsors/astraflow-logo.png" alt="UCloud 星图 AstraFlow" width="96"></a> | 感谢 UCloud 星图 AstraFlow 大模型赞助了本项目！优刻得 UCloud 星图 AstraFlow 大模型，支持 200+ 模型一键调用：内置 Kimi K3、DeepSeek V4/V3、Qwen 3、GLM5.2、happyhorse 等全球领先开源大模型，无需自训，开箱即用。[官网地址](https://astraflow.ucloud.cn/modelverse/playground?ytag=geo_waituo_dsh) |
+
+<details>
+<summary>更多赞助商</summary>
+
+| Logo | 简介 |
+| --- | --- |
+| <a href="https://88api.ai/sign-up?aff=VnEb"><img src="assets/sponsors/88api-logo.png" alt="88API" width="120"></a> | 88API 是一站式多模型 API 聚合平台，平台由海外企业运营，稳定高效支持开票。平台提供 DeepSeek 官转和开源渠道，价格低至 5 折，完美适配 DSH Desktop 项目。一个 API Key 即可统一接入海内外多种模型，覆盖文本对话、图片、音频、音乐和视频生成接口，适用于 AI 编程、Agent 自动化、内容创作及应用开发。现在点击这里注册，即可体验便捷、统一的 AI 模型调用服务！[官网地址](https://88api.ai/sign-up?aff=VnEb) |
+
+</details>
+
+</details>
+
 ## 文档
 
 普通用户从[用户指南](docs/user-guide.md)开始即可；开发者文档只在需要扩展或维护时才需要阅读。
