@@ -6,6 +6,7 @@ import DesktopSettingsController, {
   type DesktopSettingsControllerBootstrap,
 } from '../src/desktop-settings-controller.ts'
 import {
+  handleDesktopDeveloperToolsToggleRequest,
   handleDesktopDiagnosticsExportRequest,
   handleDesktopMarketSelectRequest,
   handleDesktopProfileCreateRequest,
@@ -14,6 +15,7 @@ import {
   handleDesktopProfileRollbackRequest,
   handleDesktopProfileSelectRequest,
   handleDesktopRestartRequest,
+  handleDesktopRendererReloadRequest,
   handleDesktopSettingsRequest,
   handleDesktopTerminalOpenRequest,
   desktopSettingsRouteConstants,
@@ -71,6 +73,8 @@ function bootstrap(
     selectMarket: async provider => market(provider),
     scheduleRestart: () => {},
     openTerminal: () => {},
+    reloadRenderer: () => {},
+    toggleDeveloperTools: () => {},
     exportDiagnostics: async () => {},
     openProfileCreator: () => {},
     prepareProfileRollback: () => ({
@@ -286,6 +290,23 @@ describe('desktop settings controller', () => {
     expect(scheduleRestart).not.toHaveBeenCalled()
     operation.afterResponse?.()
     expect(scheduleRestart).toHaveBeenCalledOnce()
+  })
+
+  it('keeps developer operations behind bounded launcher callbacks', () => {
+    const reloadRenderer = vi.fn()
+    const toggleDeveloperTools = vi.fn()
+    const controller = new DesktopSettingsController(bootstrap({
+      reloadRenderer,
+      toggleDeveloperTools,
+    }))
+
+    const reload = controller.reloadRenderer()
+    expect(reload.response).toEqual({ accepted: true })
+    expect(reloadRenderer).not.toHaveBeenCalled()
+    reload.afterResponse?.()
+    expect(reloadRenderer).toHaveBeenCalledOnce()
+    expect(controller.toggleDeveloperTools()).toEqual({ accepted: true })
+    expect(toggleDeveloperTools).toHaveBeenCalledOnce()
   })
 
   it('hands native diagnostics, Profile creation, and rollback to launcher capabilities', async () => {
@@ -542,6 +563,36 @@ describe('desktop settings HTTP boundary', () => {
     await handleDesktopRestartRequest(jsonRequest({ reason: 'untrusted' }), rejected, ORIGIN, controller)
     expect(rejected.statusCode).toBe(400)
     expect(scheduleRestart).toHaveBeenCalledOnce()
+  })
+
+  it('serves exact developer actions without accepting renderer commands', async () => {
+    const reloadRenderer = vi.fn()
+    const toggleDeveloperTools = vi.fn()
+    const controller = new DesktopSettingsController(bootstrap({
+      reloadRenderer,
+      toggleDeveloperTools,
+    }))
+    const reloadResponse = response()
+    const devToolsResponse = response()
+
+    await handleDesktopRendererReloadRequest(jsonRequest({}), reloadResponse, ORIGIN, controller)
+    await handleDesktopDeveloperToolsToggleRequest(jsonRequest({}), devToolsResponse, ORIGIN, controller)
+
+    expect(reloadResponse.statusCode).toBe(202)
+    expect(devToolsResponse.statusCode).toBe(200)
+    expect(JSON.parse(reloadResponse.body)).toEqual({ accepted: true })
+    expect(JSON.parse(devToolsResponse.body)).toEqual({ accepted: true })
+    expect(reloadRenderer).not.toHaveBeenCalled()
+    expect(toggleDeveloperTools).toHaveBeenCalledOnce()
+    await new Promise<void>(resolve => { setImmediate(resolve) })
+    expect(reloadRenderer).toHaveBeenCalledOnce()
+
+    const rejected = response()
+    await handleDesktopDeveloperToolsToggleRequest(
+      jsonRequest({ code: 'require("electron")' }), rejected, ORIGIN, controller,
+    )
+    expect(rejected.statusCode).toBe(400)
+    expect(toggleDeveloperTools).toHaveBeenCalledOnce()
   })
 
   it('exports diagnostics, opens the native creator, and starts rollback only after response', async () => {

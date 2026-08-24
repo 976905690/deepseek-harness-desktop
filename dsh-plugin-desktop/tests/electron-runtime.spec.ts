@@ -1,6 +1,7 @@
 import { basename, dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DesktopShellSpec } from '../src/runtime.ts'
+import { EXTENDED_TITLEBAR_HEIGHT } from '../src/window-chrome.ts'
 
 const terminal = vi.hoisted(() => ({ open: vi.fn() }))
 const diagnostics = vi.hoisted(() => ({ export: vi.fn() }))
@@ -75,6 +76,7 @@ const electron = vi.hoisted(() => {
   const menuTemplates: unknown[][] = []
   const notifications: Notification[] = []
   let zoomLevel = 0
+  let devToolsOpened = false
   const dialog = {
     showErrorBox: vi.fn(),
     showOpenDialog: vi.fn(async () => ({ canceled: true, filePaths: [] as string[] })),
@@ -94,10 +96,14 @@ const electron = vi.hoisted(() => {
     setTemplateImage: vi.fn(),
   }
   const webContents = {
+    closeDevTools: vi.fn(() => { devToolsOpened = false }),
     executeJavaScript: vi.fn(async (_code: string, _userGesture?: boolean) => null as string | null),
     getZoomLevel: vi.fn(() => zoomLevel),
+    isDevToolsOpened: vi.fn(() => devToolsOpened),
     on: vi.fn(),
     off: vi.fn(),
+    openDevTools: vi.fn(() => { devToolsOpened = true }),
+    reloadIgnoringCache: vi.fn(),
     setZoomLevel: vi.fn((level: number) => { zoomLevel = level }),
     setWindowOpenHandler: vi.fn(),
   }
@@ -216,6 +222,7 @@ const electron = vi.hoisted(() => {
     Notification,
     notifications,
     resetZoomLevel: () => { zoomLevel = 0 },
+    resetDevTools: () => { devToolsOpened = false },
     shell: {
       openExternal: vi.fn(async () => {}),
       openPath: vi.fn(async () => ''),
@@ -299,6 +306,7 @@ describe('Electron desktop runtime', () => {
     electron.shell.openPath.mockResolvedValue('')
     electron.nativeTheme.themeSource = 'system'
     electron.resetZoomLevel()
+    electron.resetDevTools()
   })
 
   afterEach(() => {
@@ -372,6 +380,27 @@ describe('Electron desktop runtime', () => {
     await release()
     expect(electron.browserWindowOff).toHaveBeenCalledWith('page-title-updated', titleListener)
     expect(electron.trays[0]?.off).toHaveBeenCalledWith('click', expect.any(Function))
+  })
+
+  it('reloads the renderer and toggles Developer Tools only for a mounted generation', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
+    const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
+    const runtime = new ElectronDesktopRuntime(async () => {})
+
+    expect(() => { runtime.reloadRenderer() }).toThrow('active shell generation')
+    expect(() => { runtime.toggleDeveloperTools() }).toThrow('active shell generation')
+
+    const release = runtime.schedule(spec)
+    await runtime.mountScheduled()
+    runtime.reloadRenderer()
+    expect(electron.webContents.reloadIgnoringCache).toHaveBeenCalledOnce()
+
+    runtime.toggleDeveloperTools()
+    expect(electron.webContents.openDevTools).toHaveBeenCalledWith({ mode: 'detach', activate: true })
+    runtime.toggleDeveloperTools()
+    expect(electron.webContents.closeDevTools).toHaveBeenCalledOnce()
+
+    await release()
   })
 
   it('uses the Windows caption, hidden menu bar, removed menu, and fixed blue tray image', async () => {
@@ -1206,7 +1235,7 @@ describe('Electron desktop runtime', () => {
         appExecutable: process.execPath,
         electronVersion: '43.4.0',
         profileName: 'desktop',
-        productVersion: '2.0.4',
+        productVersion: '2.0.5',
         profileDir: expect.stringMatching(/profiles[\\/]+desktop$/u),
         homeDir: expect.stringContaining('dsh-desktop-user-data'),
         installRecoveryStatePath: expect.stringMatching(/[\\/]plugin-install-recovery[\\/]state\.json$/u),
@@ -1243,7 +1272,7 @@ describe('Electron desktop runtime', () => {
     expect(diagnostics.export).toHaveBeenCalledWith(
       expect.stringContaining('dsh-desktop-user-data'),
       expect.objectContaining({
-        appVersion: '2.0.4',
+        appVersion: '2.0.5',
         crashDumpsDir: expect.stringMatching(/[\\/]Crashpad$/u),
       }),
     )
@@ -1474,7 +1503,7 @@ describe('Electron desktop runtime', () => {
     expect(runtime.updates).toMatchObject({
       isPackaged: false,
       canDownload: false,
-      currentVersion: '2.0.4',
+      currentVersion: '2.0.5',
       statePath: join('/tmp/dsh-desktop-user-data', 'updates', 'state.json'),
     })
     electron.app.isPackaged = true
@@ -1828,7 +1857,7 @@ describe('Electron desktop runtime', () => {
 
     expect(electron.browserWindowOptions[0]).toEqual(expect.objectContaining({
       transparent: true,
-      titleBarOverlay: expect.objectContaining({ height: 52 }),
+      titleBarOverlay: expect.objectContaining({ height: EXTENDED_TITLEBAR_HEIGHT }),
     }))
     expect(electron.browserWindowOptions[0]).not.toHaveProperty('backgroundMaterial')
     expect(windowsAcrylic.set).toHaveBeenCalledOnce()

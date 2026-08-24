@@ -349,6 +349,22 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
   }
 
   /** @inheritdoc */
+  reloadRenderer(): void {
+    if (this.generation === undefined) {
+      throw new Error('dsh-plugin-desktop: renderer reload requires an active shell generation')
+    }
+    this.generation.reloadRenderer()
+  }
+
+  /** @inheritdoc */
+  toggleDeveloperTools(): void {
+    if (this.generation === undefined) {
+      throw new Error('dsh-plugin-desktop: Developer Tools require an active shell generation')
+    }
+    this.generation.toggleDeveloperTools()
+  }
+
+  /** @inheritdoc */
   exportDiagnostics(): Promise<void> {
     if (this.diagnosticExport !== undefined) return this.diagnosticExport
     const operation = this.performDiagnosticExport().finally(() => {

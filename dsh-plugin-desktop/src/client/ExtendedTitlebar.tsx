@@ -37,7 +37,10 @@ export function ExtendedTitlebar({ environment, renderSlot, t }: ExtendedTitleba
 }
 
 export interface ExtendedTitlebarNativeActionsInjected {
-  readonly api: Pick<DesktopSettingsApi, 'openTerminal' | 'restart'>
+  readonly api: Pick<
+    DesktopSettingsApi,
+    'openTerminal' | 'restart' | 'reloadRenderer' | 'toggleDeveloperTools'
+  >
 }
 
 export type ExtendedTitlebarNativeActionsProps = PropsRuntime<'desktop.titlebar.action'>

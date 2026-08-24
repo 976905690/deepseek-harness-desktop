@@ -279,6 +279,25 @@ export class ElectronShellGeneration {
     this.prepareFullscreenReveal?.()
   }
 
+  /** Reload the active renderer without permitting arbitrary renderer commands. */
+  reloadRenderer(): void {
+    const window = this.window
+    if (window === undefined || window.isDestroyed()) {
+      throw new Error('dsh-plugin-desktop: renderer reload requires a mounted window')
+    }
+    window.webContents.reloadIgnoringCache()
+  }
+
+  /** Toggle Developer Tools for the active renderer. */
+  toggleDeveloperTools(): void {
+    const window = this.window
+    if (window === undefined || window.isDestroyed()) {
+      throw new Error('dsh-plugin-desktop: Developer Tools require a mounted window')
+    }
+    if (window.webContents.isDevToolsOpened()) window.webContents.closeDevTools()
+    else window.webContents.openDevTools({ mode: 'detach', activate: true })
+  }
+
   notifyAttention(notification: DesktopNotification): void {
     const window = this.window
     if (window === undefined || window.isDestroyed() || window.isFocused()) return

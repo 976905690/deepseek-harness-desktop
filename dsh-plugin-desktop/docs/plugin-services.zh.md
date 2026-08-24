@@ -88,11 +88,11 @@ interface DesktopWindowService {
 
 所有值都会在一个 renderer generation 内保持不变，几何值使用 CSS 像素。`material` 是经过系统能力门槛解析后的实际材质，而不只是持久化的偏好。macOS 的 `availableMaterials` 为 `off/transparent`；Windows 10 为 `off/acrylic`；Windows 11 build 22621 及以上还会加入 `mica`。
 
-兼容模式由操作系统拥有普通窗口边框，因此 inset 和拖动区域高度都为零。扩展窗口报告顶部 52 像素的预留区与拖动带，并在 macOS 左侧为红绿灯排除 80 像素，或在 Windows 右侧为原生标题栏按钮排除 138 像素。Desktop 已经把完整官方 frame 下移到该区域下方，因此普通上游 slot occupant 不能再次叠加这一 inset。macOS 增强模式会报告顶部 20 像素的内容 inset、连续 44 像素的拖动带和左侧 80 像素排除区；Windows 增强模式会报告顶部 32 像素的内容 inset 与拖动带，以及右侧 138 像素排除区。
+兼容模式由操作系统拥有普通窗口边框，因此 inset 和拖动区域高度都为零。扩展窗口在 macOS 与 Windows 上都报告顶部 44 像素的预留区与拖动带，并在 macOS 左侧为红绿灯排除 80 像素，或在 Windows 右侧为原生标题栏按钮排除 138 像素。Desktop 已经把完整官方 frame 下移到该区域下方，因此普通上游 slot occupant 不能再次叠加这一 inset。macOS 增强模式会报告顶部 20 像素的内容 inset、连续 44 像素的拖动带和左侧 80 像素排除区；Windows 增强模式会报告顶部 32 像素的内容 inset 与拖动带，以及右侧 138 像素排除区。
 
 `safeAreaInsets` 描述 Desktop 从哪里开始放置完整的上游内容 surface；`dragRegion` 则单独描述原生标题栏命中区域，consumer 不能假设两者高度相同。拖动带内的交互元素必须设置 `-webkit-app-region: no-drag`；Desktop 已经为标准按钮、链接、输入框、可编辑字段、菜单、标签页、开关与对话框设置该排除规则。该 service 只报告几何信息，不提供窗口 mutation、焦点、Electron 或 IPC capability；普通浏览器启动中不存在该 service。
 
-扩展窗口还会声明一个可叠加、root-scoped 的 `desktop.titlebar.action` list slot。Web Client 插件可以通过普通 slot API 在这里注册紧凑操作。操作栏本身始终是拖动区域，因此 contribution 根节点必须设置 `-webkit-app-region: no-drag`，并通过 Host route 或普通 service 完成功能，不能调用 Electron API。该 slot 在其他模式中不存在，所以 registration 必须使用普通 slot injection，并能正确等待或 dispose。
+扩展窗口还会声明一个可叠加、root-scoped 的 `desktop.titlebar.action` list slot。Web Client 插件可以通过普通 slot API 在这里注册紧凑操作。操作栏本身始终是拖动区域，因此 contribution 根节点必须设置 `-webkit-app-region: no-drag`，并通过 Host route 或普通 service 完成功能，不能调用 Electron API。该 slot 在其他模式中不存在，所以 registration 必须使用普通 slot injection，并能正确等待或 dispose。第一方图标组在 macOS 位于右侧、在 Windows 位于左侧；居中的标题不参与 contribution 几何。Renderer 重载与开发者工具切换是第一方私有 launcher 操作，不会加入公开的 `desktopWindow` service。
 
 ## 公开 Host Cordis service
 

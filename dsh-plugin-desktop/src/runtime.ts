@@ -198,6 +198,12 @@ export interface DesktopRuntime {
   /** Open a native terminal containing packaged DSH command shims. */
   openTerminal(): void
 
+  /** Reload the mounted renderer without restarting the Host. */
+  reloadRenderer(): void
+
+  /** Toggle Developer Tools for the mounted renderer. */
+  toggleDeveloperTools(): void
+
   /** Export a diagnostics zip and reveal it in the system file manager. */
   exportDiagnostics(): Promise<void>
 

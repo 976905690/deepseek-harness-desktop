@@ -23,6 +23,12 @@ export const DESKTOP_TERMINAL_OPEN_PATH = '/api/desktop/terminal/open'
 /** Queue an orderly Desktop relaunch after acknowledging the renderer. */
 export const DESKTOP_RESTART_PATH = '/api/desktop/restart'
 
+/** Reload the renderer through the launcher without exposing Electron APIs. */
+export const DESKTOP_RENDERER_RELOAD_PATH = '/api/desktop/developer/reload'
+
+/** Toggle the mounted window's Developer Tools through the launcher. */
+export const DESKTOP_DEVELOPER_TOOLS_TOGGLE_PATH = '/api/desktop/developer/devtools'
+
 /** Export one local diagnostic archive through the launcher-owned flow. */
 export const DESKTOP_DIAGNOSTICS_EXPORT_PATH = '/api/desktop/diagnostics/export'
 
@@ -117,6 +123,22 @@ export type DesktopRestartRequest = Readonly<Record<string, never>>
 
 /** Successful handoff to the launcher's orderly relaunch flow. */
 export interface DesktopRestartResponse {
+  readonly accepted: true
+}
+
+/** Exact empty body accepted by the renderer-reload endpoint. */
+export type DesktopRendererReloadRequest = Readonly<Record<string, never>>
+
+/** Successful handoff to the launcher-owned renderer reload. */
+export interface DesktopRendererReloadResponse {
+  readonly accepted: true
+}
+
+/** Exact empty body accepted by the Developer Tools endpoint. */
+export type DesktopDeveloperToolsToggleRequest = Readonly<Record<string, never>>
+
+/** Successful handoff to the launcher-owned Developer Tools action. */
+export interface DesktopDeveloperToolsToggleResponse {
   readonly accepted: true
 }
 

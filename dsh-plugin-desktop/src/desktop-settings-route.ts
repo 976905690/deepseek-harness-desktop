@@ -185,7 +185,7 @@ function finishPostResponse<T extends object>(
     try {
       operation.afterResponse?.()
     } catch (cause) {
-      reportError(`${operationName} restart`, cause)
+      reportError(`${operationName} after response`, cause)
     }
   })
 }
@@ -359,6 +359,47 @@ export async function handleDesktopRestartRequest(
   if (value === INVALID_BODY) return
   if (!isEmptyRequest(value)) return finishJson(res, 400, error('invalid restart request'))
   finishPostResponse(res, 202, controller.restart(), 'restart Desktop', reportError)
+}
+
+/** Reload the renderer after acknowledging an exact empty same-origin request. */
+export async function handleDesktopRendererReloadRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  expectedOrigin: string,
+  controller: DesktopSettingsController,
+  reportError: (operation: string, cause: unknown) => void = () => {},
+): Promise<void> {
+  if (req.method !== 'POST') return finishJson(res, 405, error('method not allowed'), 'POST')
+  if (!isSameOriginLoopbackRequest(req, expectedOrigin, true)) {
+    return finishJson(res, 403, error('forbidden'))
+  }
+  const value = await parsePostBody(req, res)
+  if (value === INVALID_BODY) return
+  if (!isEmptyRequest(value)) return finishJson(res, 400, error('invalid renderer reload request'))
+  finishPostResponse(res, 202, controller.reloadRenderer(), 'reload renderer', reportError)
+}
+
+/** Toggle Developer Tools from an exact empty same-origin request. */
+export async function handleDesktopDeveloperToolsToggleRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  expectedOrigin: string,
+  controller: DesktopSettingsController,
+  reportError: (operation: string, cause: unknown) => void = () => {},
+): Promise<void> {
+  if (req.method !== 'POST') return finishJson(res, 405, error('method not allowed'), 'POST')
+  if (!isSameOriginLoopbackRequest(req, expectedOrigin, true)) {
+    return finishJson(res, 403, error('forbidden'))
+  }
+  const value = await parsePostBody(req, res)
+  if (value === INVALID_BODY) return
+  if (!isEmptyRequest(value)) return finishJson(res, 400, error('invalid Developer Tools request'))
+  try {
+    finishJson(res, 200, controller.toggleDeveloperTools())
+  } catch (cause) {
+    reportError('toggle Developer Tools', cause)
+    finishJson(res, 500, error('Developer Tools could not be toggled'))
+  }
 }
 
 /** Export diagnostics from an exact empty same-origin request. */

@@ -28,6 +28,7 @@ import {
 } from './directory-picker-route.ts'
 import {
   DESKTOP_DIAGNOSTICS_EXPORT_PATH,
+  DESKTOP_DEVELOPER_TOOLS_TOGGLE_PATH,
   DESKTOP_MARKET_SELECT_PATH,
   DESKTOP_PROFILE_CREATE_PATH,
   DESKTOP_PROFILE_CREATE_WINDOW_PATH,
@@ -35,11 +36,13 @@ import {
   DESKTOP_PROFILE_ROLLBACK_PATH,
   DESKTOP_PROFILE_SELECT_PATH,
   DESKTOP_RESTART_PATH,
+  DESKTOP_RENDERER_RELOAD_PATH,
   DESKTOP_SETTINGS_PATH,
   DESKTOP_TERMINAL_OPEN_PATH,
 } from './desktop-settings-contract.ts'
 import {
   handleDesktopDiagnosticsExportRequest,
+  handleDesktopDeveloperToolsToggleRequest,
   handleDesktopMarketSelectRequest,
   handleDesktopProfileCreateRequest,
   handleDesktopProfileCreateWindowRequest,
@@ -47,6 +50,7 @@ import {
   handleDesktopProfileRollbackRequest,
   handleDesktopProfileSelectRequest,
   handleDesktopRestartRequest,
+  handleDesktopRendererReloadRequest,
   handleDesktopSettingsRequest,
   handleDesktopTerminalOpenRequest,
 } from './desktop-settings-route.ts'
@@ -220,6 +224,8 @@ export function apply(ctx: Context, config: Config): void {
       [DESKTOP_MARKET_SELECT_PATH, handleDesktopMarketSelectRequest],
       [DESKTOP_TERMINAL_OPEN_PATH, handleDesktopTerminalOpenRequest],
       [DESKTOP_RESTART_PATH, handleDesktopRestartRequest],
+      [DESKTOP_RENDERER_RELOAD_PATH, handleDesktopRendererReloadRequest],
+      [DESKTOP_DEVELOPER_TOOLS_TOGGLE_PATH, handleDesktopDeveloperToolsToggleRequest],
       [DESKTOP_DIAGNOSTICS_EXPORT_PATH, handleDesktopDiagnosticsExportRequest],
     ] as const
     for (const [path, handler] of settingsRoutes) {

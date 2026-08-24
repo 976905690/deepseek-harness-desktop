@@ -982,6 +982,8 @@ async function start(): Promise<void> {
           ),
           scheduleRestart: scheduleSettingsRestart,
           openTerminal: () => { runtime.openTerminal() },
+          reloadRenderer: () => { runtime.reloadRenderer() },
+          toggleDeveloperTools: () => { runtime.toggleDeveloperTools() },
           exportDiagnostics: () => runtime.exportDiagnostics(),
           openProfileCreator: () => {
             runtime.openProfileCreateWindow({

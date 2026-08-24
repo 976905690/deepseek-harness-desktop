@@ -65,9 +65,11 @@ Cordis row 会在 profile 激活期间登记原生窗口参数。Launcher 只在
 
 ## 扩展窗口模式
 
-扩展窗口保留官方上游 `ui-layout`、sidebar、conversation 和 details occupant。Desktop 在完整官方 frame 上方加入一条固定的 52 CSS 像素操作栏，并把整个官方 surface 下移，因此上游内容不需要再为标题栏逐个处理安全区。操作栏与官方左侧栏使用同一种材质，组成倒 L 形玻璃区域；主会话 surface 位于倒 L 内侧，内拐角使用 14 像素圆角裁切。
+扩展窗口会保留官方上游 `ui-layout`、sidebar、conversation 和 details occupant，作为兼容增强呈现。Desktop 在完整官方 frame 上方加入一条固定的 44 CSS 像素操作栏，并把整个官方 surface 下移，因此上游内容不需要再为标题栏逐个处理安全区。操作栏与完整的官方左侧栏只透出一层不会叠色的材质，组成连续的倒 L 形玻璃区域；主会话 surface 位于倒 L 内侧，内拐角使用 14 像素圆角裁切。
 
-即使上游 overlay 打开，操作栏仍会保持可见且可以拖动窗口。macOS 红绿灯和 Windows 原生标题栏按钮保留各自命中区域；Desktop 的打开终端、重启按钮以及注册到可叠加 `desktop.titlebar.action` slot 的 contribution 会明确退出拖动区域，因此仍可正常点击。
+居中的产品标题和模式 pill 不受两侧操作组影响。第一方操作使用紧凑图标：macOS 把它们放在红绿灯相对的右侧，Windows 则把它们放在原生标题栏按钮相对的左侧。图标可以打开 DSH 终端、重启 Desktop，或打开开发者菜单来重载 renderer 与切换分离式开发者工具。这些固定操作通过私有同源 launcher 边界执行；页面不会获得原始 Electron 或任意命令接口。
+
+即使上游 overlay 打开，操作栏仍会保持可见且可以拖动窗口。macOS 红绿灯和 Windows 原生标题栏按钮保留各自命中区域；第一方图标以及注册到可叠加 `desktop.titlebar.action` slot 的 contribution 会明确退出拖动区域，因此仍可正常点击。
 
 自定义窗口材质独立于模式设置。macOS 可选“关闭”或“透明材质”；Windows 可选“关闭”和原生“亚克力”，仅 Windows 11 build 22621 及以上显示 Mica。Windows 10 因此使用真正的原生亚克力，而不是 CSS 模拟。已持久化但系统不支持的 Mica 会按能力门槛回退到亚克力。切换模式或材质都会执行有序重启。
 
@@ -213,7 +215,7 @@ corepack.cmd yarn dist:win
 
 该流程不要求 Python 或 Visual Studio C++ Build Tools。Windows 命令会直接使用 `node-pty` 内置的 x64 Node-API 二进制，而不会让 Electron Builder 从源码重新编译；如果安装包 staging tree 缺少这些二进制，packaged-runtime gate 会直接拒绝产物。
 
-`dist:win` 会拒绝非 Windows 或非 x64 宿主，先执行一组 Windows 可运行的 gate，其中包括 build、全部 TypeScript compiler face、打包与原生 shell 聚焦测试，以及 runtime-closure verifier；随后再构建 NSIS 安装向导，并校验生成的两个 PE 文件。完整跨平台 suite 仍由 CI 持有，因为其中部分 POSIX 执行测试不是 Windows 程序。安装向导支持当前用户安装或提升权限后的所有用户安装，可更改安装目录，会创建开始菜单与桌面快捷方式，并且卸载应用时保留 DSH 用户数据。版本 `2.0.4` 会输出到 `dsh-plugin-desktop\dist\DSH-Desktop-2.0.4-x64-Setup.exe`；用于 smoke 测试的未封装程序仍位于 `dsh-plugin-desktop\dist\win-unpacked\DSH Desktop.exe`。
+`dist:win` 会拒绝非 Windows 或非 x64 宿主，先执行一组 Windows 可运行的 gate，其中包括 build、全部 TypeScript compiler face、打包与原生 shell 聚焦测试，以及 runtime-closure verifier；随后再构建 NSIS 安装向导，并校验生成的两个 PE 文件。完整跨平台 suite 仍由 CI 持有，因为其中部分 POSIX 执行测试不是 Windows 程序。安装向导支持当前用户安装或提升权限后的所有用户安装，可更改安装目录，会创建开始菜单与桌面快捷方式，并且卸载应用时保留 DSH 用户数据。版本 `2.0.5` 会输出到 `dsh-plugin-desktop\dist\DSH-Desktop-2.0.5-x64-Setup.exe`；用于 smoke 测试的未封装程序仍位于 `dsh-plugin-desktop\dist\win-unpacked\DSH Desktop.exe`。
 
 该本地命令会主动移除 Windows 证书变量，并设置 `signExecutable=false`。产物可以安装测试，但没有 Authenticode publisher，因此 Windows 可能显示 Unknown publisher 或 SmartScreen 警告。签名后的 Windows release、证书校验、安装器升级与卸载测试，以及原生 UI 和 sandbox smoke 仍是独立的发布 gate。
 
@@ -225,7 +227,7 @@ corepack.cmd yarn dist:win
 corepack.cmd yarn dist:win-portable
 ```
 
-产物为 `dsh-plugin-desktop\\dist\\DSH-Desktop-2.0.4-x64-Portable.zip`。用户解压到任意可写目录后运行其中的 `DSH Desktop.exe`，不需要安装器、管理员权限、开始菜单注册或卸载步骤。它仍会把 profile、日志和缓存写入 Windows 默认用户数据目录，因此这是便携分发方式，不是把数据完全封装在 exe 旁边的自包含沙箱。绿色 ZIP 不会交给 NSIS 自动更新流程，新版本需要手动替换并重新解压。本地构建没有签名，Windows 可能显示 Unknown publisher 或 SmartScreen 警告；签名后的绿色版仍属于正式发布 gate。
+产物为 `dsh-plugin-desktop\\dist\\DSH-Desktop-2.0.5-x64-Portable.zip`。用户解压到任意可写目录后运行其中的 `DSH Desktop.exe`，不需要安装器、管理员权限、开始菜单注册或卸载步骤。它仍会把 profile、日志和缓存写入 Windows 默认用户数据目录，因此这是便携分发方式，不是把数据完全封装在 exe 旁边的自包含沙箱。绿色 ZIP 不会交给 NSIS 自动更新流程，新版本需要手动替换并重新解压。本地构建没有签名，Windows 可能显示 Unknown publisher 或 SmartScreen 警告；签名后的绿色版仍属于正式发布 gate。
 
 ### macOS DMG 冒烟构建
 

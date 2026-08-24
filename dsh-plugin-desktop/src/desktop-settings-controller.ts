@@ -8,6 +8,7 @@ import type { DesktopProfileSummary } from './profile-manager.ts'
 import type { DesktopProfiles } from './profile-service.ts'
 import type {
   DesktopMarketSelectResponse,
+  DesktopDeveloperToolsToggleResponse,
   DesktopDiagnosticsExportResponse,
   DesktopProfileCreateResponse,
   DesktopProfileCreateWindowResponse,
@@ -15,6 +16,7 @@ import type {
   DesktopProfileRollbackResponse,
   DesktopProfileSelectResponse,
   DesktopRestartResponse,
+  DesktopRendererReloadResponse,
   DesktopSettingsMarketView,
   DesktopSettingsProfileView,
   DesktopSettingsResponse,
@@ -36,6 +38,10 @@ export interface DesktopSettingsControllerBootstrap {
   scheduleRestart(): void
   /** Open the launcher-owned DSH terminal. */
   openTerminal(): void
+  /** Reload the mounted renderer after its HTTP acknowledgement is delivered. */
+  reloadRenderer(): void
+  /** Toggle Developer Tools for the mounted renderer. */
+  toggleDeveloperTools(): void
   /** Export diagnostics through the launcher-owned privacy flow. */
   exportDiagnostics(): void | Promise<void>
   /** Open the isolated native Profile creator. */
@@ -160,6 +166,20 @@ export class DesktopSettingsController {
       response: Object.freeze({ accepted: true }),
       afterResponse: () => { this.bootstrap.scheduleRestart() },
     })
+  }
+
+  /** Acknowledge the renderer before replacing its current document. */
+  reloadRenderer(): DesktopSettingsPostResponse<DesktopRendererReloadResponse> {
+    return Object.freeze({
+      response: Object.freeze({ accepted: true }),
+      afterResponse: () => { this.bootstrap.reloadRenderer() },
+    })
+  }
+
+  /** Toggle Developer Tools without exposing an Electron bridge to the page. */
+  toggleDeveloperTools(): DesktopDeveloperToolsToggleResponse {
+    this.bootstrap.toggleDeveloperTools()
+    return Object.freeze({ accepted: true })
   }
 
   /** Export diagnostics through the native confirmation and reveal flow. */

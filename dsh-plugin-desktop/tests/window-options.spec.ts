@@ -139,7 +139,20 @@ describe('compatibility BrowserWindow options', () => {
       transparent: true,
     }))
     expect(options).not.toHaveProperty('backgroundMaterial')
+    expect(EXTENDED_TITLEBAR_HEIGHT).toBe(44)
     expect(desktopWindowOptions(extended, {} as NativeImage, 'win32', preload)).toEqual(options)
+  })
+
+  it('centers macOS traffic lights in the 44px extended command bar', () => {
+    const options = extendedWindowOptions(
+      { ...spec, mode: 'extended', material: 'transparent' },
+      {} as NativeImage,
+      'darwin',
+      preload,
+    )
+
+    expect(options.trafficLightPosition).toEqual({ x: 16, y: 16 })
+    expect(EXTENDED_TITLEBAR_HEIGHT).toBe(44)
   })
 
   it('rejects advanced mode on Linux', () => {
