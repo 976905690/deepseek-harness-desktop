@@ -2,6 +2,7 @@
 
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from './contracts.ts'
+import { applyDesktopOwnedShell } from './advanced-shell.ts'
 import { createDesktopSettingsApi } from './desktop-settings-api.ts'
 import { DESKTOP_SETTINGS_LOCALE_NAMESPACE } from './desktop-settings.ts'
 import type { DesktopClientEnvironment } from './environment.ts'
@@ -61,5 +62,6 @@ export function applyExtendedShell(ctx: ClientContext, environment: DesktopClien
   if (environment.mode !== 'extended') {
     throw new Error(`dsh-plugin-desktop: extended shell received mode ${JSON.stringify(environment.mode)}`)
   }
+  applyDesktopOwnedShell(ctx, environment)
   applyFramedShell(ctx, environment)
 }

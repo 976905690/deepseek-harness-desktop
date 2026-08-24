@@ -9,13 +9,14 @@ import { installAdvancedStyles } from './styles.ts'
 import { DesktopThemePresenter } from './theme-presenter.ts'
 
 /**
- * Provide the advanced layout service and own the desktop root slot.
+ * Provide the Desktop layout service and own the root slot.
  * @param ctx - active browser Cordis context.
  * @param environment - validated mode and platform marker.
  */
-export function applyAdvancedShell(ctx: ClientContext, environment: DesktopClientEnvironment): void {
-  if (environment.mode !== 'advanced') {
-    throw new Error(`dsh-plugin-desktop: advanced shell received mode ${JSON.stringify(environment.mode)}`)
+export function applyDesktopOwnedShell(ctx: ClientContext, environment: DesktopClientEnvironment): void {
+  const mode = environment.mode
+  if (mode !== 'advanced' && mode !== 'extended') {
+    throw new Error(`dsh-plugin-desktop: Desktop-owned shell received mode ${JSON.stringify(mode)}`)
   }
 
   const desktopLayout = new DesktopLayoutState()
@@ -25,7 +26,7 @@ export function applyAdvancedShell(ctx: ClientContext, environment: DesktopClien
   )
 
   ctx.effect(() => {
-    document.body.dataset.dshDesktopMode = 'advanced'
+    document.body.dataset.dshDesktopMode = mode
     document.body.dataset.dshDesktopPlatform = environment.platform
     document.body.dataset.dshDesktopMaterial = environment.material
     const removeStyles = installAdvancedStyles()
@@ -35,7 +36,7 @@ export function applyAdvancedShell(ctx: ClientContext, environment: DesktopClien
       delete document.body.dataset.dshDesktopPlatform
       delete document.body.dataset.dshDesktopMaterial
     }
-  }, 'desktop: advanced shell styles')
+  }, `desktop: ${mode} owned shell styles`)
 
   ctx.effect(() => {
     const presenter = new DesktopThemePresenter()
@@ -55,6 +56,14 @@ export function applyAdvancedShell(ctx: ClientContext, environment: DesktopClien
       'details': { kind: 'single', scope: 'session' },
       'shell.overlay': { kind: 'list', scope: 'root' },
     },
-    inject: () => ({ layout: desktopLayout, platform: environment.platform }),
-  }, AdvancedFrame), 'desktop: advanced root slot')
+    inject: () => ({ layout: desktopLayout, mode, platform: environment.platform }),
+  }, AdvancedFrame), `desktop: ${mode} root slot`)
+}
+
+/** Own the root slot for the enhanced presentation. */
+export function applyAdvancedShell(ctx: ClientContext, environment: DesktopClientEnvironment): void {
+  if (environment.mode !== 'advanced') {
+    throw new Error(`dsh-plugin-desktop: advanced shell received mode ${JSON.stringify(environment.mode)}`)
+  }
+  applyDesktopOwnedShell(ctx, environment)
 }

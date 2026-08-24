@@ -52,7 +52,7 @@ export interface DesktopWindowService {
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Desktop-owned layout service in advanced mode. */
+    /** Desktop-owned layout service in extended and advanced modes. */
     layout: DesktopLayoutService
     /** Native window geometry for the current Desktop renderer generation. */
     desktopWindow: DesktopWindowService
@@ -61,7 +61,7 @@ declare module '@deepseek-ai/cordis' {
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
-    /** Upstream sidebar hosted by the desktop advanced frame. */
+    /** Upstream sidebar occupant hosted by the Desktop-owned frame. */
     'sidebar': { kind: 'single'; scope: 'root'; owner: DesktopSidebarOwnerProps }
     /** Unchanged upstream conversation surface. */
     'conversation': { kind: 'single'; scope: 'session-maybe'; owner: Record<never, never> }

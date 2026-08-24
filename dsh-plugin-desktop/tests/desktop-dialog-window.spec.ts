@@ -52,7 +52,7 @@ describe('DesktopDialogWindow', () => {
     expect(parseDesktopDialogResponse('https://response/?id=1', 2)).toBeUndefined()
   })
 
-  it('creates a parented modal shadcn window and returns its explicit response', async () => {
+  it('creates a frameless parented modal shadcn window and returns its explicit response', async () => {
     const parent = new electron.BrowserWindow({})
     const dialog = new DesktopDialogWindow({
       type: 'question',
@@ -69,12 +69,14 @@ describe('DesktopDialogWindow', () => {
     expect(window?.options).toEqual(expect.objectContaining({
       parent,
       modal: true,
-      titleBarStyle: 'hiddenInset',
-      trafficLightPosition: { x: 16, y: 16 },
+      frame: false,
+      closable: false,
+      resizable: false,
     }))
+    expect(window?.options).not.toHaveProperty('titleBarStyle')
     expect(window?.loadFile).toHaveBeenCalledWith(
       expect.stringMatching(/[\\/]native-ui[\\/]desktop-dialog\.html$/u),
-      expect.objectContaining({ query: expect.objectContaining({ platform: process.platform }) }),
+      expect.objectContaining({ query: expect.objectContaining({ platform: process.platform, frame: 'false' }) }),
     )
     const navigate = window?.webListeners.get('will-navigate')
     const event = { preventDefault: vi.fn() }
@@ -86,6 +88,7 @@ describe('DesktopDialogWindow', () => {
   })
 
   it('maps window close to the configured cancel response', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
     const result = new DesktopDialogWindow({
       title: 'Confirm',
       message: 'Continue?',
@@ -93,6 +96,14 @@ describe('DesktopDialogWindow', () => {
       cancelId: 1,
     }).run()
     await vi.waitFor(() => { expect(electron.windows).toHaveLength(1) })
+    expect(electron.windows[0]?.options).toEqual(expect.objectContaining({
+      titleBarStyle: 'hiddenInset',
+      trafficLightPosition: { x: 16, y: 12 },
+    }))
+    expect(electron.windows[0]?.loadFile).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ query: expect.objectContaining({ frame: 'true' }) }),
+    )
     electron.windows[0]?.listeners.get('closed')?.()
     await expect(result).resolves.toEqual({ response: 1 })
   })

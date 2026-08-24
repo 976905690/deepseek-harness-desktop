@@ -2,7 +2,10 @@
 
 import { BrowserWindow } from 'electron'
 import { fileURLToPath } from 'node:url'
-import { auxiliaryWindowChromeOptions } from './auxiliary-window-options.ts'
+import {
+  auxiliaryWindowChromeOptions,
+  auxiliaryWindowHasCustomFrame,
+} from './auxiliary-window-options.ts'
 import { revealApplication } from './electron-reveal.ts'
 import type { DesktopLocale } from './runtime.ts'
 
@@ -128,7 +131,11 @@ export class ProfileCreateWindow {
       if (this.window === window) this.window = undefined
     })
     void window.loadFile(PROFILE_CREATE_DOCUMENT, {
-      query: { locale: this.options.locale, platform: process.platform },
+      query: {
+        locale: this.options.locale,
+        platform: process.platform,
+        frame: String(auxiliaryWindowHasCustomFrame()),
+      },
     }).catch(() => {
       if (!this.disposed && this.window === window) window.close()
     })

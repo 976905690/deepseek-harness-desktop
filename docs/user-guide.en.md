@@ -16,8 +16,8 @@ Switching profiles does not silently copy plugins from the old profile into the 
 
 ## Window modes and materials
 
-- **Compatibility mode** keeps the selected profile's official layout/sidebar/conversation composition intact below a separate 44-pixel Desktop frame. The frame is draggable, its icon actions remain clickable, and official dialogs stay inside the unrelated content viewport below it.
-- **Extended window** keeps that same official layout and independent frame, then extends the selected material down behind the entire official sidebar. The top and left material surfaces form one inverted-L region with a rounded inner corner.
+- **Compatibility mode** keeps the selected profile's official layout/sidebar/conversation composition intact below a separate 36-pixel Desktop frame. The frame is draggable, its icon actions remain clickable, and official dialogs stay inside the unrelated content viewport below it.
+- **Extended window** installs the Desktop-owned layout and sidebar surface, then hosts the official sidebar, conversation, and details occupants inside it. The 36-pixel top frame and left sidebar surface form one inverted-L material region with a rounded inner corner.
 - **Advanced mode** keeps the same upstream Web carrier while adding Desktop-owned framing, layout, Mica/vibrancy, and native drag regions. It is intended for a fuller desktop presentation.
 
 macOS custom-window modes can turn the transparent material on or off. Windows can turn material off or use native Acrylic; Mica appears only when supported on Windows 11 build 22621 or newer. Windows 10 therefore uses Acrylic. Changing mode or material restarts the application; it does not hot-swap root slots or native materials in a live renderer. Linux provides compatibility mode only.

@@ -1,16 +1,33 @@
 /** Shared custom frame options for Desktop-owned auxiliary windows. */
 
 import type { BrowserWindowConstructorOptions } from 'electron'
-import { DESKTOP_FRAME_HEIGHT } from './window-chrome.ts'
+import { DESKTOP_FRAME_HEIGHT, MACOS_TRAFFIC_LIGHT_TOP } from './window-chrome.ts'
+
+/** Whether a renderer-owned frame is needed below visible native controls. */
+export function auxiliaryWindowHasCustomFrame(
+  platform: NodeJS.Platform = process.platform,
+  windowControls = true,
+): boolean {
+  return windowControls && (platform === 'darwin' || platform === 'win32')
+}
 
 /** Hide the ordinary OS title row while retaining native window controls. */
 export function auxiliaryWindowChromeOptions(
   platform: NodeJS.Platform = process.platform,
+  windowControls = true,
 ): BrowserWindowConstructorOptions {
+  if (!windowControls) {
+    return {
+      frame: false,
+      closable: false,
+      minimizable: false,
+      maximizable: false,
+    }
+  }
   if (platform === 'darwin') {
     return {
       titleBarStyle: 'hiddenInset',
-      trafficLightPosition: { x: 16, y: 16 },
+      trafficLightPosition: { x: 16, y: MACOS_TRAFFIC_LIGHT_TOP },
     }
   }
   if (platform === 'win32') {

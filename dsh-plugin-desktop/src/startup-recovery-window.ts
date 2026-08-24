@@ -5,7 +5,10 @@ import { execFile } from 'node:child_process'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { basename, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { auxiliaryWindowChromeOptions } from './auxiliary-window-options.ts'
+import {
+  auxiliaryWindowChromeOptions,
+  auxiliaryWindowHasCustomFrame,
+} from './auxiliary-window-options.ts'
 import { showDesktopMessageBox } from './desktop-dialog-window.ts'
 import type { DesktopLocale } from './runtime.ts'
 import { applicationNeedsReveal, revealApplication } from './electron-reveal.ts'
@@ -732,7 +735,13 @@ export class DesktopStartupRecoveryWindow {
       ...(this.options.rollbackLastKnownGood === undefined ? {} : { rollbackLastKnownGoodAvailable: true }),
     }
     const state = Buffer.from(JSON.stringify(model), 'utf8').toString('base64url')
-    await window.loadFile(RECOVERY_DOCUMENT, { query: { state, platform: process.platform } })
+    await window.loadFile(RECOVERY_DOCUMENT, {
+      query: {
+        state,
+        platform: process.platform,
+        frame: String(auxiliaryWindowHasCustomFrame()),
+      },
+    })
   }
 
   private finish(result: RecoveryWindowResult): void {

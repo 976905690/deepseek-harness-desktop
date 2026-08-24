@@ -2,7 +2,11 @@
 
 import type { BrowserWindowConstructorOptions, NativeImage } from 'electron'
 import type { DesktopPlatform, DesktopShellSpec } from './runtime.ts'
-import { DESKTOP_FRAME_HEIGHT, WINDOWS_TITLEBAR_HEIGHT } from './window-chrome.ts'
+import {
+  DESKTOP_FRAME_HEIGHT,
+  MACOS_TRAFFIC_LIGHT_TOP,
+  WINDOWS_TITLEBAR_HEIGHT,
+} from './window-chrome.ts'
 
 function baseWindowOptions(
   spec: DesktopShellSpec,
@@ -96,7 +100,7 @@ function customChromeWindowOptions(
     const custom: BrowserWindowConstructorOptions = {
       ...options,
       titleBarStyle: 'hiddenInset',
-      trafficLightPosition: { x: 16, y: 16 },
+      trafficLightPosition: { x: 16, y: MACOS_TRAFFIC_LIGHT_TOP },
     }
     return spec.material === 'transparent'
       ? {

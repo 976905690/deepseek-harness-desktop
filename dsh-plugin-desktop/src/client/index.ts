@@ -10,7 +10,7 @@ import { startRendererBootReporter } from './boot-health.ts'
 import { applyDesktopSettings } from './desktop-settings.ts'
 import { installDesktopDirectoryPickerBridge, requestDesktopDirectoryValidation } from './directory-picker.ts'
 import { parseDesktopClientEnvironment } from './environment.ts'
-import { applyFramedShell } from './extended-shell.ts'
+import { applyExtendedShell, applyFramedShell } from './extended-shell.ts'
 import { installWorkspaceFolderDrop } from './workspace-folder-drop.ts'
 import { desktopWindowService, provideDesktopWindow } from './window-service.ts'
 
@@ -65,7 +65,7 @@ export type {
   DesktopWindowService,
 } from './contracts.ts'
 
-/** Services required by Desktop settings and advanced presentation. */
+/** Services required by Desktop settings and Desktop-owned presentations. */
 export const inject = [
   'slots',
   'locale',
@@ -108,8 +108,8 @@ export function apply(ctx: ClientContext): void {
     )
   }
   if (environment.mode === 'advanced') applyAdvancedShell(ctx, environment)
-  if (environment.platform !== 'linux'
-    && (environment.mode === 'compatibility' || environment.mode === 'extended')) {
+  if (environment.mode === 'extended') applyExtendedShell(ctx, environment)
+  if (environment.platform !== 'linux' && environment.mode === 'compatibility') {
     applyFramedShell(ctx, environment)
   }
 }

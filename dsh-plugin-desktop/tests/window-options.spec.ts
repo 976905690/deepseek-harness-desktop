@@ -35,7 +35,7 @@ const spec: DesktopShellSpec = {
 const preload = '/tmp/preload.cjs'
 
 describe('compatibility BrowserWindow options', () => {
-  it('uses an independent 44px macOS frame and enables renderer isolation', () => {
+  it('uses an independent 36px macOS frame and enables renderer isolation', () => {
     const icon = {} as NativeImage
     const options = compatibilityWindowOptions(spec, icon, 'darwin', preload)
 
@@ -48,7 +48,7 @@ describe('compatibility BrowserWindow options', () => {
       show: false,
       icon,
       titleBarStyle: 'hiddenInset',
-      trafficLightPosition: { x: 16, y: 16 },
+      trafficLightPosition: { x: 16, y: 12 },
       webPreferences: {
         preload,
         contextIsolation: true,
@@ -58,7 +58,7 @@ describe('compatibility BrowserWindow options', () => {
       },
     }))
     expect(options).not.toHaveProperty('titleBarOverlay')
-    expect(DESKTOP_FRAME_HEIGHT).toBe(44)
+    expect(DESKTOP_FRAME_HEIGHT).toBe(36)
   })
 
   it('uses an independent Windows frame with native controls on the left-side action layout', () => {
@@ -109,7 +109,7 @@ describe('compatibility BrowserWindow options', () => {
 
     expect(options).toEqual(expect.objectContaining({
       titleBarStyle: 'hiddenInset',
-      trafficLightPosition: { x: 16, y: 16 },
+      trafficLightPosition: { x: 16, y: 12 },
       transparent: true,
       backgroundColor: '#00000000',
       vibrancy: 'sidebar',
@@ -155,11 +155,11 @@ describe('compatibility BrowserWindow options', () => {
       transparent: true,
     }))
     expect(options).not.toHaveProperty('backgroundMaterial')
-    expect(DESKTOP_FRAME_HEIGHT).toBe(44)
+    expect(DESKTOP_FRAME_HEIGHT).toBe(36)
     expect(desktopWindowOptions(extended, {} as NativeImage, 'win32', preload)).toEqual(options)
   })
 
-  it('centers macOS traffic lights in the 44px extended command bar', () => {
+  it('centers macOS traffic lights in the 36px extended command bar', () => {
     const options = extendedWindowOptions(
       { ...spec, mode: 'extended', material: 'transparent' },
       {} as NativeImage,
@@ -167,8 +167,8 @@ describe('compatibility BrowserWindow options', () => {
       preload,
     )
 
-    expect(options.trafficLightPosition).toEqual({ x: 16, y: 16 })
-    expect(DESKTOP_FRAME_HEIGHT).toBe(44)
+    expect(options.trafficLightPosition).toEqual({ x: 16, y: 12 })
+    expect(DESKTOP_FRAME_HEIGHT).toBe(36)
   })
 
   it('rejects advanced mode on Linux', () => {

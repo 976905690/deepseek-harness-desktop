@@ -58,9 +58,9 @@ describe('desktop client environment', () => {
 describe('advanced desktop layout', () => {
   it('owns native caption geometry without targeting feature headers', () => {
     expect(MACOS_TITLEBAR_HEIGHT).toBe(20)
-    expect(MACOS_DRAG_REGION_HEIGHT).toBe(44)
+    expect(MACOS_DRAG_REGION_HEIGHT).toBe(36)
     expect(MACOS_DRAG_REGION_HEIGHT).toBeGreaterThan(MACOS_TITLEBAR_HEIGHT)
-    expect(WINDOWS_TITLEBAR_HEIGHT).toBe(32)
+    expect(WINDOWS_TITLEBAR_HEIGHT).toBe(36)
     let css = ''
     const remove = vi.fn()
     const style = {
@@ -85,12 +85,12 @@ describe('advanced desktop layout', () => {
       expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[\s\S]*\.dshDesktopFrame,[\s\S]*\.dshDesktopResizeHandle \{ transition: none !important; \}/)
       expect(css).toMatch(/\.dshDesktopSidebarSurface\s*\{[^}]*--dsw-specific-sidebar-fill:\s*transparent;/)
       expect(css).toMatch(/data-desktop-platform="darwin"\]\[data-sidebar-collapsed\][^{]*\.dshDesktopUpstreamSidebar \{[^}]*width:\s*56px;[^}]*margin:\s*0 auto;/)
-      expect(css).toMatch(new RegExp(`data-desktop-platform="darwin"\\] \\.dshDesktopUpstreamSidebar \\{[^}]*padding-top: ${MACOS_TITLEBAR_HEIGHT}px;`))
+      expect(css).toMatch(new RegExp(`data-desktop-mode="advanced"\\]\\[data-desktop-platform="darwin"\\] \\.dshDesktopUpstreamSidebar \\{[^}]*padding-top: ${MACOS_TITLEBAR_HEIGHT}px;`))
       expect(css).not.toMatch(/\.dshDesktopUpstreamSidebar \{[^}]*-webkit-app-region: no-drag;/)
       expect(css).toContain(`grid-template-rows: ${MACOS_TITLEBAR_HEIGHT}px minmax(0, 1fr)`)
-      expect(css).toMatch(/\.dshDesktopFrame\[data-desktop-platform="darwin"\] \.dshDesktopSidebarSurface \{[^}]*grid-row: 1 \/ -1;/)
+      expect(css).toMatch(/\.dshDesktopFrame\[data-desktop-mode="advanced"\]\[data-desktop-platform="darwin"\] \.dshDesktopSidebarSurface \{[^}]*grid-row: 1 \/ -1;/)
       expect(css).not.toMatch(/data-desktop-platform="darwin"\] \.dshDesktopSidebarSurface \{[^}]*-webkit-app-region: no-drag;/)
-      expect(css).toMatch(/\.dshDesktopFrame\[data-desktop-platform="darwin"\] \.dshDesktopConversationSurface,\s*\.dshDesktopFrame\[data-desktop-platform="darwin"\] \.dshDesktopDetailsSurface \{ grid-row: 2; \}/)
+      expect(css).toMatch(/\.dshDesktopFrame\[data-desktop-mode="advanced"\]\[data-desktop-platform="darwin"\] \.dshDesktopConversationSurface,\s*\.dshDesktopFrame\[data-desktop-mode="advanced"\]\[data-desktop-platform="darwin"\] \.dshDesktopDetailsSurface \{ grid-row: 2; \}/)
       expect(css).toMatch(new RegExp(`data-desktop-platform="darwin"\\] \\.dshDesktopSidebarSurface::before \\{[^}]*left: ${MACOS_TRAFFIC_LIGHT_SAFE_WIDTH}px;[^}]*height: ${MACOS_DRAG_REGION_HEIGHT}px;[^}]*-webkit-app-region: drag;`))
       expect(css).not.toMatch(/data-desktop-platform="darwin"\] \.dshDesktopSidebarSurface::before \{[^}]*z-index:/)
       expect(css).toMatch(/\.dshDesktopMacCaptionRow \{[^}]*position: relative;[^}]*grid-column: 2 \/ -1;[^}]*grid-row: 1;/)
@@ -104,8 +104,8 @@ describe('advanced desktop layout', () => {
       expect(css).not.toMatch(/html:has\(\[aria-modal="true"\]\) \.dshDesktopMacCaptionRow/)
       expect(css).not.toMatch(/html:has\(\[aria-modal="true"\]\) \.dshDesktopSidebarSurface/)
       expect(css).toContain(`grid-template-rows: ${WINDOWS_TITLEBAR_HEIGHT}px minmax(0, 1fr)`)
-      expect(css).toMatch(/\.dshDesktopFrame\[data-desktop-platform="win32"\] \.dshDesktopSidebarSurface \{ grid-row: 1 \/ -1; \}/)
-      expect(css).toMatch(/\.dshDesktopFrame\[data-desktop-platform="win32"\] \.dshDesktopConversationSurface,\s*\.dshDesktopFrame\[data-desktop-platform="win32"\] \.dshDesktopDetailsSurface \{ grid-row: 2; \}/)
+      expect(css).toMatch(/\.dshDesktopFrame\[data-desktop-mode="advanced"\]\[data-desktop-platform="win32"\] \.dshDesktopSidebarSurface \{ grid-row: 1 \/ -1; \}/)
+      expect(css).toMatch(/\.dshDesktopFrame\[data-desktop-mode="advanced"\]\[data-desktop-platform="win32"\] \.dshDesktopConversationSurface,\s*\.dshDesktopFrame\[data-desktop-mode="advanced"\]\[data-desktop-platform="win32"\] \.dshDesktopDetailsSurface \{ grid-row: 2; \}/)
       expect(css).toMatch(/\.dshDesktopWindowsCaptionRow \{[^}]*grid-column: 2 \/ -1;[^}]*grid-row: 1;/)
       expect(css).toMatch(new RegExp(`\\.dshDesktopWindowsCaptionRow::before \\{[^}]*inset: 0 ${WINDOWS_CAPTION_CONTROLS_WIDTH}px 0 0;[^}]*-webkit-app-region: drag;`))
       expect(css).toContain('html:has([aria-modal="true"]) .dshDesktopWindowsCaptionRow::before { -webkit-app-region: no-drag !important; }')
@@ -271,12 +271,11 @@ describe('independent Desktop frame', () => {
     try {
       const dispose = installExtendedStyles()
       expect(css).toContain(`padding-top: ${DESKTOP_FRAME_HEIGHT}px`)
-      expect(DESKTOP_FRAME_HEIGHT).toBe(44)
+      expect(DESKTOP_FRAME_HEIGHT).toBe(36)
       expect(css).toMatch(/\[role="presentation"\]:has\(> \[aria-modal="true"\]\),[\s\S]*> \[aria-modal="true"\] \{[\s\S]*top: var\(--dsh-desktop-frame-height\) !important;/)
-      expect(css).toContain('#root > :has(> [data-shell-overlay])')
-      expect(css).toMatch(/#root > :has\(> \[data-shell-overlay\]\) \{[^}]*--dsw-specific-sidebar-fill: transparent;/)
-      expect(css).toMatch(/> :first-child \{[^}]*background: var\(--dsh-desktop-frame-fill\)/)
-      expect(css).toMatch(/> :nth-child\(2\) \{[^}]*border-top-left-radius: 14px;/)
+      expect(css).not.toContain('#root > :has(> [data-shell-overlay])')
+      expect(css).toMatch(/body\[data-dsh-desktop-mode="extended"\] \.dshDesktopSidebarSurface \{[^}]*--dsw-specific-sidebar-fill: transparent;[^}]*border-right-color: transparent;[^}]*background: var\(--dsh-desktop-frame-fill\)/)
+      expect(css).toMatch(/body\[data-dsh-desktop-mode="extended"\] \.dshDesktopConversationSurface \{[^}]*border-top: 1px solid var\(--dsw-alias-border-l1\);[^}]*border-left: 1px solid var\(--dsw-alias-border-l1\);[^}]*border-top-left-radius: 10px;/)
       expect(css).toContain('body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extended"]) #root')
       expect(css).toMatch(/\.dshDesktopFrameTitlebar \{[^}]*-webkit-app-region: drag;/)
       expect(css).toMatch(/\.dshDesktopFrameIdentity \{[^}]*left: 50%;[^}]*transform: translateX\(-50%\);/)
@@ -284,8 +283,11 @@ describe('independent Desktop frame', () => {
       expect(css).toContain('[data-platform="darwin"] .dshDesktopFrameActions { margin-left: auto; }')
       expect(css).toContain('[data-platform="win32"] .dshDesktopFrameActions { margin-right: auto; }')
       expect(css).toMatch(/\.dshDesktopTitlebarIconButton \{[^}]*-webkit-app-region: no-drag;/)
+      expect(css).toMatch(/\.dshDesktopTitlebarIconButton \{[^}]*width: 26px;[^}]*height: 26px;[^}]*border-radius: 7px;/)
+      expect(css).toMatch(/\.dshDesktopTitlebarIconButton svg,[^}]*width: 14px;[^}]*height: 14px;/)
       expect(css).toContain('.dshDesktopActionMenu')
-      expect(css).toContain(`padding: 0 ${WINDOWS_CAPTION_CONTROLS_WIDTH + 12}px 0 16px`)
+      expect(css).toContain(`padding: 0 ${WINDOWS_CAPTION_CONTROLS_WIDTH + 8}px 0 8px`)
+      expect(css).toContain(`padding: 0 8px 0 ${MACOS_TRAFFIC_LIGHT_SAFE_WIDTH + 8}px`)
       expect(appendChild).toHaveBeenCalledWith(style)
       dispose()
       expect(remove).toHaveBeenCalledOnce()
@@ -294,23 +296,46 @@ describe('independent Desktop frame', () => {
     }
   })
 
-  it('registers the independent frame through the upstream overlay lifecycle and exposes an additive action seat', () => {
+  it('owns the extended root and exposes its independent frame action seat', () => {
     const registrations: Array<Record<string, unknown>> = []
     const disposers: Array<() => void> = []
     const dataset: Record<string, string> = {}
     const rootDataset: Record<string, string> = {}
-    const style = { dataset: {}, remove: vi.fn(), textContent: '', id: '' }
+    const bodyStyle = { setProperty: vi.fn(), removeProperty: vi.fn() }
+    const documentElementStyle = { colorScheme: '', removeProperty: vi.fn() }
+    const createElement = vi.fn(() => ({
+      content: '',
+      dataset: {},
+      id: '',
+      isConnected: false,
+      name: '',
+      remove: vi.fn(),
+      style: { setProperty: vi.fn(), removeProperty: vi.fn() },
+      textContent: '',
+    }))
     vi.stubGlobal('document', {
-      body: { dataset },
+      body: {
+        dataset,
+        removeAttribute: vi.fn(),
+        setAttribute: vi.fn(),
+        style: bodyStyle,
+      },
+      documentElement: { style: documentElementStyle },
       getElementById: (id: string) => id === 'root' ? { dataset: rootDataset } : null,
-      createElement: () => style,
+      createElement,
       head: { appendChild: vi.fn() },
     })
+    vi.stubGlobal('getComputedStyle', () => ({ backgroundColor: 'rgb(0, 0, 0)' }))
     const ctx = {
       effect: vi.fn((mount: () => void | (() => void)) => {
         const dispose = mount()
         if (typeof dispose === 'function') disposers.push(dispose)
       }),
+      reflect: { provide: vi.fn(() => () => {}) },
+      theme: {
+        getTheme: vi.fn(() => ({ active: { colorScheme: 'dark', tokens: {} } })),
+      },
+      on: vi.fn(() => () => {}),
       slots: {
         inject: vi.fn((_name: string, mount: () => unknown) => mount()),
         register: vi.fn((options: Record<string, unknown>) => {
@@ -328,11 +353,25 @@ describe('independent Desktop frame', () => {
         micaSupported: false,
       })
       expect(registrations[0]).toMatchObject({
+        name: 'root',
+        children: {
+          sidebar: { kind: 'single', scope: 'root' },
+          conversation: { kind: 'single', scope: 'session-maybe' },
+          details: { kind: 'single', scope: 'session' },
+          'shell.overlay': { kind: 'list', scope: 'root' },
+        },
+      })
+      expect(registrations[0]?.inject).toBeTypeOf('function')
+      expect((registrations[0]?.inject as () => Record<string, unknown>)()).toMatchObject({
+        mode: 'extended',
+        platform: 'win32',
+      })
+      expect(registrations[1]).toMatchObject({
         name: 'shell.overlay',
         id: 'desktop-frame-titlebar',
         children: { 'desktop.titlebar.action': { kind: 'list', scope: 'root' } },
       })
-      expect(registrations[1]).toMatchObject({
+      expect(registrations[2]).toMatchObject({
         name: 'desktop.titlebar.action',
         id: 'desktop-native-actions',
       })

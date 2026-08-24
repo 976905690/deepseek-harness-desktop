@@ -55,6 +55,7 @@ import {
   ProfileCreateWindow,
   parseProfileCreateAction,
 } from '../src/profile-create-window.ts'
+import { auxiliaryWindowHasCustomFrame } from '../src/auxiliary-window-options.ts'
 
 describe('ProfileCreateWindow', () => {
   beforeEach(() => {
@@ -79,7 +80,13 @@ describe('ProfileCreateWindow', () => {
     expect(electron.windows[0]?.focus).toHaveBeenCalledOnce()
     expect(electron.windows[0]?.loadFile).toHaveBeenCalledWith(
       expect.stringMatching(/[\\/]native-ui[\\/]profile-create\.html$/u),
-      { query: { locale: 'en', platform: process.platform } },
+      {
+        query: {
+          locale: 'en',
+          platform: process.platform,
+          frame: String(auxiliaryWindowHasCustomFrame()),
+        },
+      },
     )
     expect(electron.windows[0]?.options).toEqual(expect.objectContaining({
       width: 480,

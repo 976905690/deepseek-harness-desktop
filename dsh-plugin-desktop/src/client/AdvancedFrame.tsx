@@ -7,21 +7,23 @@ import {
   SIDEBAR_AUTO_COLLAPSE, SIDEBAR_COLLAPSED, SIDEBAR_DEFAULT,
 } from './layout-state.ts'
 
-/** Private values assembled by the advanced-shell registration. */
+/** Private values assembled by the Desktop-owned shell registration. */
 export interface AdvancedFrameInjected {
   /** Desktop-owned panel state exposed through the standard layout service. */
   layout: DesktopLayoutState
   /** Host platform controlling native title-bar spacing. */
   platform: DesktopClientPlatform
+  /** Desktop-owned presentation selecting internal or independent chrome. */
+  mode: 'extended' | 'advanced'
 }
 
-/** Full advanced root slot props. */
+/** Full Desktop-owned root slot props. */
 export type AdvancedFrameProps = PropsRuntime<'root'>
   & PropsRenderSlots<'sidebar' | 'conversation' | 'details' | 'shell.overlay'>
   & AdvancedFrameInjected
 
-/** Desktop-owned transparent frame around the unchanged product surfaces. */
-export function AdvancedFrame({ layout, platform, renderSlot, useSessions }: AdvancedFrameProps) {
+/** Desktop-owned layout and sidebar surface around unchanged slot occupants. */
+export function AdvancedFrame({ layout, mode, platform, renderSlot, useSessions }: AdvancedFrameProps) {
   const subscribeLayout = useCallback((listener: () => void) => layout.subscribe(listener), [layout])
   const readLayout = useCallback(() => layout.getSnapshot(), [layout])
   const panels = useSyncExternalStore(subscribeLayout, readLayout)
@@ -99,14 +101,15 @@ export function AdvancedFrame({ layout, platform, renderSlot, useSessions }: Adv
     <div
       ref={frameRef}
       className="dshDesktopFrame"
+      data-desktop-mode={mode}
       data-desktop-platform={platform}
       data-sidebar-collapsed={collapsed || undefined}
       data-details-collapsed={columns.details === 0 || undefined}
       data-dragging={dragging || undefined}
       style={{ gridTemplateColumns: `${columns.sidebar}px minmax(0, 1fr) ${columns.details}px` }}
     >
-      {platform === 'darwin' && <div className="dshDesktopMacCaptionRow" aria-hidden="true" />}
-      {platform === 'win32' && <div className="dshDesktopWindowsCaptionRow" aria-hidden="true" />}
+      {mode === 'advanced' && platform === 'darwin' && <div className="dshDesktopMacCaptionRow" aria-hidden="true" />}
+      {mode === 'advanced' && platform === 'win32' && <div className="dshDesktopWindowsCaptionRow" aria-hidden="true" />}
       <aside className="dshDesktopSidebarSurface">
         <div className="dshDesktopUpstreamSidebar">
           {renderSlot('sidebar', { collapsed, width: sidebarOwnerWidth })}
