@@ -245,14 +245,13 @@ describe('Desktop startup recovery action parser', () => {
       expect(parseDesktopStartupRecoveryAction(`dsh-recovery://${action}`)).toEqual({ action })
     }
 
-    for (const action of [
-      'preview-disable',
-      'preview-rollback',
-      'preview-retry',
-    ]) {
+    expect(parseDesktopStartupRecoveryAction(
+      'dsh-recovery://preview-disable?id=opaque-id_0001',
+    )).toEqual({ action: 'preview-disable', id: 'opaque-id_0001' })
+    for (const action of ['preview-checkpoint', 'open-checkpoint']) {
       expect(parseDesktopStartupRecoveryAction(
-        `dsh-recovery://${action}?id=opaque-id_0001`,
-      )).toEqual({ action, id: 'opaque-id_0001' })
+        `dsh-recovery://${action}?id=slot-2`,
+      )).toEqual({ action, id: 'slot-2' })
     }
   })
 

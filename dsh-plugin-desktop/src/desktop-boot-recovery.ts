@@ -4,8 +4,8 @@ import type { IndexInjection } from '@deepseek-ai/dsh-host-webserver'
 import {
   DESKTOP_DIAGNOSTICS_EXPORT_PATH,
   DESKTOP_PROFILE_CREATE_WINDOW_PATH,
-  DESKTOP_PROFILE_ROLLBACK_PATH,
   DESKTOP_PROFILE_SELECT_PATH,
+  DESKTOP_RECOVERY_RESTART_PATH,
   DESKTOP_SETTINGS_PATH,
   DESKTOP_TERMINAL_OPEN_PATH,
 } from './desktop-settings-contract.ts'
@@ -144,7 +144,7 @@ const ENDPOINTS = Object.freeze({
   settings: DESKTOP_SETTINGS_PATH,
   terminal: DESKTOP_TERMINAL_OPEN_PATH,
   diagnostics: DESKTOP_DIAGNOSTICS_EXPORT_PATH,
-  rollback: DESKTOP_PROFILE_ROLLBACK_PATH,
+  recovery: DESKTOP_RECOVERY_RESTART_PATH,
   selectProfile: DESKTOP_PROFILE_SELECT_PATH,
   createProfile: DESKTOP_PROFILE_CREATE_WINDOW_PATH,
 })
@@ -156,20 +156,20 @@ export const DESKTOP_BOOT_RECOVERY_SCRIPT = `(() => {
   const text = {
     terminal: '打开 DSH 终端 / Open DSH Terminal',
     diagnostics: '导出诊断 / Export Diagnostics',
-    rollback: '运行回滚 / Run Rollback',
-    confirmRollback: '确认回滚并重启 / Restore and Restart',
+    recovery: '打开恢复模式 / Open Recovery',
+    confirmRecovery: '重启到恢复模式 / Restart to Recovery',
     cancel: '取消 / Cancel',
     profile: '切换配置 / Switch Profile',
     switchProfile: '切换并重启 / Switch and Restart',
     createProfile: '新建配置 / New Profile',
     loadingProfiles: '正在读取配置… / Loading Profiles…',
     noProfiles: '没有其他可用配置 / No other Profile is available',
-    rollbackConfirm: '将保存诊断并恢复最近一次成功启动的 Profile 和配置，然后重新启动 DSH Desktop。 / Diagnostics will be saved before restoring the last successful Profile and configuration, then DSH Desktop will restart.',
+    recoveryConfirm: 'DSH Desktop 将重新启动并打开统一恢复页面；当前不会自动修改 Profile 或恢复任何 Checkpoint。 / DSH Desktop will restart into the unified Recovery page without automatically changing the Profile or restoring a checkpoint.',
     working: '正在处理，请稍候… / Working…',
     restarting: '操作已接受，DSH Desktop 正在重新启动… / Accepted. DSH Desktop is restarting…',
     diagnosticsDone: '诊断导出流程已打开。 / The diagnostic export flow opened.',
     creatorOpened: '新建配置窗口已打开。 / The Profile creator opened.',
-    rollbackUnavailable: '没有可用的安全回滚，请切换配置或打开 DSH 终端。 / A safe rollback is unavailable. Switch Profile or open DSH Terminal.',
+    recoveryUnavailable: '暂时无法打开恢复模式，请切换配置或打开 DSH 终端。 / Recovery is temporarily unavailable. Switch Profile or open DSH Terminal.',
     failed: '操作暂时无法完成，请尝试其他恢复方式。 / The action is temporarily unavailable. Try another recovery option.',
     profilesFailed: '暂时无法读取配置列表。 / Profiles are temporarily unavailable.',
   };
@@ -223,36 +223,36 @@ export const DESKTOP_BOOT_RECOVERY_SCRIPT = `(() => {
       }),
     );
     const confirm = element('div', { hidden: '', dataset: { dshRecoveryConfirm: '' } });
-    confirm.append(element('p', { dataset: { dshRecoveryConfirmText: '' } }, text.rollbackConfirm));
-    const rollback = actionButton(text.rollback, false, async (button) => {
+    confirm.append(element('p', { dataset: { dshRecoveryConfirmText: '' } }, text.recoveryConfirm));
+    const recovery = actionButton(text.recovery, false, async (button) => {
       confirm.hidden = false;
       status.textContent = '';
       button.disabled = true;
     });
-    actions.append(rollback);
-    const confirmRollback = element('button', { type: 'button', 'data-primary': '' }, text.confirmRollback);
-    const cancelRollback = element('button', { type: 'button' }, text.cancel);
-    confirmRollback.addEventListener('click', async () => {
-      confirmRollback.disabled = true;
-      cancelRollback.disabled = true;
+    actions.append(recovery);
+    const confirmRecovery = element('button', { type: 'button', 'data-primary': '' }, text.confirmRecovery);
+    const cancelRecovery = element('button', { type: 'button' }, text.cancel);
+    confirmRecovery.addEventListener('click', async () => {
+      confirmRecovery.disabled = true;
+      cancelRecovery.disabled = true;
       status.textContent = text.working;
       try {
-        await post(endpoints.rollback);
+        await post(endpoints.recovery);
         controls.forEach(control => { control.disabled = true; });
         status.textContent = text.restarting;
       } catch {
-        confirmRollback.disabled = false;
-        cancelRollback.disabled = false;
-        rollback.disabled = false;
-        status.textContent = text.rollbackUnavailable;
+        confirmRecovery.disabled = false;
+        cancelRecovery.disabled = false;
+        recovery.disabled = false;
+        status.textContent = text.recoveryUnavailable;
       }
     });
-    cancelRollback.addEventListener('click', () => {
+    cancelRecovery.addEventListener('click', () => {
       confirm.hidden = true;
-      rollback.disabled = false;
+      recovery.disabled = false;
       status.textContent = '';
     });
-    confirm.append(confirmRollback, cancelRollback);
+    confirm.append(confirmRecovery, cancelRecovery);
     const profile = element('div', { dataset: { dshRecoveryProfile: '' } });
     profile.append(element('p', { dataset: { dshRecoveryLabel: '' } }, text.profile));
     const profileRow = element('div', { dataset: { dshRecoveryProfileRow: '' } });

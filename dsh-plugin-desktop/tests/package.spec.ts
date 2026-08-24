@@ -390,7 +390,7 @@ describe('published package surface', () => {
     const installDsh = main.indexOf('const dshRuntime = process.platform === \'win32\'')
     const ownPnpm = main.indexOf('const releasePnpmRuntime = generation.own(')
     const ownDsh = main.indexOf('const releaseDshRuntime = generation.own(')
-    const materialize = main.indexOf('await materializeProfile({')
+    const materialize = main.indexOf('await materializeProfile({', prepare)
     const reprepare = main.indexOf('prepared = prepareDesktopProfile(', prepare + 'let prepared'.length)
     const pnpmBootstrap = main.indexOf('const desktopPnpmBootstrap: DesktopPnpmBootstrap = {')
     const boot = main.indexOf('const ctx = await boot')
@@ -454,39 +454,30 @@ describe('published package surface', () => {
     expect(ready).toBeGreaterThan(markClean)
   })
 
-  it('claims plugin install recovery before profile composition and gates health in Electron main', () => {
+  it('creates unified Profile checkpoints before composition and records only after health', () => {
     const main = readFileSync(new URL('src/main.ts', packageRoot), 'utf8')
-    const fixedStatePath = main.indexOf("desktopInstallRecoveryStatePath(app.getPath('userData'))")
-    const beginProfile = main.indexOf('profileStartup = beginDesktopProfileStartup(')
-    const stateCommit = main.indexOf('const stateCommit = new DesktopStartupStateCommit({')
-    const claim = main.indexOf('const recoveryClaim = await installRecovery.claim()')
-    const observeClaim = main.indexOf('stateCommit.observeInstallRecoveryClaim(recoveryClaim)')
+    const beginProfile = main.indexOf('const profileStartup = beginDesktopProfileStartup(')
+    const checkpoint = main.indexOf('profileCheckpoint = new DesktopProfileCheckpoint({', beginProfile)
+    const recoveryController = main.indexOf('startupRecoveryController = new DesktopStartupRecoveryController({', checkpoint)
     const prepare = main.indexOf('let prepared = prepareDesktopProfile(')
     const monitor = main.indexOf('const rendererBoot = runtime.beginRendererBootMonitoring({')
     const commitHealthy = main.indexOf('commitHealthy: async () => {', monitor)
+    const captureHealthy = main.indexOf('profileCheckpoint?.captureHealthy()', commitHealthy)
     const awaitRenderer = main.indexOf('const [, rendererVerdict] = await Promise.all([')
     const mount = main.indexOf('runtime.mountScheduled(),', awaitRenderer)
-    const commitStateHealthy = main.indexOf('await stateCommit.commitHealthy()', commitHealthy)
 
-    expect(fixedStatePath).toBeGreaterThanOrEqual(0)
-    expect(main).toContain("import { DesktopStartupStateCommit } from './startup-state-commit.ts'")
-    expect(main).not.toContain("desktopInstallRecoveryStatePath(app.getPath('userData'), process.env)")
-    expect(main).not.toContain('process.env[DESKTOP_INSTALL_RECOVERY_STATE_ENV]')
-    expect(beginProfile).toBeGreaterThan(fixedStatePath)
-    expect(stateCommit).toBeGreaterThan(beginProfile)
-    expect(claim).toBeGreaterThan(stateCommit)
-    expect(observeClaim).toBeGreaterThan(claim)
-    expect(prepare).toBeGreaterThan(claim)
-    expect(main).toContain('installRecoveryStatePath,\n      generationId,')
+    expect(beginProfile).toBeGreaterThanOrEqual(0)
+    expect(checkpoint).toBeGreaterThan(beginProfile)
+    expect(recoveryController).toBeGreaterThan(checkpoint)
+    expect(prepare).toBeGreaterThan(recoveryController)
     expect(monitor).toBeGreaterThan(prepare)
     expect(commitHealthy).toBeGreaterThan(monitor)
-    expect(commitStateHealthy).toBeGreaterThan(commitHealthy)
-    expect(awaitRenderer).toBeGreaterThan(commitStateHealthy)
+    expect(captureHealthy).toBeGreaterThan(commitHealthy)
+    expect(awaitRenderer).toBeGreaterThan(captureHealthy)
     expect(mount).toBeGreaterThan(awaitRenderer)
-    expect(main).not.toContain('verifyingInstall')
-    expect(main).not.toContain('verifiedInstallToClear')
-    expect(main).not.toContain('await installRecovery.markHealthy(')
-    expect(main).not.toContain('markDesktopProfileHealthy(')
+    expect(main).not.toContain('DesktopStartupStateCommit')
+    expect(main).not.toContain('DesktopInstallRecoveryStore')
+    expect(main).not.toContain('lastKnownGood')
   })
 
   it('wires lifecycle evidence through key startup stages and terminal outcomes', () => {
@@ -510,7 +501,6 @@ describe('published package surface', () => {
       'shell-environment',
       'runtime-bootstrap',
       'profile-selection',
-      'install-recovery',
       'profile-composition',
       'host-boot',
       'renderer-startup',
@@ -531,37 +521,29 @@ describe('published package surface', () => {
     expect(main).toContain('lifecycleStartupFailureReason(cause, runtime)')
   })
 
-  it('routes protected and ordinary startup failures through the native recovery window', () => {
+  it('routes requested and failed startup through the unified recovery window without automatic mutation', () => {
     const main = readFileSync(new URL('src/main.ts', packageRoot), 'utf8')
     const windows = [...main.matchAll(/await openStartupRecoveryWindow\(/gu)]
       .map(match => match.index)
-    const prompt = main.indexOf("if (recoveryClaim.action === 'prompt')")
+    const requested = main.indexOf('if (recoveryModeRequested)')
     const prepare = main.indexOf('let prepared = prepareDesktopProfile(')
-    const commitFailure = main.indexOf('await startupStateCommit.commitFailure({')
+    const quiesce = main.indexOf('const recoveryActionsSafe = await generation.quiesceForRecovery()')
 
-    expect(windows).toHaveLength(4)
-    expect(windows[0]).toBeGreaterThan(prompt)
+    expect(windows).toHaveLength(2)
+    expect(windows[0]).toBeGreaterThan(requested)
     expect(windows[0]).toBeLessThan(prepare)
     expect(windows[1]).toBeGreaterThan(windows[0]!)
-    expect(windows[1]).toBeLessThan(prepare)
-    expect(commitFailure).toBeGreaterThan(prepare)
-    expect(windows[2]).toBeGreaterThan(prepare)
-    expect(windows[2]).toBeLessThan(commitFailure)
-    expect(windows[3]).toBeGreaterThan(commitFailure)
-    expect(main).toContain('if (recoveryModeRequested)')
-    expect(main).not.toContain('await installRecovery.restore(')
-    expect(main).not.toContain('await installRecovery.recordFailure(')
-    expect(main).not.toContain('markDesktopProfileFailed(')
-    expect(main).toContain('quiesceForRecovery: () => generation.quiesceForRecovery()')
-    expect(main).toContain('failureCommit.reopenLastKnownGood !== undefined')
+    expect(quiesce).toBeGreaterThan(prepare)
+    expect(windows[1]).toBeGreaterThan(quiesce)
+    expect(main).not.toContain('installRecovery')
+    expect(main).not.toContain('restoreLatest')
+    expect(main).not.toContain('restoreLastKnownGood')
     expect(main).toContain('failureStage: startupStage')
     expect(main).toContain("startupStage = 'profile-composition'")
     expect(main).toContain("startupStage = 'host-boot'")
     expect(main).toContain("startupStage = 'renderer-startup'")
     expect(main).toContain("return report.status === 'failed'")
-    expect(main).not.toContain("return report.status === 'failed' && verifyingInstall !== undefined")
     expect(main).toContain('void run().catch(async (cause: unknown) => { await handleFatalLauncherFailure(cause) })')
-    expect(main).toContain('await installRecovery.markRollbackNotified(')
   })
 
   it('uses the upstream child-environment scrub around login-shell recovery', () => {

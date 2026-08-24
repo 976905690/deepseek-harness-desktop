@@ -121,7 +121,6 @@ try {
       host.provide(DSH_LAUNCH_ENVIRONMENT_KEY, createLaunchEnvironmentSnapshot([]))
       host.provide('desktopRuntime', runtime)
       host.provide('desktopPnpmBootstrap', {
-        activeProfileName: 'desktop',
         activeProfileDir: prepared.profile.dir,
         homeDir: prepared.homeDir,
         appExecutable: process.execPath,
@@ -130,10 +129,6 @@ try {
         nodeBinDir: pnpmRuntime.nodeBinDir,
         nodeShimPath: pnpmRuntime.nodeShimPath,
         clearEnvironmentPath: pnpmRuntime.clearEnvironmentPath,
-        dshBootstrapPath: fileURLToPath(new URL('../lib/desktop-cli.js', import.meta.url)),
-        installRecoveryStatePath: join(home, 'plugin-install-recovery', 'state.json'),
-        generationId: 'profile-smoke-generation',
-        externalMarketInstallEnabled: prepared.market.effective === 'dsh-market',
       })
       await host.plugin(DesktopProfileService, {
         current: {
@@ -186,12 +181,7 @@ try {
     || hostServiceProbe.current.dir !== prepared.profile.dir
     || hostServiceProbe.pnpm?.serviceName !== 'desktopPnpm'
     || hostServiceProbe.pnpm.lookupRun !== 'function'
-    || hostServiceProbe.pnpm.run !== 'function'
-    || hostServiceProbe.pnpm.runPlugin !== 'function'
-    || hostServiceProbe.pnpm.installPlugin !== 'function'
-    || hostServiceProbe.pnpm.recoveredInstallReceiptIds !== 'function'
-    || hostServiceProbe.pnpm.acknowledgeRecoveredInstall !== 'function'
-    || hostServiceProbe.pnpm.rollbackPluginInstall !== 'function') {
+    || hostServiceProbe.pnpm.run !== 'function') {
     throw new Error(
       `profile-local Host service plugin produced an unexpected probe: ${JSON.stringify(hostServiceProbe)}`,
     )

@@ -14,7 +14,6 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { desktopTerminalStateDirectory, openDesktopTerminal } from './desktop-terminal.ts'
 import { showDesktopMessageBox } from './desktop-dialog-window.ts'
-import { desktopInstallRecoveryStatePath } from './install-recovery.ts'
 import { packagedDependencyPath } from './packaged-runtime-path.ts'
 import { ElectronShellGeneration } from './electron-shell-generation.ts'
 import { electronPlatformStrategy, type ElectronPlatformStrategy } from './electron-platform.ts'
@@ -341,7 +340,6 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
         productVersion: PRODUCT_VERSION,
         profileDir: spec.profileDir,
         homeDir: spec.homeDir,
-        installRecoveryStatePath: desktopInstallRecoveryStatePath(app.getPath('userData')),
         stateDir: desktopTerminalStateDirectory(app.getPath('userData'), spec.profileName),
         spawn,
         onLaunchError: cause => { this.reportTerminalLaunchError(cause) },

@@ -12,7 +12,6 @@ import {
 } from 'node:fs'
 import { createHash, randomUUID } from 'node:crypto'
 import { basename, dirname, join, win32 } from 'node:path'
-import { DESKTOP_INSTALL_RECOVERY_STATE_ENV } from './install-recovery.ts'
 import { assertDesktopProfileName } from './profile-manager.ts'
 
 const RUN_AS_NODE = 'ELECTRON_RUN_AS_NODE'
@@ -96,8 +95,6 @@ export interface DesktopTerminalOptions {
   profileDir: string
   /** Harness home exported as `DSH_HOME` inside the terminal. */
   homeDir: string
-  /** Desktop-private recovery WAL used by plugin installs from this terminal. */
-  installRecoveryStatePath: string
   /** Private directory receiving the generated terminal files. */
   stateDir: string
   /** Process launcher; production passes `node:child_process.spawn`. */
@@ -440,7 +437,6 @@ function prepareDesktopTerminalFiles(options: DesktopTerminalOptions): DesktopTe
     ['Electron version', options.electronVersion],
     ['profile directory', options.profileDir],
     ['Harness home', options.homeDir],
-    ['install recovery state', options.installRecoveryStatePath],
     ['state directory', options.stateDir],
     ['product version', options.productVersion],
   ] as const) assertScriptValue(label, value)
@@ -495,7 +491,6 @@ function terminalEnvironment(options: DesktopTerminalOptions, files: DesktopTerm
     if (
       normalized === RUN_AS_NODE
       || normalized === DSH_HOME
-      || normalized === DESKTOP_INSTALL_RECOVERY_STATE_ENV
     ) continue
     if (options.platform === 'win32' && WINDOWS_GENERATED_ENVIRONMENT_KEYS.has(normalized)) continue
     if (normalized === PATH) {
@@ -509,7 +504,6 @@ function terminalEnvironment(options: DesktopTerminalOptions, files: DesktopTerm
     ? files.shimDir
     : `${files.shimDir}${delimiter}${inheritedPath}`
   env[DSH_HOME] = options.homeDir
-  env[DESKTOP_INSTALL_RECOVERY_STATE_ENV] = options.installRecoveryStatePath
   if (options.platform === 'win32') {
     env[DEFAULT_PROFILE] = options.profileName
     env[WINDOWS_APP_EXECUTABLE] = options.appExecutable

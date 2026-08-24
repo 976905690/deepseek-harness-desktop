@@ -25,11 +25,10 @@ Optional catalog metadata reports `scannedAt`, cache `expiresAt`, optional `prov
 2. The Host checks whether that exact normalized source/item is eligible for managed installation. Presence in **Installable** means only that it passed local, fail-closed structural candidate rules; the Host has not yet queried npm for that package. The catalog's version or command is never execution authority.
 3. Managed preview verifies this one candidate against the official npm registry, including package/repository identity, deprecation, lifecycle scripts, runtime, integrity, tarball, DSH bundle evidence, and current-profile availability. Only success turns the same dialog into a confirmation with the catalog display name, verified exact `packageName@version`, active profile, and expiry.
 4. Read the local-code warning and confirm. The confirmation is one-shot and short-lived. If the active profile or Host candidate changes, or the confirmation expires or is reused, a new preview is required.
-5. Before the package operation starts, Desktop privately snapshots the active profile's `package.json`, `pnpm-lock.yaml`, and `pnpm-workspace.yaml`. It then runs the managed add, seals the resulting configuration image, verifies the installed DSH bundle, and saves a receipt. If the command fails after a recognized partial change, Desktop seals that partial image before restoring the snapshot.
-6. Choose **Restart now** or **Restart later**. A successful install changes the profile on disk, but the running process does not load the new plugin automatically. The immediate action consumes a short-lived one-shot restart grant and never restarts silently. Until the next Desktop generation verifies a healthy startup, another protected plugin add is refused.
-7. On the next launch, Desktop claims the pending recovery record before preparing the profile. The install is committed only after the Host starts successfully and the Renderer reports healthy within its 30-second deadline. If startup fails or remains unconfirmed, Desktop first saves a local diagnostics archive, restores a recognized before/after configuration image, and relaunches at most once.
+5. Desktop runs fixed pnpm argv through `desktopPnpm.run()`, reconciles the package into `dsh.profile.bundles`, verifies the installed DSH bundle and lockfile, then saves a receipt. It does not create an install-specific snapshot or launch an automatic rollback operation when a step fails.
+6. Choose **Restart now** or **Restart later**. A successful install changes the Profile on disk, but the running process does not load the new plugin automatically. The immediate action consumes a short-lived one-shot restart grant and never restarts silently.
 
-If managed preview is unavailable, the dialog remains a details view. For an exact stable npm identity, the Host may show a bounded display-only command reconstructed from normalized identity. It may differ from the command described in the repository, is not the provider's original command, and has not passed the managed installer's complete verification. **Open DSH Terminal** sends no command, path, or profile: it only opens Desktop's built-in terminal so the user can inspect the source and decide whether to copy and run the text. A `dsh plugin add` launched through that built-in terminal uses the same configuration-recovery record as a Market install. Direct `pnpm` or `npm` commands typed there, and commands run from an external system terminal, are outside this recovery boundary. A manual install creates no Market receipt and therefore grants no Market uninstall authority.
+If managed preview is unavailable, the dialog remains a details view. For an exact stable npm identity, the Host may show a bounded display-only command reconstructed from normalized identity. It may differ from the command described in the repository, is not the provider's original command, and has not passed the managed installer's complete verification. **Open DSH Terminal** sends no command, path, or Profile: it only opens Desktop's built-in terminal so the user can inspect the source and decide whether to copy and run the text. A manual install creates no Market receipt and therefore grants no Market uninstall authority or special recovery behavior.
 
 The **Installable** label means only “this listing is a structural candidate from the selected catalog.” It does not mean npm has been contacted, the current profile permits installation, compatibility is proven, or the code is approved or safe. Installed, receipted, disabled, or subsequently uninstalled packages remain listed while the catalog still contains them. Preview may still reject a local operation, and a successful preview is not a promise that execution will succeed if registry, catalog, or profile state changes.
 
@@ -48,21 +47,11 @@ The built-in managed installation boundary supports only an npm package when all
 
 Building **Installable** does not perform per-package registry I/O. It excludes product-blocked packages, but does not read the active profile, Market receipts, or enabled/disabled state to decide catalog membership. Preview performs official-registry and active-profile verification for the selected candidate. Immediately before confirmed installation, execution repeats mutable checks; if integrity, tarball, bundle path, catalog candidate, or active profile changed, it refuses the operation. Only one Market package mutation runs at a time.
 
-## Protected install recovery
+## Unified Profile recovery
 
-The recovery boundary is deliberately configuration-level and applies only to `plugin add`. Before a Market-managed install or a `dsh plugin add` launched through Desktop's built-in DSH Terminal, Desktop stores private preimages for this fixed allowlist:
+Market does not own recovery state. Desktop writes one healthy checkpoint after every successful startup and rotates through exactly three Profile-scoped slots. Each checkpoint contains the declarative Profile files, metadata such as capture time and Desktop version, and a browsable directory. Startup failures do not trigger automatic Profile mutation or relaunch.
 
-- `package.json`;
-- `pnpm-lock.yaml`; and
-- `pnpm-workspace.yaml`.
-
-It does not back up or actively roll back `node_modules`, plugin payload files, environment variables, or separate credential stores. The three allowlisted profile files are copied as raw bytes, so users and integrations must not embed credentials in them. Uninstall and bundle enable/disable do not create this snapshot.
-
-After a successful add, Desktop seals hashes for the resulting allowlisted files and keeps one write-ahead recovery record pending. A second protected plugin add is refused until the record is verified or reconciled. This gate covers Market installs and the built-in terminal's `dsh plugin add`; it is not a global filesystem lock and cannot protect raw package-manager commands or an external system terminal.
-
-The next Desktop generation claims the record before profile preparation. Successful Host startup followed by a healthy Renderer report within its 30-second deadline verifies the install and clears the recovery data. A Host failure, main-frame load failure, Renderer failure, timeout, or an interrupted prior verification first triggers a local diagnostics export and then a conservative restore. Desktop writes a file only when its current hash is one of the recorded before/after images. Unknown third-party drift fails closed as `manual-recovery-required`, without a partial automatic overwrite. A successful automatic restore may relaunch Desktop once; it never enters an automatic restart loop.
-
-When a Market receipt was already saved for an install that startup recovery rolls back, the Market removes that exact receipt before acknowledging and clearing the recovery record. If receipt persistence fails, the record remains pending and the cleanup is retried. The local diagnostics archive is not uploaded automatically and may contain logs, system information, and crash evidence; treat it as sensitive rather than assuming every artifact can be completely redacted.
+Recovery is always user-directed from the Desktop Recovery page. The user can inspect the three slots, open a checkpoint directory, and restore one exact slot. The first healthy startup after that restore intentionally skips checkpoint replacement; the following healthy startup resumes normal oldest-slot rotation. This same mechanism covers package operations and every other Profile change without an install-specific WAL, receipt reconciliation, retry, or rollback path.
 
 The built-in managed installer rejects:
 
@@ -108,11 +97,9 @@ The installation path keeps catalog approval, package execution, and startup rec
 flowchart LR
     Scan["Complete normalized local index"] --> Candidate["Fail-closed local structural candidates"]
     Candidate --> Preview["Official npm verification + opaque preview"]
-    Preview --> Operation["Recovery snapshot + reverified managed add"]
-    Operation --> Pending["Receipt + pending next-start verification"]
-    Pending --> Healthy["Healthy Host and Renderer"]
-    Healthy --> Commit["Clear recovery record"]
-    Pending -->|"failure or timeout"| Restore["Local diagnostics + configuration restore"]
+    Preview --> Operation["Reverified pnpm add + Profile bundle reconcile"]
+    Operation --> Receipt["Verified local state + receipt"]
+    Receipt --> Restart["Optional explicit Desktop restart"]
 ```
 
 Keep those states separate:
@@ -120,13 +107,13 @@ Keep those states separate:
 - A catalog adapter may map remote metadata into complete normalized snapshots, including `package`, `latestVersion`, repository, category, and display fields. Full-scan chunks contain at most 100 items, discard remote commands, and never load remote JavaScript.
 - The Host owns fail-closed **Installable** structural filtering. The renderer displays only Host-returned candidate identities and must not infer candidacy from `latestVersion` or promote another listing. Listing does not query npm for every package.
 - Install preview accepts only `sourceRecordId` and `itemId`. The Host selects its previously observed candidate, performs the full official-registry, runtime, lifecycle, integrity, repository, DSH bundle, and active-profile verification for that package, and returns an opaque `previewId` plus the exact confirmation summary only on success.
-- Execute accepts only that `previewId`. The one-shot token binds the candidate, registry evidence, active profile, and expiry; the Host revalidates all mutable state. Desktop must publish the allowlisted preimages before starting the managed add and seal the known partial or successful postimage before reporting its outcome.
+- Execute accepts only that `previewId`. The one-shot token binds the candidate, registry evidence, active Profile, and expiry; the Host revalidates all mutable state, invokes `desktopPnpm.run()` with fixed pnpm argv, reconciles the Profile bundle list, and verifies the resulting package and lockfile before saving a receipt.
 - Installed-state reads reconcile the active profile's direct-bundle inventory with verified receipts. Uninstall preview accepts only `receiptId`. Disable and enable preview accept only a generation-scoped opaque `bundleId`. Every execution accepts only its one-shot opaque `previewId`, and enable revalidates both disabled status and receipt ownership.
-- The renderer never receives filesystem, process, environment, or package-manager authority. Package changes go through `desktopPnpm.runPlugin()` with fixed argument construction and the active profile's absolute directory. The only command-shaped value it may receive is a bounded display-only manual hint; the terminal action cannot receive or execute it.
+- The renderer never receives filesystem, process, environment, or package-manager authority. Package changes go through `desktopPnpm.run()` with Host-owned argv and the active Profile as the service-owned `cwd`. The only command-shaped value it may receive is a bounded display-only manual hint; the terminal action cannot receive or execute it.
 
 The receipt records the profile, exact npm identity, integrity, DSH bundle patch, catalog provenance, display name, and installation time. It is local evidence that this Market completed and verified a managed install; it is not a provider credential and must not depend on the source remaining registered.
 
-If Desktop package capabilities are unavailable, browsing still works while install, uninstall, disable, and enable return an unavailable state. The managed path never falls back to an ambient `pnpm`, shell, guessed executable, repository command, or inactive profile. Opening DSH Terminal is a separate explicit user action and never starts a package operation by itself. Only a later `dsh plugin add` through the built-in terminal receives the Desktop recovery handoff; other terminal commands do not.
+If Desktop package capabilities are unavailable, browsing still works while install, uninstall, disable, and enable return an unavailable state. The managed path never falls back to an ambient `pnpm`, shell, guessed executable, repository command, or inactive Profile. Opening DSH Terminal is a separate explicit user action and never starts a package operation by itself. Market operations receive no install-specific snapshot or rollback; recovery is handled only by Desktop's three healthy-start Profile checkpoints.
 
 ## Failure and recovery
 
@@ -136,12 +123,10 @@ If Desktop package capabilities are unavailable, browsing still works while inst
 | Official npm verification fails during preview | No confirmation is issued; the structural candidate may remain visible until its local inputs change |
 | npm or profile state changes after a successful preview | Confirmed execution is refused; create a fresh preview before retrying |
 | Preview expires, is reused, or profile/candidate changes | Operation is refused; create a fresh preview |
-| Managed add fails after a recognized partial change | No receipt; the three allowlisted configuration files are restored after the partial image is sealed. `node_modules` is not actively rolled back |
-| Receipt cannot be saved | The allowlisted configuration is restored; an unsafe or mismatched recovery state requires manual repair |
-| A successful install is waiting for its first restart | Another protected plugin add is refused until startup health is verified or recovery is reconciled |
-| Host startup fails, or the Renderer fails or does not report healthy within 30 seconds | A local diagnostics archive is saved, recognized configuration images are restored, and Desktop relaunches at most once |
-| An allowlisted file has unknown third-party drift | Automatic restore stops without overwriting it; the recovery record requires manual repair |
-| Startup recovery rolls back an install whose receipt was saved | The exact receipt is removed before the recovery record is acknowledged; a persistence failure leaves recovery pending for retry |
+| pnpm fails after a partial change | No receipt; Market does not launch an automatic cleanup or rollback operation. Recovery remains an explicit user choice in Desktop Recovery |
+| Installed bundle or lockfile validation fails | No receipt; the changed Profile remains available for diagnosis or explicit checkpoint restore |
+| Receipt cannot be saved | The verified package remains installed and a persistence error is reported; no install-specific rollback runs |
+| Host or Renderer startup fails | Desktop opens Recovery without automatically changing the active Profile; the user may inspect and restore one of three healthy checkpoints |
 | Receipt or installed bundle changed before uninstall | Uninstall is refused without taking ownership of the changed package |
 | Managed uninstall succeeds but receipt persistence fails | The package is removed, but the receipt store reports a persistence error |
 | Bundle or receipt ownership changes after an enable/disable preview | Execution is refused; refresh Installed and create a new preview |
