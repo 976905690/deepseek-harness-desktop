@@ -7,6 +7,7 @@ import {
   computeDesktopColumns, DesktopLayoutState, MACOS_SIDEBAR_COLLAPSED, SIDEBAR_COLLAPSED,
 } from '../src/client/layout-state.ts'
 import { installAdvancedStyles } from '../src/client/styles.ts'
+import { desktopWindowService, provideDesktopWindow } from '../src/client/window-service.ts'
 import {
   MACOS_DRAG_REGION_HEIGHT,
   MACOS_TITLEBAR_HEIGHT,
@@ -50,7 +51,7 @@ describe('desktop client environment', () => {
 describe('advanced desktop layout', () => {
   it('owns native caption geometry without targeting feature headers', () => {
     expect(MACOS_TITLEBAR_HEIGHT).toBe(20)
-    expect(MACOS_DRAG_REGION_HEIGHT).toBe(32)
+    expect(MACOS_DRAG_REGION_HEIGHT).toBe(44)
     expect(MACOS_DRAG_REGION_HEIGHT).toBeGreaterThan(MACOS_TITLEBAR_HEIGHT)
     expect(WINDOWS_TITLEBAR_HEIGHT).toBe(32)
     let css = ''
@@ -77,9 +78,11 @@ describe('advanced desktop layout', () => {
       expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[\s\S]*\.dshDesktopFrame,[\s\S]*\.dshDesktopResizeHandle \{ transition: none !important; \}/)
       expect(css).toMatch(/\.dshDesktopSidebarSurface\s*\{[^}]*--dsw-specific-sidebar-fill:\s*transparent;/)
       expect(css).toMatch(/data-desktop-platform="darwin"\]\[data-sidebar-collapsed\][^{]*\.dshDesktopUpstreamSidebar \{[^}]*width:\s*56px;[^}]*margin:\s*0 auto;/)
-      expect(css).toMatch(new RegExp(`data-desktop-platform="darwin"\\] \\.dshDesktopUpstreamSidebar \\{[^}]*padding-top: ${MACOS_TITLEBAR_HEIGHT}px;[^}]*-webkit-app-region: no-drag;`))
+      expect(css).toMatch(new RegExp(`data-desktop-platform="darwin"\\] \\.dshDesktopUpstreamSidebar \\{[^}]*padding-top: ${MACOS_TITLEBAR_HEIGHT}px;`))
+      expect(css).not.toMatch(/\.dshDesktopUpstreamSidebar \{[^}]*-webkit-app-region: no-drag;/)
       expect(css).toContain(`grid-template-rows: ${MACOS_TITLEBAR_HEIGHT}px minmax(0, 1fr)`)
-      expect(css).toMatch(/\.dshDesktopFrame\[data-desktop-platform="darwin"\] \.dshDesktopSidebarSurface \{[^}]*grid-row: 1 \/ -1;[^}]*-webkit-app-region: no-drag;/)
+      expect(css).toMatch(/\.dshDesktopFrame\[data-desktop-platform="darwin"\] \.dshDesktopSidebarSurface \{[^}]*grid-row: 1 \/ -1;/)
+      expect(css).not.toMatch(/data-desktop-platform="darwin"\] \.dshDesktopSidebarSurface \{[^}]*-webkit-app-region: no-drag;/)
       expect(css).toMatch(/\.dshDesktopFrame\[data-desktop-platform="darwin"\] \.dshDesktopConversationSurface,\s*\.dshDesktopFrame\[data-desktop-platform="darwin"\] \.dshDesktopDetailsSurface \{ grid-row: 2; \}/)
       expect(css).toMatch(new RegExp(`data-desktop-platform="darwin"\\] \\.dshDesktopSidebarSurface::before \\{[^}]*left: ${MACOS_TRAFFIC_LIGHT_SAFE_WIDTH}px;[^}]*height: ${MACOS_DRAG_REGION_HEIGHT}px;[^}]*-webkit-app-region: drag;`))
       expect(css).not.toMatch(/data-desktop-platform="darwin"\] \.dshDesktopSidebarSurface::before \{[^}]*z-index:/)
@@ -88,12 +91,17 @@ describe('advanced desktop layout', () => {
       expect(css).not.toMatch(/\.dshDesktopMacCaptionRow::before \{[^}]*z-index:/)
       expect(css).not.toMatch(/data-desktop-platform="darwin"\] \.dshDesktopSidebarSurface \{[^}]*-webkit-app-region:\s*drag;/)
       expect(css).not.toContain('[data-phase')
-      expect(css).toMatch(/html:has\(\[aria-modal="true"\]\) \.dshDesktopMacCaptionRow::before,[\s\S]*html:has\(\[aria-modal="true"\]\) \.dshDesktopSidebarSurface::before \{ -webkit-app-region: no-drag !important; \}/)
+      expect(css).toMatch(/\.dshDesktopNoDrag, button, input, textarea, select, label, summary, a,[^{}]*\{ -webkit-app-region: no-drag !important; \}/)
+      expect(css).toContain('[contenteditable="true"]')
+      expect(css).toContain('[role="switch"]')
+      expect(css).not.toMatch(/html:has\(\[aria-modal="true"\]\) \.dshDesktopMacCaptionRow/)
+      expect(css).not.toMatch(/html:has\(\[aria-modal="true"\]\) \.dshDesktopSidebarSurface/)
       expect(css).toContain(`grid-template-rows: ${WINDOWS_TITLEBAR_HEIGHT}px minmax(0, 1fr)`)
       expect(css).toMatch(/\.dshDesktopFrame\[data-desktop-platform="win32"\] \.dshDesktopSidebarSurface \{ grid-row: 1 \/ -1; \}/)
       expect(css).toMatch(/\.dshDesktopFrame\[data-desktop-platform="win32"\] \.dshDesktopConversationSurface,\s*\.dshDesktopFrame\[data-desktop-platform="win32"\] \.dshDesktopDetailsSurface \{ grid-row: 2; \}/)
       expect(css).toMatch(/\.dshDesktopWindowsCaptionRow \{[^}]*grid-column: 2 \/ -1;[^}]*grid-row: 1;/)
       expect(css).toMatch(new RegExp(`\\.dshDesktopWindowsCaptionRow::before \\{[^}]*inset: 0 ${WINDOWS_CAPTION_CONTROLS_WIDTH}px 0 0;[^}]*-webkit-app-region: drag;`))
+      expect(css).toContain('html:has([aria-modal="true"]) .dshDesktopWindowsCaptionRow::before { -webkit-app-region: no-drag !important; }')
       expect(css).not.toMatch(/data-desktop-platform="win32"[^{}]*header[^{}]*\{[^}]*padding-right/)
       expect(appendChild).toHaveBeenCalledWith(style)
       dispose()
@@ -117,6 +125,54 @@ describe('advanced desktop layout', () => {
     } as unknown as ClientContext
 
     const dispose = provideDesktopLayout(ctx, new DesktopLayoutState())
+    expect(disposed).toBe(false)
+    dispose()
+    expect(disposed).toBe(true)
+  })
+
+  it('reports generation-stable safe areas and drag geometry to client plugins', () => {
+    expect(desktopWindowService({ mode: 'compatibility', platform: 'darwin' })).toEqual({
+      mode: 'compatibility',
+      platform: 'darwin',
+      safeAreaInsets: { top: 0, right: 0, bottom: 0, left: 0 },
+      dragRegion: { height: 0, leftInset: 0, rightInset: 0 },
+    })
+    const mac = desktopWindowService({ mode: 'advanced', platform: 'darwin' })
+    expect(mac).toEqual({
+      mode: 'advanced',
+      platform: 'darwin',
+      safeAreaInsets: { top: MACOS_TITLEBAR_HEIGHT, right: 0, bottom: 0, left: 0 },
+      dragRegion: {
+        height: MACOS_DRAG_REGION_HEIGHT,
+        leftInset: MACOS_TRAFFIC_LIGHT_SAFE_WIDTH,
+        rightInset: 0,
+      },
+    })
+    expect(Object.isFrozen(mac)).toBe(true)
+    expect(Object.isFrozen(mac.safeAreaInsets)).toBe(true)
+    expect(Object.isFrozen(mac.dragRegion)).toBe(true)
+    expect(desktopWindowService({ mode: 'advanced', platform: 'win32' })).toEqual({
+      mode: 'advanced',
+      platform: 'win32',
+      safeAreaInsets: { top: WINDOWS_TITLEBAR_HEIGHT, right: 0, bottom: 0, left: 0 },
+      dragRegion: {
+        height: WINDOWS_TITLEBAR_HEIGHT,
+        leftInset: 0,
+        rightInset: WINDOWS_CAPTION_CONTROLS_WIDTH,
+      },
+    })
+
+    let disposed = false
+    const ctx = {
+      reflect: {
+        provide: (name: string, value: unknown) => {
+          expect(name).toBe('desktopWindow')
+          expect(value).toBe(mac)
+          return () => { disposed = true }
+        },
+      },
+    } as unknown as ClientContext
+    const dispose = provideDesktopWindow(ctx, mac)
     expect(disposed).toBe(false)
     dispose()
     expect(disposed).toBe(true)

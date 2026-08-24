@@ -2,7 +2,7 @@
 
 [English](plugin-services.md) | 中文
 
-本文档是面向插件作者、受支持的 Host 侧集成 contract，覆盖 DSH Desktop 2.x 在兼容与高级两种呈现模式下导出的公开 `desktopProfiles` 与 `desktopPnpm` Cordis service。它不会授予第三方访问原始 Electron API、renderer 或 launcher bootstrap 状态的能力。
+本文档是面向插件作者、受支持的集成 contract，覆盖 DSH Desktop 2.x 在兼容与高级两种呈现模式下导出的 Host 公开 service `desktopProfiles`、`desktopPnpm`，以及 Client 公开 service `desktopWindow`。它不会授予第三方访问原始 Electron API 或 launcher bootstrap 状态的能力。
 
 ## 分层与数据流
 
@@ -24,6 +24,7 @@ flowchart LR
 
   subgraph Renderer["沙箱 Web renderer"]
     Client["Desktop 与第三方<br/>Web Client module"]
+    Window["公开 Client service<br/>ctx.desktopWindow"]
   end
 
   Launcher -->|"在 Loader entry 前注册"| Profiles
@@ -32,16 +33,61 @@ flowchart LR
   Bootstrap --> Pnpm
   Upstream --> Pnpm
   Runtime --> Native
+  Native -->|"经过校验的呈现几何信息"| Window
   Plugin --> Profiles
   Plugin --> Pnpm
   Upstream <-->|"loopback HTTP 与 WebSocket"| Client
+  Client --> Window
 ```
 
 Launcher 会在 Loader tree 挂载前解析一个 profile。`desktopProfiles.current` 在整个 Cordis generation dispose 前保持不变。`desktop-pnpm` Host row 会根据 launcher 私有 fact 与上游 subprocess service 构造 `desktopPnpm`。切换 profile 或模式会 dispose 当前 generation 并启动新 generation；service reference 不能跨越该边界。
 
-Renderer 通过现有 loopback carrier 接收普通 Web Client module，无法直接读取这些 Host service；DSH Desktop 也不会为它们增加 preload 或 Electron IPC bridge。包含浏览器 UI 的插件继续使用普通 DSH Host route、RPC、client metadata、service 与 slot。
+Renderer 通过现有 loopback carrier 接收普通 Web Client module，无法直接读取这些 Host service；DSH Desktop 也不会为它们增加 preload 或 Electron IPC bridge。Desktop Client 会改为在自己的 Cordis fiber 生命周期内，通过 `desktopWindow` 提供不可变的原生布局信息。包含浏览器 UI 的插件继续使用普通 DSH Host route、RPC、client metadata、service 与 slot。
 
-## 公开 Cordis service
+## 公开 Client Cordis service
+
+从受支持的 client export 导入 contract，并且只在浏览器侧代码中 inject `desktopWindow`：
+
+```ts
+import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { DesktopWindowService } from 'dsh-plugin-desktop/client'
+
+export const inject = ['desktopWindow']
+
+export function apply(ctx: ClientContext): void {
+  const geometry: DesktopWindowService = ctx.desktopWindow
+  document.documentElement.style.setProperty(
+    '--example-desktop-safe-top',
+    `${geometry.safeAreaInsets.top}px`,
+  )
+}
+```
+
+### `desktopWindow`
+
+```ts
+interface DesktopWindowService {
+  readonly mode: 'compatibility' | 'advanced'
+  readonly platform: 'darwin' | 'win32' | 'linux'
+  readonly safeAreaInsets: {
+    readonly top: number
+    readonly right: number
+    readonly bottom: number
+    readonly left: number
+  }
+  readonly dragRegion: {
+    readonly height: number
+    readonly leftInset: number
+    readonly rightInset: number
+  }
+}
+```
+
+所有值都使用 CSS 像素，并且在一个 renderer generation 内保持不变。兼容模式由操作系统拥有普通窗口边框，因此 inset 和拖动区域高度都为零。macOS 增强模式会报告顶部 20 像素的内容 inset、连续 44 像素的拖动带，以及为红绿灯保留的左侧 80 像素排除区。Windows 增强模式会报告顶部 32 像素的内容 inset 与拖动带，以及为原生标题栏按钮保留的右侧 138 像素排除区。
+
+`safeAreaInsets` 描述 Desktop 从哪里开始放置完整的上游内容 surface；`dragRegion` 则单独描述原生标题栏命中区域，consumer 不能假设两者高度相同。拖动带内的交互元素必须设置 `-webkit-app-region: no-drag`；Desktop 已经为标准按钮、链接、输入框、可编辑字段、菜单、标签页、开关与对话框设置该排除规则。该 service 只报告几何信息，不提供窗口 mutation、焦点、Electron 或 IPC capability；普通浏览器启动中不存在该 service。
+
+## 公开 Host Cordis service
 
 请从受支持的 contract 路径执行 type-only import：
 
@@ -158,6 +204,7 @@ Service 在每个 generation 同时最多启动一个 package operation；已有
 | --- | --- | --- |
 | `desktopProfiles` | 作用于 generation 的 Host service。 | 公开；通过 `dsh-plugin-desktop/profile-service` 获得受支持 contract。 |
 | `desktopPnpm` | 作用于 generation 的 Host service。 | 公开；通过 `dsh-plugin-desktop/pnpm` 获得受支持 contract。 |
+| `desktopWindow` | 作用于 generation 的 Client service。 | 公开；通过 `dsh-plugin-desktop/client` 获得受支持 contract，只包含不可变几何信息。 |
 | `desktopRuntime` | Launcher 提供的 native adapter，供 Desktop 自有 shell、tray、terminal、profile 与 update row 使用。 | Desktop 内部。第三方插件不得 inject，也不得依赖其 window/tray 方法。 |
 | `desktopPnpmBootstrap` | 提供给 `desktop-pnpm` provider 的已打包绝对路径、被选 profile fact、Electron ABI 值与私有 Node helper。 | Launcher 私有。不得读取、provide、intercept 或声明为 dependency。 |
 | `DesktopProfileServiceBootstrap` | Launcher 注册 `desktopProfiles` 时使用的 constructor input；它不是 Cordis service。 | Launcher 私有实现细节。 |
@@ -330,4 +377,4 @@ yarn workspace dsh-plugin-desktop verify:profile
 
 ## 稳定性边界
 
-受支持的插件作者 surface，是本文描述且由 `dsh-plugin-desktop/profile-service` 与 `dsh-plugin-desktop/pnpm` 导出的 `desktopProfiles` 和 `desktopPnpm` service contract。Launcher bootstrap 值、native adapter、生成 shim、状态文件格式、Loader row 顺序与 Electron 实现细节都可能变化，但不会因此成为第三方 API。Fallback 必须保持显式、限定在生命周期内，并且 headless-safe。
+受支持的插件作者 surface，是本文描述且由 `dsh-plugin-desktop/profile-service`、`dsh-plugin-desktop/pnpm` 与 `dsh-plugin-desktop/client` 导出的 `desktopProfiles`、`desktopPnpm` 和 `desktopWindow` service contract。Launcher bootstrap 值、native adapter、生成 shim、状态文件格式、Loader row 顺序与 Electron 实现细节都可能变化，但不会因此成为第三方 API。Fallback 必须保持显式、限定在生命周期内，并且 headless-safe。

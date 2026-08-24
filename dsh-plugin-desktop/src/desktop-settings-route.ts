@@ -343,6 +343,24 @@ export async function handleDesktopTerminalOpenRequest(
   }
 }
 
+/** Queue an orderly Desktop relaunch from an exact empty request. */
+export async function handleDesktopRestartRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  expectedOrigin: string,
+  controller: DesktopSettingsController,
+  reportError: (operation: string, cause: unknown) => void = () => {},
+): Promise<void> {
+  if (req.method !== 'POST') return finishJson(res, 405, error('method not allowed'), 'POST')
+  if (!isSameOriginLoopbackRequest(req, expectedOrigin, true)) {
+    return finishJson(res, 403, error('forbidden'))
+  }
+  const value = await parsePostBody(req, res)
+  if (value === INVALID_BODY) return
+  if (!isEmptyRequest(value)) return finishJson(res, 400, error('invalid restart request'))
+  finishPostResponse(res, 202, controller.restart(), 'restart Desktop', reportError)
+}
+
 /** Export diagnostics from an exact empty same-origin request. */
 export async function handleDesktopDiagnosticsExportRequest(
   req: IncomingMessage,

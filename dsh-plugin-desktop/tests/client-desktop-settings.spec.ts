@@ -54,7 +54,9 @@ describe('Desktop settings API', () => {
   it('uses the strict same-origin routes and request bodies', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       const path = String(input)
-      if (path === desktopSettingsPaths.terminalOpen) return json({ accepted: true })
+      if (path === desktopSettingsPaths.terminalOpen || path === desktopSettingsPaths.restart) {
+        return json({ accepted: true })
+      }
       return path === desktopSettingsPaths.settings || path === desktopSettingsPaths.profileCreate || path === desktopSettingsPaths.profileDelete
         ? json(VIEW)
         : json({ accepted: true, restartRequired: true })
@@ -67,6 +69,7 @@ describe('Desktop settings API', () => {
     await expect(api.deleteProfile('work')).resolves.toEqual(VIEW)
     await expect(api.selectMarket('community-market')).resolves.toEqual({ accepted: true, restartRequired: true })
     await expect(api.openTerminal()).resolves.toBeUndefined()
+    await expect(api.restart()).resolves.toBeUndefined()
 
     expect(fetcher.mock.calls.map(call => call[0])).toEqual([
       desktopSettingsPaths.settings,
@@ -75,6 +78,7 @@ describe('Desktop settings API', () => {
       desktopSettingsPaths.profileDelete,
       desktopSettingsPaths.marketSelect,
       desktopSettingsPaths.terminalOpen,
+      desktopSettingsPaths.restart,
     ])
     expect(fetcher.mock.calls[1]?.[1]).toMatchObject({
       method: 'POST',
@@ -92,6 +96,10 @@ describe('Desktop settings API', () => {
       method: 'POST',
       body: JSON.stringify({}),
     })
+    expect(fetcher.mock.calls[6]?.[1]).toMatchObject({
+      method: 'POST',
+      body: JSON.stringify({}),
+    })
   })
 
   it('does not reflect an untrusted error body into its public error', async () => {
@@ -102,7 +110,7 @@ describe('Desktop settings API', () => {
 })
 
 describe('Desktop settings Slot registration', () => {
-  it('registers the official Desktop section, terminal action, and both settings scopes', () => {
+  it('registers the official Desktop section, native actions, and both settings scopes', () => {
     const scope = {
       getSnapshot: () => ({
         status: 'loading' as const,

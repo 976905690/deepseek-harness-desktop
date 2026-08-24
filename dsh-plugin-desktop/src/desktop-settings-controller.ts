@@ -14,6 +14,7 @@ import type {
   DesktopProfileDeleteResponse,
   DesktopProfileRollbackResponse,
   DesktopProfileSelectResponse,
+  DesktopRestartResponse,
   DesktopSettingsMarketView,
   DesktopSettingsProfileView,
   DesktopSettingsResponse,
@@ -151,6 +152,14 @@ export class DesktopSettingsController {
   openTerminal(): DesktopTerminalOpenResponse {
     this.bootstrap.openTerminal()
     return Object.freeze({ accepted: true })
+  }
+
+  /** Acknowledge the renderer before queueing an orderly Desktop relaunch. */
+  restart(): DesktopSettingsPostResponse<DesktopRestartResponse> {
+    return Object.freeze({
+      response: Object.freeze({ accepted: true }),
+      afterResponse: () => { this.bootstrap.scheduleRestart() },
+    })
   }
 
   /** Export diagnostics through the native confirmation and reveal flow. */

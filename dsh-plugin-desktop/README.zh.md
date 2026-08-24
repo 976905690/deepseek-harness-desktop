@@ -65,7 +65,7 @@ Cordis row 会在 profile 激活期间登记原生窗口参数。Launcher 只在
 
 高级模式是为 macOS 与 Windows 显式组合的 desktop 呈现。Launcher 会在读取全部用户 patch 后禁用官方 `ui-layout` Loader row，保持官方 `ui-sidebar` 与 `ui-conversation` row 启用，并把所选模式应用到 `desktop-shell`。
 
-desktop Client 随后在自身 Cordis fiber 生命期内提供 `layout` service，并且只注册 `root` slot occupant。其 root 为不变的上游 sidebar、conversation、details 与 overlay contribution 声明 seat。官方 sidebar 继续作为 `sidebar` occupant，并继续声明 workspace browser、settings shell 与纯新增 footer action seat。这样会保留其组件行为、收起动画与第三方扩展点，而 desktop package 只拥有 frame 几何与原生材质。
+desktop Client 会在两种呈现模式中提供不可变的 `desktopWindow` 原生几何 service。增强模式还会在自身 Cordis fiber 生命期内提供 `layout` service，并且只注册 `root` slot occupant。其 root 为不变的上游 sidebar、conversation、details 与 overlay contribution 声明 seat。官方 sidebar 继续作为 `sidebar` occupant，并继续声明 workspace browser、settings shell 与纯新增 footer action seat。这样会保留其组件行为、收起动画与第三方扩展点，而 desktop package 只拥有 frame 几何与原生材质。
 
 高级 theme presenter 会把当前上游 theme snapshot 投影到 document，包括 color scheme、解析后的 token 值、深色模式 marker 与 theme-color metadata。它订阅普通 theme 变化，generation dispose 时只移除由自身投影的状态。
 
@@ -73,7 +73,7 @@ desktop Client 随后在自身 Cordis fiber 生命期内提供 `layout` service�
 
 desktop sidebar surface 会把上游 sidebar-fill token 局部设为透明，因此官方 sidebar 与 session 列表渐隐可以透出原生材质，而无需改变其组件样式。
 
-在 macOS 上，高级窗口使用透明 hidden-inset 标题栏、定位后的红黄绿按钮与原生 `sidebar` vibrancy。其 90 CSS 像素收起列会把官方 56 像素 rail 居中放在 desktop 自有的红绿灯顶部 inset 下方。Sidebar surface 本身不可拖动；红绿灯右侧由 desktop 自有的透明 32 CSS 像素条提供窗口拖动目标。Conversation 与 details 完整 surface 上方的 caption row 会保留 20 CSS 像素视觉间距，同时提供另一块透明的 32 CSS 像素拖动命中区域。按钮、链接、输入框、对话框与显式声明 `app-region: no-drag` 的 contribution 仍可交互；放在顶部 32 像素内的自定义 pointer target 也必须声明同一排除规则。在 Windows 上，官方 sidebar 保持兼容模式几何：收起 56 像素、默认展开 280 像素，并沿用相同的上游过渡行为；透明 surface 会透出 Mica。窗口使用带原生控件的隐藏标题栏、透明 overlay、Mica 背景材质、阴影、圆角与粗可调整边框。Electron 仅在 Windows 11 22H2 及以上版本提供由系统绘制的 Mica 材质。Desktop 自有的 32 CSS 像素 caption row 会横跨 Windows 的 conversation 与 details 两列；完整的上游 slot surface 从该行下方开始，因此官方与第三方 Header contribution 会保持原有相对布局，无需针对具体元素设置 caption offset。Linux 会拒绝高级模式，而不会静默降级到与持久化设置不同的呈现。
+在 macOS 上，增强窗口使用透明 hidden-inset 标题栏、定位后的红黄绿按钮与原生 `sidebar` vibrancy。其 90 CSS 像素收起列会把官方 56 像素 rail 居中放在 desktop 自有的红绿灯顶部 inset 下方。Desktop 自有的一条连续透明 44 CSS 像素拖动带，会从红绿灯右侧横跨 sidebar 顶部以及 conversation/details 的完整宽度，并且在 overlay 打开时仍可拖动。Conversation 与 details 的完整 surface 仍保留 20 CSS 像素内容 inset；`desktopWindow` 会把这个 inset 与更高的拖动命中区域分别报告。按钮、链接、输入框、可编辑字段、菜单、标签页、开关、对话框与显式 `.dshDesktopNoDrag` contribution 会通过精确的 `app-region: no-drag` 排除规则保持可交互。在 Windows 上，官方 sidebar 保持兼容模式几何：收起 56 像素、默认展开 280 像素，并沿用相同的上游过渡行为；透明 surface 会透出 Mica。窗口使用带原生控件的隐藏标题栏、透明 overlay、Mica 背景材质、阴影、圆角与粗可调整边框。Electron 仅在 Windows 11 22H2 及以上版本提供由系统绘制的 Mica 材质。Desktop 自有的 32 CSS 像素 caption row 会横跨 Windows 的 conversation 与 details 两列；完整的上游 slot surface 从该行下方开始，因此官方与第三方 Header contribution 会保持原有相对布局，无需针对具体元素设置 caption offset。Linux 会拒绝增强模式，而不会静默降级到与持久化设置不同的呈现。
 
 ## 开发
 
@@ -160,7 +160,7 @@ npx dsh-plugin-desktop
 
 Release operator 必须先发布两个平台产物，再让版本可被发现。产物与 download redirect 准备完成后，在 Upstash Redis console 中把 `deepseek-harness-desktop:release:version` 设置为规范的 stable 版本，例如 `SET deepseek-harness-desktop:release:version 2.0.1`。版本 API 会立即生效；key 缺失、服务不可用或值无效时，Desktop 不会显示任何提示。
 
-在 macOS 与 Windows 上，**Open DSH Terminal** 会打开以当前激活 profile 为工作目录的系统终端。欢迎信息会显示应用版本、当前 profile、profile 目录与 DSH home，并列出配置与插件管理命令。在该终端内，裸 `dsh`、`dsh --dump-config`，以及没有选择 profile 的 plugin 子命令都会默认使用当前激活 profile；显式 `--profile` 与上游 `web` alias 会保留原有含义。DSH Desktop 会在自身 user-data 目录下按 profile 生成私有 `dsh`、`pnpm` 与 `node` shim，设置 `DSH_HOME`，使用当前 profile 作为工作目录，并且只在该终端的 `PATH` 前置 shim 目录；之后切换 profile 不会改变已经打开的终端命令。它不会修改全局环境或 shell 启动文件。macOS launcher 会先保留用户的交互式 zsh 或 bash 设置，再恢复 desktop 自有变量。Windows 会依次选择 PowerShell 7、Windows PowerShell 或命令提示符，并在新的 Windows Terminal 窗口中打开；如果 `wt.exe` 不可用，则由私有 `cmd start` broker 创建可见控制台。同步启动失败与 broker 非正常退出会显示在原生错误对话框中。Linux 不组合该终端命令。
+在 macOS 与 Windows 上，**打开 DSH 终端** 会打开以当前激活 profile 为工作目录的系统终端。设置页标题区会把 **重启 Desktop** 放在它旁边；本地同源请求先收到确认响应，随后才会启动与设置变更相同的有序 Cordis shutdown 和 Electron relaunch。终端欢迎信息会显示应用版本、当前 profile、profile 目录与 DSH home，并列出配置与插件管理命令。在该终端内，裸 `dsh`、`dsh --dump-config`，以及没有选择 profile 的 plugin 子命令都会默认使用当前激活 profile；显式 `--profile` 与上游 `web` alias 会保留原有含义。DSH Desktop 会在自身 user-data 目录下按 profile 生成私有 `dsh`、`pnpm` 与 `node` shim，设置 `DSH_HOME`，使用当前 profile 作为工作目录，并且只在该终端的 `PATH` 前置 shim 目录；之后切换 profile 不会改变已经打开的终端命令。它不会修改全局环境或 shell 启动文件。macOS launcher 会先保留用户的交互式 zsh 或 bash 设置，再恢复 desktop 自有变量。Windows 会依次选择 PowerShell 7、Windows PowerShell 或命令提示符，并在新的 Windows Terminal 窗口中打开；如果 `wt.exe` 不可用，则由私有 `cmd start` broker 创建可见控制台。同步启动失败与 broker 非正常退出会显示在原生错误对话框中。Linux 不组合该终端命令。
 
 ## 日志与诊断
 

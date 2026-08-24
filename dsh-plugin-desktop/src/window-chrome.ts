@@ -2,7 +2,7 @@
 export const MACOS_TITLEBAR_HEIGHT = 20
 
 /** Height of the macOS native drag hit regions in CSS pixels. */
-export const MACOS_DRAG_REGION_HEIGHT = 32
+export const MACOS_DRAG_REGION_HEIGHT = 44
 
 /** Width reserved for the macOS traffic lights before the empty drag strip. */
 export const MACOS_TRAFFIC_LIGHT_SAFE_WIDTH = 80

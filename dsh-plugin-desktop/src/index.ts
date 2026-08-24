@@ -34,6 +34,7 @@ import {
   DESKTOP_PROFILE_DELETE_PATH,
   DESKTOP_PROFILE_ROLLBACK_PATH,
   DESKTOP_PROFILE_SELECT_PATH,
+  DESKTOP_RESTART_PATH,
   DESKTOP_SETTINGS_PATH,
   DESKTOP_TERMINAL_OPEN_PATH,
 } from './desktop-settings-contract.ts'
@@ -45,6 +46,7 @@ import {
   handleDesktopProfileDeleteRequest,
   handleDesktopProfileRollbackRequest,
   handleDesktopProfileSelectRequest,
+  handleDesktopRestartRequest,
   handleDesktopSettingsRequest,
   handleDesktopTerminalOpenRequest,
 } from './desktop-settings-route.ts'
@@ -190,6 +192,7 @@ export function apply(ctx: Context, config: Config): void {
       [DESKTOP_PROFILE_SELECT_PATH, handleDesktopProfileSelectRequest],
       [DESKTOP_MARKET_SELECT_PATH, handleDesktopMarketSelectRequest],
       [DESKTOP_TERMINAL_OPEN_PATH, handleDesktopTerminalOpenRequest],
+      [DESKTOP_RESTART_PATH, handleDesktopRestartRequest],
       [DESKTOP_DIAGNOSTICS_EXPORT_PATH, handleDesktopDiagnosticsExportRequest],
     ] as const
     for (const [path, handler] of settingsRoutes) {
