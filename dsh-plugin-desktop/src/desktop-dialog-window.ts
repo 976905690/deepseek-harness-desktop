@@ -8,10 +8,21 @@ import {
   auxiliaryWindowHasCustomFrame,
 } from './auxiliary-window-options.ts'
 import { revealApplication } from './electron-reveal.ts'
+import { DESKTOP_FRAME_HEIGHT } from './window-chrome.ts'
 
 const DIALOG_SCHEME = 'dsh-desktop-dialog:'
 const DIALOG_DOCUMENT = fileURLToPath(new URL('./native-ui/desktop-dialog.html', import.meta.url))
 const MAX_BUTTONS = 4
+const DIALOG_WIDTH = 480
+const DIALOG_BODY_PADDING = 40
+const DIALOG_CONTENT_COLUMNS = 54
+const DIALOG_MESSAGE_LINE_HEIGHT = 20
+const DIALOG_DETAIL_LINE_HEIGHT = 23
+const DIALOG_FOOTER_GAP = 20
+const DIALOG_BUTTON_HEIGHT = 32
+const DIALOG_BUTTON_GAP = 8
+const DIALOG_MIN_HEIGHT = 160
+const DIALOG_MAX_ESTIMATED_HEIGHT = 360
 
 export interface DesktopDialogOptions {
   readonly type?: 'none' | 'info' | 'error' | 'question' | 'warning'
@@ -27,6 +38,61 @@ export interface DesktopDialogOptions {
 
 export interface DesktopDialogResult {
   readonly response: number
+}
+
+function visualColumns(value: string): number {
+  return [...value].reduce((columns, character) => {
+    if (character === '\t') return columns + 4
+    return columns + ((character.codePointAt(0) ?? 0) > 0xff ? 2 : 1)
+  }, 0)
+}
+
+function estimatedWrappedLines(value: string, maximum: number): number {
+  const lines = value.split('\n').reduce((count, line) => (
+    count + Math.max(1, Math.ceil(visualColumns(line) / DIALOG_CONTENT_COLUMNS))
+  ), 0)
+  return Math.min(maximum, Math.max(1, lines))
+}
+
+function estimatedButtonRows(buttons: readonly string[]): number {
+  const availableWidth = DIALOG_WIDTH - DIALOG_BODY_PADDING
+  let rows = 1
+  let rowWidth = 0
+  for (const label of buttons) {
+    const width = Math.min(240, Math.max(52, 24 + visualColumns(label) * 7))
+    const nextWidth = rowWidth === 0 ? width : rowWidth + DIALOG_BUTTON_GAP + width
+    if (nextWidth > availableWidth && rowWidth !== 0) {
+      rows += 1
+      rowWidth = width
+    } else {
+      rowWidth = nextWidth
+    }
+  }
+  return rows
+}
+
+/**
+ * Keep short confirmations compact while retaining bounded room for recovery,
+ * diagnostic, and multi-action dialogs. The renderer scrolls detail beyond
+ * five estimated lines, so a message cannot grow a modal without limit.
+ */
+export function desktopDialogWindowHeight(
+  options: DesktopDialogOptions,
+  customFrame = false,
+): number {
+  const messageHeight = estimatedWrappedLines(options.message, 3) * DIALOG_MESSAGE_LINE_HEIGHT
+  const detailHeight = options.detail === undefined
+    ? 0
+    : 8 + estimatedWrappedLines(options.detail, 5) * DIALOG_DETAIL_LINE_HEIGHT
+  const contentHeight = Math.max(24, messageHeight + detailHeight)
+  const buttonRows = estimatedButtonRows(options.buttons)
+  const footerHeight = buttonRows * DIALOG_BUTTON_HEIGHT + (buttonRows - 1) * DIALOG_BUTTON_GAP
+  const frameHeight = customFrame ? DESKTOP_FRAME_HEIGHT : 0
+  const estimated = frameHeight + DIALOG_BODY_PADDING + contentHeight + DIALOG_FOOTER_GAP + footerHeight
+  return Math.min(
+    DIALOG_MAX_ESTIMATED_HEIGHT,
+    Math.max(DIALOG_MIN_HEIGHT + frameHeight, estimated),
+  )
 }
 
 function normalizedIndex(value: number | undefined, fallback: number, length: number): number {
@@ -76,13 +142,15 @@ export class DesktopDialogWindow {
     // windows. They stay frameless unless a caller explicitly opts into native
     // controls; standalone notices keep ordinary close controls.
     const windowControls = this.options.windowControls ?? parent === undefined
+    const customFrame = auxiliaryWindowHasCustomFrame(process.platform, windowControls)
+    const height = desktopDialogWindowHeight(this.options, customFrame)
     const window = new BrowserWindow({
       title: this.options.title,
       ...auxiliaryWindowChromeOptions(process.platform, windowControls),
-      width: 480,
-      height: this.options.detail === undefined ? 230 : 300,
+      width: DIALOG_WIDTH,
+      height,
       minWidth: 420,
-      minHeight: 210,
+      minHeight: height,
       maxWidth: 620,
       maxHeight: 440,
       resizable: windowControls,
@@ -129,7 +197,7 @@ export class DesktopDialogWindow {
         query: {
           state,
           platform: process.platform,
-          frame: String(auxiliaryWindowHasCustomFrame(process.platform, windowControls)),
+          frame: String(customFrame),
         },
       }).catch((cause: unknown) => {
         if (settled) return
