@@ -1,6 +1,6 @@
 /** Shared launcher-backed actions rendered in settings and extended title bars. */
 
-import { Bug, LifeBuoy, RefreshCw, RotateCw, SquareTerminal, Wrench } from 'lucide-react'
+import { Bug, ChevronDown, LifeBuoy, RefreshCw, RotateCw, SquareTerminal, Wrench } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { DesktopSettingsApi } from './desktop-settings-api.ts'
 import type { DesktopSettingsLocaleKey } from './desktop-settings-locales.ts'
@@ -64,10 +64,9 @@ export function DesktopNativeActions({ api, t, placement }: DesktopNativeActions
       setRestarting(false)
       return
     }
-    void operation().catch(() => {
-      setFailed('restart')
-      setRestarting(false)
-    })
+    void operation()
+      .catch(() => { setFailed('restart') })
+      .finally(() => { setRestarting(false) })
   }
 
   const runDeveloperAction = (action: 'reload' | 'devtools'): void => {
@@ -106,14 +105,29 @@ export function DesktopNativeActions({ api, t, placement }: DesktopNativeActions
         >
           {t(opening ? 'openingTerminal' : 'openTerminal')}
         </button>
-        <button
-          type="button"
-          className="dshDesktopSettingsHeaderButton"
-          disabled={busy}
-          onClick={() => { restart() }}
-        >
-          {t(restarting ? 'restartingDesktop' : 'restartDesktop')}
-        </button>
+        <div className="dshDesktopNativeActionMenuAnchor" ref={restartMenuRef}>
+          <button
+            type="button"
+            className="dshDesktopSettingsHeaderButton"
+            aria-expanded={restartMenuOpen}
+            aria-haspopup="menu"
+            disabled={busy}
+            onClick={() => { setRestartMenuOpen(value => !value) }}
+          >
+            {t(restarting ? 'restartingDesktop' : 'restartDesktop')}
+            <ChevronDown aria-hidden="true" />
+          </button>
+          {restartMenuOpen && (
+            <div className="dshDesktopActionMenu" role="menu">
+              <button type="button" className="dshDesktopActionMenuItem" role="menuitem" disabled={busy} onClick={() => { restart() }}>
+                <RotateCw aria-hidden="true" /><span>{t('restartDesktop')}</span>
+              </button>
+              <button type="button" className="dshDesktopActionMenuItem" role="menuitem" disabled={busy} onClick={() => { restart(true) }}>
+                <LifeBuoy aria-hidden="true" /><span>{t('restartToRecovery')}</span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     )
   }

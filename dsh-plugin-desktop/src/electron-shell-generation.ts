@@ -10,6 +10,7 @@ import {
   Tray,
 } from 'electron'
 import { formatDesktopExitCode } from './desktop-logger.ts'
+import { showDesktopMessageBox } from './desktop-dialog-window.ts'
 import { applicationNeedsReveal, revealApplication } from './electron-reveal.ts'
 import type { ElectronPlatformStrategy } from './electron-platform.ts'
 import type { DesktopNotification, DesktopShellSpec } from './runtime.ts'
@@ -322,8 +323,8 @@ export class ElectronShellGeneration {
   async showMessageBox(options: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> {
     const window = this.window
     return window === undefined || window.isDestroyed()
-      ? await dialog.showMessageBox(options)
-      : await dialog.showMessageBox(window, options)
+      ? await showDesktopMessageBox(options)
+      : await showDesktopMessageBox(options, window)
   }
 
   async showSaveDialog(options: Electron.SaveDialogOptions): Promise<Electron.SaveDialogReturnValue> {

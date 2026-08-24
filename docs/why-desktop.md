@@ -28,7 +28,7 @@ DSH Desktop 的目标不是重新实现 Harness，而是把同一个运行时放
 当前 Desktop 主要提供：
 
 - macOS 和 Windows 原生窗口、托盘和单实例生命周期。
-- 兼容、扩展窗口和增强三种呈现模式。兼容模式保留上游默认客户端；扩展窗口围绕官方布局加入倒 L 操作区域；增强模式提供 Desktop 自有布局。自定义窗口模式还提供原生材质与拖动区域。
+- 兼容、扩展窗口和增强三种呈现模式。兼容模式在独立 Desktop frame 下保留上游默认客户端；扩展窗口把侧边栏纳入该 frame 的材质层，形成倒 L；增强模式提供 Desktop 自有布局。Desktop frame 还会按能力提供原生材质与拖动区域。
 - 多 profile 选择。当前 generation 的 profile 身份由 Desktop 明确提供，切换通过有序重启生效。
 - 内置终端和固定版本 pnpm 环境。它们只作用于 Desktop 自己创建的进程，不修改用户的全局 PATH。
 - 面向插件开发者的一组受控扩展接口（详见[插件开发](plugin-development.md)）。

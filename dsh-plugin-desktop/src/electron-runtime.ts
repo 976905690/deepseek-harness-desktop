@@ -13,6 +13,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { desktopTerminalStateDirectory, openDesktopTerminal } from './desktop-terminal.ts'
+import { showDesktopMessageBox } from './desktop-dialog-window.ts'
 import { desktopInstallRecoveryStatePath } from './install-recovery.ts'
 import { packagedDependencyPath } from './packaged-runtime-path.ts'
 import { ElectronShellGeneration } from './electron-shell-generation.ts'
@@ -136,7 +137,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
       showOpenDialog: async options => this.generation === undefined
         ? await dialog.showOpenDialog(options)
         : await this.generation.showOpenDialog(options),
-      showMessageBox: async options => await dialog.showMessageBox(options),
+      showMessageBox: async options => await this.showDesktopMessageBox(options),
       logError: message => { this.logError(message) },
       ...(workspaceVolumeQuery === undefined ? {} : { volumeQuery: workspaceVolumeQuery }),
     })
@@ -379,7 +380,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
   private async performDiagnosticExport(): Promise<void> {
     const copy = desktopDiagnosticsPrivacyCopy(this.locale)
     try {
-      const confirmation = await dialog.showMessageBox({
+      const confirmation = await this.showDesktopMessageBox({
         type: 'warning',
         title: copy.title,
         message: copy.message,
@@ -478,9 +479,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
       cancelId: 1,
       noLink: true,
     }
-    const result = this.generation === undefined
-      ? await dialog.showMessageBox(options)
-      : await this.generation.showMessageBox(options)
+    const result = await this.showDesktopMessageBox(options)
     if (result.response === 0) await this.restart(target === 'recovery' ? 'recovery' : undefined)
   }
 
@@ -499,7 +498,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
       ? 'Unknown client plugin'
       : report.plugins.map(plugin => `- ${plugin}`).join('\n')
     const error = report.error === undefined ? 'The client Loader did not provide an error message.' : report.error
-    const result = await dialog.showMessageBox({
+    const result = await this.showDesktopMessageBox({
       type: 'error',
       title: 'Plugin Recovery',
       message: 'DSH Desktop could not load all plugins.',
@@ -561,8 +560,12 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
   }
 
   private async showUpdateMessageBox(options: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> {
+    return await this.showDesktopMessageBox(options)
+  }
+
+  private async showDesktopMessageBox(options: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> {
     return this.generation === undefined
-      ? await dialog.showMessageBox(options)
+      ? await showDesktopMessageBox(options)
       : await this.generation.showMessageBox(options)
   }
 
@@ -770,22 +773,34 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
   private reportTerminalLaunchError(cause: unknown): void {
     const error = cause instanceof Error ? cause : new Error(String(cause))
     this.logError(`dsh-plugin-desktop: failed to open terminal: ${error.message}`)
-    try {
-      dialog.showErrorBox('Unable to Open DSH Terminal', error.message)
-    } catch (dialogCause) {
+    void this.showDesktopMessageBox({
+      type: 'error',
+      title: 'Unable to Open DSH Terminal',
+      message: 'DSH Desktop could not open a terminal.',
+      detail: error.message,
+      buttons: ['OK'],
+      defaultId: 0,
+      cancelId: 0,
+    }).catch((dialogCause: unknown) => {
       this.logError(`dsh-plugin-desktop: failed to show terminal error: ${dialogCause instanceof Error ? dialogCause.message : String(dialogCause)}`)
-    }
+    })
   }
 
   /** Keep diagnostic export failures visible in a packaged GUI process. */
   private reportDiagnosticExportError(cause: unknown): void {
     const error = cause instanceof Error ? cause : new Error(String(cause))
     this.logError(`dsh-plugin-desktop: failed to export diagnostics: ${error.message}`)
-    try {
-      dialog.showErrorBox('Unable to Export Diagnostics', error.message)
-    } catch (dialogCause) {
+    void this.showDesktopMessageBox({
+      type: 'error',
+      title: 'Unable to Export Diagnostics',
+      message: 'DSH Desktop could not export diagnostics.',
+      detail: error.message,
+      buttons: ['OK'],
+      defaultId: 0,
+      cancelId: 0,
+    }).catch((dialogCause: unknown) => {
       this.logError(`dsh-plugin-desktop: failed to show diagnostics error: ${dialogCause instanceof Error ? dialogCause.message : String(dialogCause)}`)
-    }
+    })
   }
 
   private buildTrayTemplate(spec: DesktopShellSpec): Electron.MenuItemConstructorOptions[] {

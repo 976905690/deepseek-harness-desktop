@@ -1,6 +1,6 @@
 /** DSH Desktop executable: minimal Electron bootstrap around the Host Cordis root. */
 
-import { app, crashReporter, dialog } from 'electron'
+import { app, crashReporter } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -20,6 +20,7 @@ import {
   installDesktopPnpmRuntime,
 } from './desktop-runtime-environment.ts'
 import { desktopProductVersion, ElectronDesktopRuntime } from './electron-runtime.ts'
+import { showDesktopMessageBox } from './desktop-dialog-window.ts'
 import {
   ElectronStderrLogger,
   installDesktopChildProcessLogging,
@@ -163,7 +164,7 @@ async function showInstallRollbackNotice(
         confirm: 'OK',
       }
   try {
-    await dialog.showMessageBox({
+    await showDesktopMessageBox({
       type: 'info',
       title: copy.title,
       message: copy.message,
@@ -200,7 +201,7 @@ async function showProfileCheckpointRestoreNotice(
         confirm: 'Restart',
       }
   try {
-    await dialog.showMessageBox({
+    await showDesktopMessageBox({
       type: 'info',
       title: copy.title,
       message: copy.message,

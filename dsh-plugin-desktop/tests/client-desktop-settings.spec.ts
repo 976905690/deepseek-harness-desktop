@@ -60,6 +60,7 @@ describe('Desktop settings API', () => {
       const path = String(input)
       if (path === desktopSettingsPaths.terminalOpen
         || path === desktopSettingsPaths.restart
+        || path === desktopSettingsPaths.recoveryRestart
         || path === desktopSettingsPaths.rendererReload
         || path === desktopSettingsPaths.developerToolsToggle) {
         return json({ accepted: true })
@@ -77,6 +78,7 @@ describe('Desktop settings API', () => {
     await expect(api.selectMarket('community-market')).resolves.toEqual({ accepted: true, restartRequired: true })
     await expect(api.openTerminal()).resolves.toBeUndefined()
     await expect(api.restart()).resolves.toBeUndefined()
+    await expect(api.restartToRecovery()).resolves.toBeUndefined()
     await expect(api.reloadRenderer()).resolves.toBeUndefined()
     await expect(api.toggleDeveloperTools()).resolves.toBeUndefined()
 
@@ -88,6 +90,7 @@ describe('Desktop settings API', () => {
       desktopSettingsPaths.marketSelect,
       desktopSettingsPaths.terminalOpen,
       desktopSettingsPaths.restart,
+      desktopSettingsPaths.recoveryRestart,
       desktopSettingsPaths.rendererReload,
       desktopSettingsPaths.developerToolsToggle,
     ])
@@ -119,6 +122,10 @@ describe('Desktop settings API', () => {
       method: 'POST',
       body: JSON.stringify({}),
     })
+    expect(fetcher.mock.calls[9]?.[1]).toMatchObject({
+      method: 'POST',
+      body: JSON.stringify({}),
+    })
   })
 
   it('does not reflect an untrusted error body into its public error', async () => {
@@ -132,6 +139,7 @@ describe('Desktop native action presentation', () => {
   const api = {
     openTerminal: vi.fn(async () => {}),
     restart: vi.fn(async () => {}),
+    restartToRecovery: vi.fn(async () => {}),
     reloadRenderer: vi.fn(async () => {}),
     toggleDeveloperTools: vi.fn(async () => {}),
   }
@@ -146,7 +154,7 @@ describe('Desktop native action presentation', () => {
 
     expect(markup.match(/dshDesktopTitlebarIconButton/g)).toHaveLength(3)
     expect(markup).toContain('aria-label="Open DSH Terminal"')
-    expect(markup).toContain('aria-label="Restart Desktop"')
+    expect(markup).toContain('aria-label="Restart options"')
     expect(markup).toContain('aria-label="Developer options"')
   })
 
@@ -159,6 +167,7 @@ describe('Desktop native action presentation', () => {
 
     expect(markup).toContain('Open DSH Terminal')
     expect(markup).toContain('Restart Desktop')
+    expect(markup).toContain('aria-haspopup="menu"')
     expect(markup).not.toContain('Developer options')
   })
 })

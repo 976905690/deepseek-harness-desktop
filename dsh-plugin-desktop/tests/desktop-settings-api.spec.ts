@@ -14,6 +14,7 @@ import {
   handleDesktopProfileDeleteRequest,
   handleDesktopProfileRollbackRequest,
   handleDesktopProfileSelectRequest,
+  handleDesktopRecoveryRestartRequest,
   handleDesktopRestartRequest,
   handleDesktopRendererReloadRequest,
   handleDesktopSettingsRequest,
@@ -564,6 +565,27 @@ describe('desktop settings HTTP boundary', () => {
     await handleDesktopRestartRequest(jsonRequest({ reason: 'untrusted' }), rejected, ORIGIN, controller)
     expect(rejected.statusCode).toBe(400)
     expect(scheduleRestart).toHaveBeenCalledOnce()
+  })
+
+  it('queues recovery restart separately and only after acknowledging an exact request', async () => {
+    const scheduleRecoveryRestart = vi.fn()
+    const controller = new DesktopSettingsController(bootstrap({ scheduleRecoveryRestart }))
+    const accepted = response()
+
+    await handleDesktopRecoveryRestartRequest(jsonRequest({}), accepted, ORIGIN, controller)
+
+    expect(accepted.statusCode).toBe(202)
+    expect(JSON.parse(accepted.body)).toEqual({ accepted: true })
+    expect(scheduleRecoveryRestart).not.toHaveBeenCalled()
+    await new Promise<void>(resolve => { setImmediate(resolve) })
+    expect(scheduleRecoveryRestart).toHaveBeenCalledOnce()
+
+    const rejected = response()
+    await handleDesktopRecoveryRestartRequest(
+      jsonRequest({ mode: 'untrusted' }), rejected, ORIGIN, controller,
+    )
+    expect(rejected.statusCode).toBe(400)
+    expect(scheduleRecoveryRestart).toHaveBeenCalledOnce()
   })
 
   it('serves exact developer actions without accepting renderer commands', async () => {

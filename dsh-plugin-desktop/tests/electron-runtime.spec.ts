@@ -235,6 +235,19 @@ const electron = vi.hoisted(() => {
   }
 })
 
+vi.mock('../src/desktop-dialog-window.ts', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/desktop-dialog-window.ts')>(),
+  showDesktopMessageBox: async (options: Electron.MessageBoxOptions, parent?: unknown) => {
+    const showMessageBox = electron.dialog.showMessageBox as (...args: unknown[]) => Promise<{
+      response: number
+      checkboxChecked: boolean
+    }>
+    return parent === undefined
+      ? await showMessageBox(options)
+      : await showMessageBox(parent, options)
+  },
+}))
+
 vi.mock('electron', () => ({
   app: electron.app,
   BrowserWindow: electron.BrowserWindow,
@@ -1321,10 +1334,11 @@ describe('Electron desktop runtime', () => {
     expect(diagnostics.export).toHaveBeenCalledTimes(2)
     expect(electron.shell.showItemInFolder)
       .toHaveBeenCalledWith('C:\\Users\\Example\\diagnostics-retry.zip')
-    expect(electron.dialog.showErrorBox).toHaveBeenCalledWith(
-      'Unable to Export Diagnostics',
-      'disk is full',
-    )
+    expect(electron.dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'error',
+      title: 'Unable to Export Diagnostics',
+      detail: 'disk is full',
+    }))
     expect(stderr).toHaveBeenCalledWith(expect.stringContaining('failed to export diagnostics: disk is full'))
   })
 
@@ -1346,19 +1360,21 @@ describe('Electron desktop runtime', () => {
       terminal.open.mockImplementationOnce(() => { throw new Error('cannot create launcher') })
 
       expect(() => { runtime.openTerminal() }).not.toThrow()
-      expect(electron.dialog.showErrorBox).toHaveBeenCalledWith(
-        'Unable to Open DSH Terminal',
-        'cannot create launcher',
-      )
+      await vi.waitFor(() => { expect(electron.dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'error',
+        title: 'Unable to Open DSH Terminal',
+        detail: 'cannot create launcher',
+      })) })
 
       terminal.open.mockImplementationOnce((options: { onLaunchError: (cause: Error) => void }) => {
         options.onLaunchError(new Error('launcher exited with code 1'))
       })
       runtime.openTerminal()
-      expect(electron.dialog.showErrorBox).toHaveBeenLastCalledWith(
-        'Unable to Open DSH Terminal',
-        'launcher exited with code 1',
-      )
+      await vi.waitFor(() => { expect(electron.dialog.showMessageBox).toHaveBeenLastCalledWith(expect.objectContaining({
+        type: 'error',
+        title: 'Unable to Open DSH Terminal',
+        detail: 'launcher exited with code 1',
+      })) })
       expect(stderr).toHaveBeenCalledWith(expect.stringContaining('failed to open terminal'))
     } finally {
       delete (process.versions as { electron?: string }).electron
@@ -1474,6 +1490,42 @@ describe('Electron desktop runtime', () => {
     runtime.reportRendererBoot({ status: 'failed', plugins: ['dsh-vision-router'] })
     await rendererBoot
     await vi.waitFor(() => { expect(restart).toHaveBeenCalledOnce() })
+  })
+
+  it('requires Desktop dialog confirmation before an ordinary restart', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
+    electron.dialog.showMessageBox.mockResolvedValueOnce({ response: 1, checkboxChecked: false })
+    const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
+    const restart = vi.fn(async (_target?: 'recovery') => {})
+    const runtime = new ElectronDesktopRuntime(restart)
+
+    await runtime.requestRestart()
+
+    expect(restart).not.toHaveBeenCalled()
+    expect(electron.dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'question', title: 'Restart DSH Desktop', buttons: ['Restart', 'Cancel'], defaultId: 1, cancelId: 1,
+    }))
+
+    electron.dialog.showMessageBox.mockResolvedValueOnce({ response: 0, checkboxChecked: false })
+    await runtime.requestRestart()
+    expect(restart).toHaveBeenCalledOnce()
+    expect(restart).toHaveBeenCalledWith(undefined)
+  })
+
+  it('requires a distinct confirmation before restarting into recovery mode', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
+    electron.dialog.showMessageBox.mockResolvedValueOnce({ response: 0, checkboxChecked: false })
+    const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
+    const restart = vi.fn(async (_target?: 'recovery') => {})
+    const runtime = new ElectronDesktopRuntime(restart)
+
+    await runtime.requestRecoveryRestart()
+
+    expect(electron.dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'question', title: 'Restart in Recovery Mode', buttons: ['Restart in Recovery Mode', 'Cancel'], defaultId: 1, cancelId: 1,
+    }))
+    expect(restart).toHaveBeenCalledOnce()
+    expect(restart).toHaveBeenCalledWith('recovery')
   })
 
   it('uses Electron networking and confirmation-gated macOS update handoff', async () => {
