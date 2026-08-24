@@ -51,6 +51,7 @@ export class ElectronShellGeneration {
   private mounted = false
   private released = false
   private attentionCount = 0
+  private cancelPendingFullscreenHide: (() => void) | undefined
   private cleanupListeners: (() => void) | undefined
 
   constructor(private readonly options: ElectronShellGenerationOptions) {}
@@ -78,9 +79,28 @@ export class ElectronShellGeneration {
       if (applicationNeedsReveal(window, platform.platform)) this.show()
     }
     const clearAttention = (): void => { this.clearAttention() }
+    let fullscreenHidePending = false
+    const hideAfterFullscreen = (): void => {
+      if (!fullscreenHidePending) return
+      fullscreenHidePending = false
+      if (!window.isDestroyed()) window.hide()
+    }
+    const cancelPendingFullscreenHide = (): void => {
+      if (!fullscreenHidePending) return
+      fullscreenHidePending = false
+      window.off('leave-full-screen', hideAfterFullscreen)
+    }
+    this.cancelPendingFullscreenHide = cancelPendingFullscreenHide
     const close = (event: Electron.Event): void => {
       if (this.options.isQuitting()) return
       event.preventDefault()
+      if (platform.platform === 'darwin' && window.isFullScreen()) {
+        if (fullscreenHidePending) return
+        fullscreenHidePending = true
+        window.once('leave-full-screen', hideAfterFullscreen)
+        window.setFullScreen(false)
+        return
+      }
       window.hide()
     }
     const preserveBlankTitle = (event: Electron.Event): void => { event.preventDefault() }
@@ -172,6 +192,7 @@ export class ElectronShellGeneration {
       window.off('focus', clearAttention)
       window.off('page-title-updated', preserveBlankTitle)
       window.off('ready-to-show', show)
+      cancelPendingFullscreenHide()
       window.webContents.off('before-input-event', handleZoomShortcut)
       window.webContents.off('will-frame-navigate', navigate)
       window.webContents.off('will-redirect', redirect)
@@ -199,6 +220,7 @@ export class ElectronShellGeneration {
   show(): void {
     const window = this.window
     if (window === undefined || window.isDestroyed()) return
+    this.cancelPendingFullscreenHide?.()
     this.clearAttention()
     revealApplication(window, this.options.platform.platform)
   }
@@ -243,6 +265,7 @@ export class ElectronShellGeneration {
     this.clearAttention()
     this.window = undefined
     this.tray = undefined
+    this.cancelPendingFullscreenHide = undefined
     if (window === undefined) return
 
     this.cleanupListeners?.()

@@ -112,6 +112,7 @@ const electron = vi.hoisted(() => {
     readonly isFocused = vi.fn(() => false)
     readonly isVisible = vi.fn(() => false)
     readonly isMinimized = vi.fn(() => false)
+    readonly isFullScreen = vi.fn(() => false)
     readonly flashFrame = vi.fn()
     readonly restore = vi.fn()
     readonly show = vi.fn()
@@ -124,6 +125,7 @@ const electron = vi.hoisted(() => {
     readonly loadURL = loadURL
     readonly removeMenu = vi.fn()
     readonly setBackgroundMaterial = vi.fn()
+    readonly setFullScreen = vi.fn()
   }
 
   class Tray {
@@ -866,6 +868,61 @@ describe('Electron desktop runtime', () => {
     window?.isFocused.mockReturnValue(true)
     runtime.notifyAttention({ title: 'Ignored', body: 'Focused window' })
     expect(electron.notifications).toHaveLength(2)
+
+    await release()
+  })
+
+  it('leaves macOS fullscreen before hiding and ignores repeated close events during the transition', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
+    const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
+    const runtime = new ElectronDesktopRuntime(async () => {})
+    const release = runtime.schedule(spec)
+    await runtime.mountScheduled()
+
+    const window = electron.browserWindows[0]
+    window?.isFullScreen.mockReturnValue(true)
+    const close = electron.browserWindowOn.mock.calls.find(([event]) => event === 'close')?.[1]
+    expect(close).toEqual(expect.any(Function))
+
+    const first = { preventDefault: vi.fn() }
+    const second = { preventDefault: vi.fn() }
+    close(first)
+    close(second)
+
+    expect(first.preventDefault).toHaveBeenCalledOnce()
+    expect(second.preventDefault).toHaveBeenCalledOnce()
+    expect(window?.setFullScreen).toHaveBeenCalledOnce()
+    expect(window?.setFullScreen).toHaveBeenCalledWith(false)
+    expect(window?.hide).not.toHaveBeenCalled()
+    const leaveFullscreen = window?.once.mock.calls.find(([event]) => event === 'leave-full-screen')?.[1]
+    expect(leaveFullscreen).toEqual(expect.any(Function))
+
+    leaveFullscreen()
+    expect(window?.hide).toHaveBeenCalledOnce()
+
+    await release()
+  })
+
+  it('cancels a pending fullscreen hide when the user explicitly reveals the macOS window', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
+    const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
+    const runtime = new ElectronDesktopRuntime(async () => {})
+    const release = runtime.schedule(spec)
+    await runtime.mountScheduled()
+
+    const window = electron.browserWindows[0]
+    window?.isFullScreen.mockReturnValue(true)
+    const close = electron.browserWindowOn.mock.calls.find(([event]) => event === 'close')?.[1]
+    close({ preventDefault: vi.fn() })
+    const leaveFullscreen = window?.once.mock.calls.find(([event]) => event === 'leave-full-screen')?.[1]
+
+    runtime.show()
+    leaveFullscreen()
+
+    expect(window?.off).toHaveBeenCalledWith('leave-full-screen', expect.any(Function))
+    expect(window?.hide).not.toHaveBeenCalled()
+    expect(window?.show).toHaveBeenCalledOnce()
+    expect(window?.focus).toHaveBeenCalledOnce()
 
     await release()
   })
