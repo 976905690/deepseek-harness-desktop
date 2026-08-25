@@ -10,6 +10,7 @@ export interface DesktopNativeActionsProps {
     DesktopSettingsApi,
     'openTerminal' | 'restart' | 'restartToRecovery' | 'reloadRenderer' | 'toggleDeveloperTools'
   >
+    & Partial<Pick<DesktopSettingsApi, 'exportDiagnostics'>>
   readonly t: (key: DesktopSettingsLocaleKey) => string
   readonly placement: 'settings' | 'titlebar'
 }
@@ -64,12 +65,13 @@ export function DesktopDeveloperMenuItems({
 }
 
 export function DesktopNativeActions({ api, t, placement }: DesktopNativeActionsProps) {
+  const [exportingDiagnostics, setExportingDiagnostics] = useState(false)
   const [opening, setOpening] = useState(false)
   const [restarting, setRestarting] = useState(false)
   const [rendererAction, setRendererAction] = useState<'reload' | 'devtools'>()
   const [restartMenuOpen, setRestartMenuOpen] = useState(false)
   const [developerMenuOpen, setDeveloperMenuOpen] = useState(false)
-  const [failed, setFailed] = useState<'terminal' | 'restart' | 'reload' | 'devtools'>()
+  const [failed, setFailed] = useState<'diagnostics' | 'terminal' | 'restart' | 'reload' | 'devtools'>()
   const developerMenuRef = useRef<HTMLDivElement>(null)
   const restartMenuRef = useRef<HTMLDivElement>(null)
 
@@ -93,7 +95,16 @@ export function DesktopNativeActions({ api, t, placement }: DesktopNativeActions
     }
   }, [developerMenuOpen, restartMenuOpen])
 
-  const busy = opening || restarting || rendererAction !== undefined
+  const busy = exportingDiagnostics || opening || restarting || rendererAction !== undefined
+
+  const exportDiagnostics = (): void => {
+    if (busy || api.exportDiagnostics === undefined) return
+    setExportingDiagnostics(true)
+    setFailed(undefined)
+    void api.exportDiagnostics()
+      .catch(() => { setFailed('diagnostics') })
+      .finally(() => { setExportingDiagnostics(false) })
+  }
 
   const open = (): void => {
     if (busy) return
@@ -129,7 +140,9 @@ export function DesktopNativeActions({ api, t, placement }: DesktopNativeActions
     })
   }
 
-  const failureKey = failed === 'terminal'
+  const failureKey = failed === 'diagnostics'
+    ? 'exportDiagnosticsError'
+    : failed === 'terminal'
     ? 'openTerminalError'
     : failed === 'restart'
       ? 'restartDesktopError'
@@ -142,6 +155,16 @@ export function DesktopNativeActions({ api, t, placement }: DesktopNativeActions
       <div className="dshDesktopNativeActions" data-placement={placement}>
         {failed !== undefined && (
           <span className="dshDesktopNativeActionError" role="alert">{t(failureKey)}</span>
+        )}
+        {api.exportDiagnostics !== undefined && (
+          <button
+            type="button"
+            className="dshDesktopSettingsHeaderButton"
+            disabled={busy}
+            onClick={exportDiagnostics}
+          >
+            {t(exportingDiagnostics ? 'exportingDiagnostics' : 'exportDiagnostics')}
+          </button>
         )}
         <button
           type="button"
