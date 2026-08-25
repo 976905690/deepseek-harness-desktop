@@ -94,7 +94,7 @@ interface DesktopWindowService {
 
 兼容模式与扩展窗口都会让操作栏保持 Desktop 私有。它们不会声明标题栏 action slot；第一方图标组由 Desktop frame 直接渲染，在 macOS 位于右侧、在 Windows 位于左侧。Web Client 插件必须使用各自已有文档的内容 slot，不能把控件放到这些原生操作旁边。Renderer 重载与开发者工具切换仍是第一方私有 launcher 操作，不会加入公开的 `desktopWindow` service。
 
-Desktop 会用 `data-dsh-desktop-frame="titlebar"` 标记操作栏，并用 `data-dsh-desktop-content-viewport` 标记上游 root。它会让 `data-shell-overlay` 成为 fixed 插件 surface 的 containing block，阻止这些组件逃逸到操作栏；直接 portal 到 `document.body` 的全视口对话框会获得相同的内容偏移。插件不能再次补偿任一边界。
+Desktop 会用 `data-dsh-desktop-frame="titlebar"` 标记操作栏，并用 `data-dsh-desktop-content-viewport` 标记上游 root。Root 会成为操作栏下方独立的 fixed viewport，因此 fixed descendant 不能逃逸到 Desktop chrome；直接 portal 到 `document.body` 的全视口对话框会获得相同的内容偏移。Body 级插件 portal 可以读取 `dsh-desktop-titlebar-inset` URL contract，带 frame 的模式会发布精确的 36px 预留。插件不能重复补偿已经消费的边界。
 
 ## 公开 Host Cordis service
 
@@ -138,6 +138,12 @@ interface DesktopProfiles {
 ```ts
 interface DesktopPnpm {
   run(argv: readonly string[], signal?: AbortSignal): DesktopPnpmHandle
+  runPlugin(argv: readonly string[], invokingDir: string, signal?: AbortSignal): DesktopPnpmHandle
+  runExternalMarketPluginInstall(
+    argv: readonly string[],
+    invokingDir: string,
+    signal?: AbortSignal,
+  ): DesktopPnpmHandle
 }
 
 interface DesktopPnpmHandle {
@@ -151,13 +157,15 @@ interface DesktopPnpmHandle {
 }
 ```
 
-实际 stream 类型是 Node 的 `Readable`。`run()` 会校验 argv 非空且不含 NUL，并始终以激活 Profile 目录作为 `cwd`。
+实际 stream 类型是 Node 的 `Readable`。所有方法都会校验 argv 非空且不含 NUL。`run()` 始终以激活 Profile 目录作为 `cwd`；插件适配器则要求调用方提供绝对 working directory。
 
 | 方法 | 进程与 working directory | 受支持用途 |
 | --- | --- | --- |
 | `run(argv, signal?)` | 直接执行已打包 pnpm JavaScript entry，以激活 Profile 目录为 `cwd`。 | 任意由调用方负责的 pnpm operation。 |
+| `runPlugin(argv, invokingDir, signal?)` | 从绝对调用方目录执行已打包的 `dsh plugin --profile <active>`，并传入插件 argv。 | 依赖 DSH bundle reconcile 的插件管理器兼容适配。 |
+| `runExternalMarketPluginInstall(argv, invokingDir, signal?)` | 使用同一套已打包 DSH plugin CLI，但只接受 `add`、flag 选项与一个精确版本 npm target。 | 内置 `dshmarket` runtime 的窄兼容适配。 |
 
-Desktop 不再暴露插件专用命令 wrapper。调用方直接传入 pnpm argv，例如：
+新集成应优先直接传入 pnpm argv，例如：
 
 ```ts
 ['add', '--save-exact', 'example-plugin@1.0.0']
@@ -165,7 +173,7 @@ Desktop 不再暴露插件专用命令 wrapper。调用方直接传入 pnpm argv
 ['install', '--no-frozen-lockfile']
 ```
 
-Package 身份策略、命令构造、`dsh.profile.bundles` reconcile、receipt 和操作后验证均由调用方负责。pnpm capability 不会为 package operation 做快照、回滚、重试或 reconcile。Desktop 恢复与此独立：每次健康启动写入三个轮转 Profile checkpoint 之一，用户可在恢复页面明确选择精确槽位恢复。
+使用 `run()` 时，package 身份策略、命令构造、`dsh.profile.bundles` reconcile、receipt 和操作后验证均由调用方负责；兼容适配器会把 bundle reconcile 委托给已打包的 DSH CLI。三个方法都不会为 package operation 做快照、回滚、重试、保护或记录。Desktop 恢复与此独立：每次健康启动写入三个轮转 Profile checkpoint 之一，用户可在恢复页面明确选择精确槽位恢复。
 
 Service 在每个 generation 同时最多启动一个 package operation；已有 operation 活跃时再次调用会同步抛错。它只暴露输出，不选择 progress UI，也没有内置 timeout。Consumer 拥有 deadline、读取两个 stream、报告 progress、在需要时调用 `cancel()` 或 abort signal、等待 `done`，并同时检查 `exitCode` 与 `signal`。
 
@@ -303,7 +311,7 @@ yarn workspace dsh-plugin-desktop verify:profile
 
 1. 只有显式用户或管理员操作才能启动 package mutation。
 2. 把 `desktopProfiles.current` 当作单 generation snapshot；不能跨重启保留 service。
-3. 构造明确的 pnpm argv，并且只使用 `run(argv, signal?)`。
+3. 优先构造明确的 pnpm argv 并使用 `run(argv, signal?)`；只有兼容性确实依赖 DSH bundle reconcile 时才使用插件适配器。
 4. pnpm 完成后，由调用方 reconcile Profile bundle 并验证领域状态。
 5. 为面向用户的 deadline 提供 `AbortSignal`，并保留 handle 以便显式 cancellation。
 6. 持续读取 stdout 与 stderr；状态 endpoint 保存的内存历史必须有界。
@@ -312,19 +320,9 @@ yarn workspace dsh-plugin-desktop verify:profile
 9. 在所属 Cordis effect disposer 中 cancel 活跃工作；协调 teardown 时还要等待其结束。
 10. 把 `desktopProfiles.select()` 视为重启边界，不能继续假设目标已在旧 generation 中生效。
 
-## 当前 dshmarket 边界
+## 内置 dshmarket 适配
 
-`dshmarket@1.2.3` 早于该 contract。它依次选择 `config.profile`、launcher argv 与 `web`；私有导入 `node:child_process`，发现裸 `dsh` 命令，并自行运行 `dsh plugin --profile ...`。其公开 package exports 不提供 route 或 runner injection seam。外部 config patch 可以修正 profile 名称，PATH shim 也可以让旧命令变得可发现，但两种适配都不能让 `1.2.3` 消费 `desktopProfiles` 或 `desktopPnpm`。
-
-因此 DSH Desktop 不会预装或依赖该版本。未来兼容 release 必须：
-
-- 使用 `desktopProfiles.current` 作为 Desktop 权威身份；
-- 只使用 `desktopPnpm.run()`，pnpm argv 与 Profile reconcile 均由调用方负责；
-- 从返回 stream 生成 progress，并通过 `AbortSignal` 拥有自己的 timeout；
-- Desktop service 在普通 DSH 中不存在时，保留现有 config/argv/CLI 路径；
-- 不把 Desktop service 作为跨环境 package 的顶层 required injection。
-
-此外还有独立的再分发 gate。`1.2.3` manifest 与 README 标识 MIT，但源码仓库与 npm tarball 都没有完整 MIT 许可文本或版权通知。在重新审计且包含必需 notice 的 release 出现前，用户主动安装与 Desktop 将 package 嵌入 application archive 或 installer 仍是不同边界。
+内置 `dshmarket` runtime 使用 `runPlugin()` 执行普通插件命令，并使用 `runExternalMarketPluginInstall()` 执行精确 npm add。后者会在跨越 service 前解析版本，并拒绝非精确或多 target 请求。两种操作都会使用当前 Desktop Profile 与已打包 DSH CLI；都不会创建安装 transaction、快照、receipt、自动回滚或恢复提示。
 
 ## 稳定性边界
 

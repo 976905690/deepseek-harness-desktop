@@ -9,6 +9,7 @@ import type {
   SubprocessOutcome,
   SubprocessSpawnSpec,
 } from '@deepseek-ai/dsh-subprocess'
+import { assertDesktopProfileName } from './profile-manager.ts'
 
 const BIN_NAME = 'dsh-plugin-desktop'
 const ELECTRON_HEADERS_URL = 'https://electronjs.org/headers'
@@ -16,6 +17,7 @@ const TERMINATION_GRACE_MS = 3_000
 
 /** Launcher-resolved values used by the active Desktop pnpm generation. */
 export interface DesktopPnpmBootstrap {
+  readonly activeProfileName: string
   readonly activeProfileDir: string
   readonly homeDir: string
   readonly appExecutable: string
@@ -24,6 +26,7 @@ export interface DesktopPnpmBootstrap {
   readonly nodeBinDir: string
   readonly nodeShimPath: string
   readonly clearEnvironmentPath: string
+  readonly dshBootstrapPath: string
 }
 
 export interface DesktopPnpmOutcome {
@@ -39,12 +42,18 @@ export interface DesktopPnpmHandle {
 }
 
 /**
- * The complete package-manager API. Callers provide pnpm argv and own all
- * higher-level semantics. Desktop deliberately performs no install snapshot,
- * rollback, retry, receipt reconciliation, or plugin-specific command rewrite.
+ * Package-manager API plus narrow legacy plugin-manager adapters. Desktop
+ * deliberately performs no install snapshot, rollback, retry, protection,
+ * receipt reconciliation, or recovery bookkeeping.
  */
 export interface DesktopPnpm {
   run(argv: readonly string[], signal?: AbortSignal): DesktopPnpmHandle
+  runPlugin(argv: readonly string[], invokingDir: string, signal?: AbortSignal): DesktopPnpmHandle
+  runExternalMarketPluginInstall(
+    argv: readonly string[],
+    invokingDir: string,
+    signal?: AbortSignal,
+  ): DesktopPnpmHandle
 }
 
 declare module '@deepseek-ai/cordis' {
@@ -79,7 +88,33 @@ function validatedArgv(argv: readonly string[]): string[] {
   return [...argv]
 }
 
+const NPM_PACKAGE_NAME_PATTERN = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/u
+const NPM_EXACT_VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u
+
+function validatedExternalMarketArgv(argv: readonly string[]): string[] {
+  const args = validatedArgv(argv)
+  if (args[0] !== 'add') {
+    throw new Error(`${BIN_NAME}: external Market plugin install requires add with one exact npm package target`)
+  }
+  const targets = args.slice(1).filter(argument => !argument.startsWith('-'))
+  const target = targets[0]
+  const separator = target?.lastIndexOf('@') ?? -1
+  const packageName = separator > 0 ? target?.slice(0, separator) : undefined
+  const packageVersion = separator > 0 ? target?.slice(separator + 1) : undefined
+  if (
+    targets.length !== 1
+    || packageName === undefined
+    || packageVersion === undefined
+    || !NPM_PACKAGE_NAME_PATTERN.test(packageName)
+    || !NPM_EXACT_VERSION_PATTERN.test(packageVersion)
+  ) {
+    throw new Error(`${BIN_NAME}: external Market plugin install requires exactly one exact npm package target`)
+  }
+  return args
+}
+
 function validateBootstrap(bootstrap: DesktopPnpmBootstrap): void {
+  assertDesktopProfileName(bootstrap.activeProfileName)
   for (const [label, value] of [
     ['active Profile directory', bootstrap.activeProfileDir],
     ['Harness home', bootstrap.homeDir],
@@ -88,6 +123,7 @@ function validateBootstrap(bootstrap: DesktopPnpmBootstrap): void {
     ['Node command directory', bootstrap.nodeBinDir],
     ['Node command', bootstrap.nodeShimPath],
     ['environment preloader', bootstrap.clearEnvironmentPath],
+    ['DSH bootstrap', bootstrap.dshBootstrapPath],
   ] as const) assertAbsolutePath(label, value)
   if (bootstrap.electronVersion.length === 0 || bootstrap.electronVersion.includes('\0')) {
     throw new Error(`${BIN_NAME}: desktop pnpm Electron version must not be empty or contain NUL`)
@@ -115,11 +151,7 @@ class DesktopPnpmService extends Service implements DesktopPnpm {
 
   run(argv: readonly string[], signal?: AbortSignal): DesktopPnpmHandle {
     const args = validatedArgv(argv)
-    if (this.closed) throw new Error(`${BIN_NAME}: desktop pnpm generation is closed`)
-    if (this.active !== undefined) throw new Error(`${BIN_NAME}: another desktop pnpm operation is already running`)
-    signal?.throwIfAborted()
-    const inherited = inheritedPath()
-    const spec: SubprocessSpawnSpec = {
+    return this.start({
       argv: [
         this.bootstrap.appExecutable,
         '--import',
@@ -128,9 +160,54 @@ class DesktopPnpmService extends Service implements DesktopPnpm {
         ...args,
       ],
       cwd: this.bootstrap.activeProfileDir,
+      ...(signal === undefined ? {} : { signal }),
+    })
+  }
+
+  runPlugin(argv: readonly string[], invokingDir: string, signal?: AbortSignal): DesktopPnpmHandle {
+    return this.startPlugin(validatedArgv(argv), invokingDir, signal)
+  }
+
+  runExternalMarketPluginInstall(
+    argv: readonly string[],
+    invokingDir: string,
+    signal?: AbortSignal,
+  ): DesktopPnpmHandle {
+    return this.startPlugin(validatedExternalMarketArgv(argv), invokingDir, signal)
+  }
+
+  private startPlugin(argv: readonly string[], invokingDir: string, signal?: AbortSignal): DesktopPnpmHandle {
+    assertAbsolutePath('plugin invoking directory', invokingDir)
+    return this.start({
+      argv: [
+        this.bootstrap.appExecutable,
+        '--expose-internals',
+        this.bootstrap.dshBootstrapPath,
+        'plugin',
+        '--profile',
+        this.bootstrap.activeProfileName,
+        ...argv,
+      ],
+      cwd: invokingDir,
+      ...(signal === undefined ? {} : { signal }),
+    })
+  }
+
+  private start(command: {
+    readonly argv: readonly string[]
+    readonly cwd: string
+    readonly signal?: AbortSignal
+  }): DesktopPnpmHandle {
+    if (this.closed) throw new Error(`${BIN_NAME}: desktop pnpm generation is closed`)
+    if (this.active !== undefined) throw new Error(`${BIN_NAME}: another desktop pnpm operation is already running`)
+    command.signal?.throwIfAborted()
+    const inherited = inheritedPath()
+    const spec: SubprocessSpawnSpec = {
+      argv: command.argv,
+      cwd: command.cwd,
       stdio: { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' },
       graceMs: TERMINATION_GRACE_MS,
-      ...(signal === undefined ? {} : { signal }),
+      ...(command.signal === undefined ? {} : { signal: command.signal }),
       env: {
         PATH: inherited.length === 0
           ? this.bootstrap.nodeBinDir

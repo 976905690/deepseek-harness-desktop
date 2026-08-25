@@ -40,6 +40,7 @@ function child(): ControlledSubprocess {
 
 function bootstrap(root = '/desktop runtime'): DesktopPnpmBootstrap {
   return {
+    activeProfileName: 'work',
     activeProfileDir: join(root, 'profiles', 'work'),
     homeDir: join(root, 'harness home'),
     appExecutable: join(root, 'DSH Desktop'),
@@ -48,6 +49,7 @@ function bootstrap(root = '/desktop runtime'): DesktopPnpmBootstrap {
     nodeBinDir: join(root, 'private', 'node-bin'),
     nodeShimPath: join(root, 'private', 'node-bin', 'node'),
     clearEnvironmentPath: join(root, 'private', 'clear-env.mjs'),
+    dshBootstrapPath: join(root, 'app.asar', 'lib', 'desktop-cli.js'),
   }
 }
 
@@ -76,12 +78,13 @@ function finish(process: ControlledSubprocess, exitCode = 0): void {
 }
 
 describe('desktop pnpm execution service', () => {
-  it('exposes only run(argv) and starts packaged pnpm in the active Profile', async () => {
+  it('starts packaged pnpm in the active Profile without recovery side effects', async () => {
     const process = child()
     const target = await harness([process])
     const signal = new AbortController().signal
     const operation = target.service.run(['add', '--save-exact', 'example@1.2.3'], signal)
-    expect(Object.keys(target.service).filter(key => key.includes('Plugin') || key.includes('Recovery'))).toEqual([])
+    expect(target.service).not.toHaveProperty('installPlugin')
+    expect(target.service).not.toHaveProperty('rollbackPluginInstall')
     expect(target.spawn).toHaveBeenCalledWith({
       argv: [
         bootstrap().appExecutable,
@@ -111,6 +114,75 @@ describe('desktop pnpm execution service', () => {
     expect(process.terminate).toHaveBeenCalledOnce()
     finish(process)
     await expect(operation.done).resolves.toEqual({ exitCode: 0, signal: null })
+    await target.dispose()
+  })
+
+  it('runs plugin argv through the packaged DSH CLI from the caller directory', async () => {
+    const process = child()
+    const target = await harness([process])
+    const operation = target.service.runPlugin(
+      ['add', '--reporter=ndjson', 'example@1.2.3'],
+      '/workspace/plugin-manager',
+    )
+    expect(target.spawn.mock.calls[0]?.[0]).toMatchObject({
+      argv: [
+        bootstrap().appExecutable,
+        '--expose-internals',
+        bootstrap().dshBootstrapPath,
+        'plugin',
+        '--profile',
+        bootstrap().activeProfileName,
+        'add',
+        '--reporter=ndjson',
+        'example@1.2.3',
+      ],
+      cwd: '/workspace/plugin-manager',
+    })
+    finish(process)
+    await operation.done
+    await target.dispose()
+  })
+
+  it('keeps the dshmarket install adapter exact and free of install recovery', async () => {
+    const process = child()
+    const target = await harness([process])
+    const operation = target.service.runExternalMarketPluginInstall(
+      ['add', '--reporter=ndjson', '@scope/example@1.2.3'],
+      '/workspace/dshmarket',
+    )
+    expect(target.spawn.mock.calls[0]?.[0]).toMatchObject({
+      argv: [
+        bootstrap().appExecutable,
+        '--expose-internals',
+        bootstrap().dshBootstrapPath,
+        'plugin',
+        '--profile',
+        bootstrap().activeProfileName,
+        'add',
+        '--reporter=ndjson',
+        '@scope/example@1.2.3',
+      ],
+      cwd: '/workspace/dshmarket',
+    })
+    finish(process)
+    await operation.done
+    await target.dispose()
+  })
+
+  it('rejects malformed external Market install argv before spawning', async () => {
+    const target = await harness([])
+    for (const argv of [
+      ['remove', 'example@1.2.3'],
+      ['add', 'example'],
+      ['add', 'example@latest'],
+      ['add', 'example@1.2.3', 'other@1.0.0'],
+    ]) {
+      expect(() => target.service.runExternalMarketPluginInstall(argv, '/workspace')).toThrow()
+    }
+    expect(() => target.service.runPlugin(['add', 'example@1.2.3'], 'relative')).toThrow(
+      'plugin invoking directory must be an absolute path',
+    )
+    expect(target.spawn).not.toHaveBeenCalled()
     await target.dispose()
   })
 

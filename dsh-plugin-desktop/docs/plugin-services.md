@@ -94,7 +94,7 @@ Compatibility and extended modes report the same 36-pixel top reservation and dr
 
 Compatibility and extended modes keep the command bar private to Desktop. They do not declare a titlebar action slot, and the first-party icon group is rendered directly by the Desktop frame: on the right on macOS and on the left on Windows. Web Client plugins must use their documented content slots and cannot place controls beside these native actions. Renderer reload and Developer Tools toggling remain private first-party launcher operations, not additions to the public `desktopWindow` service.
 
-Desktop marks the command bar with `data-dsh-desktop-frame="titlebar"` and the upstream root with `data-dsh-desktop-content-viewport`. It makes `data-shell-overlay` the containing block for fixed plugin surfaces, preventing them from escaping into the command bar. Full-viewport dialogs portalled directly to `document.body` receive the same content offset. Plugins must not compensate for either boundary again.
+Desktop marks the command bar with `data-dsh-desktop-frame="titlebar"` and the upstream root with `data-dsh-desktop-content-viewport`. The root is a separate fixed viewport below the command bar, so fixed descendants cannot escape into Desktop chrome. Full-viewport dialogs portalled directly to `document.body` receive the same content offset. Body-level plugin portals can read the `dsh-desktop-titlebar-inset` URL contract; framed modes publish the exact 36-pixel reservation. Plugins must not compensate for a boundary they already consume.
 
 ## Public Host Cordis services
 
@@ -138,6 +138,12 @@ interface DesktopProfiles {
 ```ts
 interface DesktopPnpm {
   run(argv: readonly string[], signal?: AbortSignal): DesktopPnpmHandle
+  runPlugin(argv: readonly string[], invokingDir: string, signal?: AbortSignal): DesktopPnpmHandle
+  runExternalMarketPluginInstall(
+    argv: readonly string[],
+    invokingDir: string,
+    signal?: AbortSignal,
+  ): DesktopPnpmHandle
 }
 
 interface DesktopPnpmHandle {
@@ -151,13 +157,15 @@ interface DesktopPnpmHandle {
 }
 ```
 
-The actual stream type is Node's `Readable`. `run()` validates non-empty, NUL-free argv and always uses the active Profile directory as `cwd`.
+The actual stream type is Node's `Readable`. Every method validates non-empty, NUL-free argv. `run()` always uses the active Profile directory as `cwd`; the plugin adapters require an absolute caller-owned working directory.
 
 | Method | Process and working directory | Supported purpose |
 | --- | --- | --- |
 | `run(argv, signal?)` | Runs the packaged pnpm JavaScript entry directly, with the active Profile directory as `cwd`. | Any caller-owned pnpm operation. |
+| `runPlugin(argv, invokingDir, signal?)` | Runs packaged `dsh plugin --profile <active>` with the supplied plugin argv from an absolute caller directory. | Compatibility adapter for plugin managers that rely on DSH bundle reconciliation. |
+| `runExternalMarketPluginInstall(argv, invokingDir, signal?)` | Uses the same packaged DSH plugin CLI but accepts only `add`, flag-style options, and one exact-version npm target. | Narrow compatibility adapter for the bundled `dshmarket` runtime. |
 
-Desktop deliberately exposes no plugin-specific command wrapper. Callers pass pnpm argv directly, for example:
+New integrations should prefer direct pnpm argv, for example:
 
 ```ts
 ['add', '--save-exact', 'example-plugin@1.0.0']
@@ -165,7 +173,7 @@ Desktop deliberately exposes no plugin-specific command wrapper. Callers pass pn
 ['install', '--no-frozen-lockfile']
 ```
 
-The caller owns package identity policy, command construction, `dsh.profile.bundles` reconciliation, receipts, and post-operation validation. The pnpm capability does not snapshot, roll back, retry, or reconcile package operations. Desktop recovery is independent: each healthy startup writes one of three rotating Profile checkpoints, and the user may explicitly restore an exact slot from Recovery.
+For `run()`, the caller owns package identity policy, command construction, `dsh.profile.bundles` reconciliation, receipts, and post-operation validation. The compatibility adapters delegate bundle reconciliation to the packaged DSH CLI. None of the three methods snapshots, rolls back, retries, protects, or records package operations. Desktop recovery is independent: each healthy startup writes one of three rotating Profile checkpoints, and the user may explicitly restore an exact slot from Recovery.
 
 The service starts at most one package operation per generation. A second call while one is active throws synchronously. It exposes output instead of choosing a progress UI, and it has no built-in timeout. The consumer owns deadlines, reads both streams, reports progress, calls `cancel()` or aborts its signal when needed, awaits `done`, and checks both `exitCode` and `signal`.
 
@@ -304,7 +312,7 @@ This fixture is under `tests/`, is absent from the npm `files` list and Electron
 
 1. Start package mutations only from an explicit user or administrator action.
 2. Use `desktopProfiles.current` as one snapshot; do not retain the service across restart.
-3. Construct explicit pnpm argv and use only `run(argv, signal?)`.
+3. Prefer explicit pnpm argv through `run(argv, signal?)`; use a plugin adapter only when compatibility requires DSH bundle reconciliation.
 4. Reconcile Profile bundles and validate domain state in the caller after pnpm completes.
 5. Supply an `AbortSignal` for the user-facing deadline and retain the handle for explicit cancellation.
 6. Drain stdout and stderr, but bound any in-memory history used by a status endpoint.
@@ -313,19 +321,9 @@ This fixture is under `tests/`, is absent from the npm `files` list and Electron
 9. Cancel active work from the owning Cordis effect disposer and wait for its completion when coordinating teardown.
 10. Treat `desktopProfiles.select()` as a restart boundary. Do not continue assuming the selected target is live in the old generation.
 
-## Current dshmarket boundary
+## Bundled dshmarket adapter
 
-`dshmarket@1.2.3` predates this contract. It chooses `config.profile`, then launcher argv, then `web`; it privately imports `node:child_process`, discovers a bare `dsh` command, and runs `dsh plugin --profile ...` itself. Its public package exports expose no route or runner injection seam. An external config patch can correct the profile name and a PATH shim can make its legacy command discoverable, but neither adaptation makes version `1.2.3` consume `desktopProfiles` or `desktopPnpm`.
-
-DSH Desktop therefore does not preinstall or depend on that version. A compatible future release must:
-
-- use `desktopProfiles.current` as the authoritative Desktop identity;
-- use only `desktopPnpm.run()` with caller-owned pnpm argv and Profile reconciliation;
-- derive progress from the returned streams and own its timeout through `AbortSignal`;
-- keep its current config/argv/CLI path when Desktop services are absent under ordinary DSH; and
-- avoid treating Desktop services as required top-level injections for the cross-environment package.
-
-There is a separate redistribution gate. The `1.2.3` manifest and README say MIT, but its source repository and npm tarball contain no complete MIT license text or copyright notice. Until a newly audited release includes the required notice, user-directed installation remains distinct from Desktop embedding the package in its application archive or installer.
+The bundled `dshmarket` runtime consumes `runPlugin()` for ordinary plugin commands and `runExternalMarketPluginInstall()` for an exact npm add. The latter resolves the version before it crosses the service and rejects non-exact or multi-target requests. Both operations use the active Desktop Profile and the packaged DSH CLI; neither creates an install transaction, snapshot, receipt, automatic rollback, or recovery prompt.
 
 ## Stability boundary
 

@@ -32,6 +32,7 @@ interface CommunityMarketModule {
 
 function bootstrap(root: string, profileDir: string): DesktopPnpmBootstrap {
   return {
+    activeProfileName: 'web',
     activeProfileDir: profileDir,
     homeDir: join(root, 'home'),
     appExecutable: join(root, 'DSH Desktop'),
@@ -40,6 +41,7 @@ function bootstrap(root: string, profileDir: string): DesktopPnpmBootstrap {
     nodeBinDir: join(root, 'runtime', 'node-bin'),
     nodeShimPath: join(root, 'runtime', 'node-bin', 'node'),
     clearEnvironmentPath: join(root, 'runtime', 'clear-env.mjs'),
+    dshBootstrapPath: join(root, 'runtime', 'desktop-cli.js'),
   }
 }
 

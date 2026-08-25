@@ -587,6 +587,7 @@ async function start(): Promise<void> {
       )
     }
     const desktopPnpmBootstrap: DesktopPnpmBootstrap = {
+      activeProfileName,
       activeProfileDir: prepared.profile.dir,
       homeDir,
       appExecutable: process.execPath,
@@ -595,6 +596,7 @@ async function start(): Promise<void> {
       nodeBinDir: pnpmRuntime.nodeBinDir,
       nodeShimPath: pnpmRuntime.nodeShimPath,
       clearEnvironmentPath: pnpmRuntime.clearEnvironmentPath,
+      dshBootstrapPath,
     }
     startupStage = 'host-boot'
     lifecycleRecorder.transitionStartupStage(startupStage)
