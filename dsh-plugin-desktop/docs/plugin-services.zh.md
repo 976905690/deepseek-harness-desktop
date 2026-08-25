@@ -92,9 +92,9 @@ interface DesktopWindowService {
 
 `safeAreaInsets` 描述 Desktop 从哪里开始放置完整的上游内容 surface；`dragRegion` 则单独描述原生标题栏命中区域，consumer 不能假设两者高度相同。拖动带内的交互元素必须设置 `-webkit-app-region: no-drag`；Desktop 已经为标准按钮、链接、输入框、可编辑字段、菜单、标签页、开关与对话框设置该排除规则。该 service 只报告几何信息，不提供窗口 mutation、焦点、Electron 或 IPC capability；普通浏览器启动中不存在该 service。
 
-兼容模式与扩展窗口都会声明一个可叠加、root-scoped 的 `desktop.titlebar.action` list slot。Web Client 插件可以通过普通 slot API 在这里注册紧凑操作。frame 本身始终是拖动区域，因此 contribution 根节点必须设置 `-webkit-app-region: no-drag`，并通过 Host route 或普通 service 完成功能，不能调用 Electron API。该 slot 在增强模式和普通浏览器启动中不存在，所以 registration 必须使用普通 slot injection，并能正确等待或 dispose。第一方图标组在 macOS 位于右侧、在 Windows 位于左侧；居中的标题不参与 contribution 几何。Renderer 重载与开发者工具切换是第一方私有 launcher 操作，不会加入公开的 `desktopWindow` service。
+兼容模式与扩展窗口都会让操作栏保持 Desktop 私有。它们不会声明标题栏 action slot；第一方图标组由 Desktop frame 直接渲染，在 macOS 位于右侧、在 Windows 位于左侧。Web Client 插件必须使用各自已有文档的内容 slot，不能把控件放到这些原生操作旁边。Renderer 重载与开发者工具切换仍是第一方私有 launcher 操作，不会加入公开的 `desktopWindow` service。
 
-Desktop 会用 `data-dsh-desktop-frame="titlebar"` 标记操作栏，并用 `data-dsh-desktop-content-viewport` 标记上游 root。即使全视口对话框 portal 到 `document.body`，它仍属于 content overlay：Desktop 会把它的 presentation root 偏移到 frame 下方。插件不能把 modal portal 到标题栏中，也不能再次补偿这个 offset。
+Desktop 会用 `data-dsh-desktop-frame="titlebar"` 标记操作栏，并用 `data-dsh-desktop-content-viewport` 标记上游 root。它会让 `data-shell-overlay` 成为 fixed 插件 surface 的 containing block，阻止这些组件逃逸到操作栏；直接 portal 到 `document.body` 的全视口对话框会获得相同的内容偏移。插件不能再次补偿任一边界。
 
 ## 公开 Host Cordis service
 

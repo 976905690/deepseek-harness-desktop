@@ -2,7 +2,7 @@
 
 import { createPortal } from 'react-dom'
 import type {
-  InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime,
+  InjectFace, PropsLocale, PropsRuntime,
 } from '@deepseek-ai/dsh-client-ui-slots'
 import type { DesktopSettingsApi } from './desktop-settings-api.ts'
 import type { DesktopClientEnvironment } from './environment.ts'
@@ -10,15 +10,18 @@ import { DesktopNativeActions } from './DesktopNativeActions.tsx'
 
 export interface DesktopFrameTitlebarInjected {
   readonly environment: DesktopClientEnvironment
+  readonly api: Pick<
+    DesktopSettingsApi,
+    'openTerminal' | 'restart' | 'restartToRecovery' | 'reloadRenderer' | 'toggleDeveloperTools'
+  >
 }
 
 export type DesktopFrameTitlebarProps = PropsRuntime<'shell.overlay'>
   & PropsLocale<'desktop.settings'>
-  & PropsRenderSlots<'desktop.titlebar.action'>
   & InjectFace<DesktopFrameTitlebarInjected>
 
 /** Horizontal frame surface; the unrelated upstream content starts below it. */
-export function DesktopFrameTitlebar({ environment, renderSlot, t }: DesktopFrameTitlebarProps) {
+export function DesktopFrameTitlebar({ api, environment, t }: DesktopFrameTitlebarProps) {
   return createPortal((
     <header
       className="dshDesktopFrameTitlebar"
@@ -33,23 +36,8 @@ export function DesktopFrameTitlebar({ environment, renderSlot, t }: DesktopFram
         </span>
       </div>
       <div className="dshDesktopFrameActions">
-        {renderSlot('desktop.titlebar.action', {})}
+        <DesktopNativeActions api={api} t={t} placement="titlebar" />
       </div>
     </header>
   ), document.body)
-}
-
-export interface DesktopFrameTitlebarNativeActionsInjected {
-  readonly api: Pick<
-    DesktopSettingsApi,
-    'openTerminal' | 'restart' | 'restartToRecovery' | 'reloadRenderer' | 'toggleDeveloperTools'
-  >
-}
-
-export type DesktopFrameTitlebarNativeActionsProps = PropsRuntime<'desktop.titlebar.action'>
-  & PropsLocale<'desktop.settings'>
-  & InjectFace<DesktopFrameTitlebarNativeActionsInjected>
-
-export function DesktopFrameTitlebarNativeActions({ api, t }: DesktopFrameTitlebarNativeActionsProps) {
-  return <DesktopNativeActions api={api} t={t} placement="titlebar" />
 }

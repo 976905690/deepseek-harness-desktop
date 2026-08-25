@@ -6,7 +6,7 @@ import { applyAdvancedShell } from '../src/client/advanced-shell.ts'
 import { provideDesktopLayout } from '../src/client/layout-service.ts'
 import { parseDesktopClientEnvironment } from '../src/client/environment.ts'
 import { ExtendedFrame } from '../src/client/ExtendedFrame.tsx'
-import { applyExtendedShell } from '../src/client/extended-shell.ts'
+import { applyExtendedShell, applyFramedShell } from '../src/client/extended-shell.ts'
 import { installExtendedStyles } from '../src/client/extended-styles.ts'
 import {
   computeDesktopColumns, DesktopLayoutState, MACOS_SIDEBAR_COLLAPSED, SIDEBAR_COLLAPSED,
@@ -342,13 +342,15 @@ describe('independent Desktop frame', () => {
       const dispose = installExtendedStyles()
       expect(css).toContain(`padding-top: ${DESKTOP_FRAME_HEIGHT}px`)
       expect(DESKTOP_FRAME_HEIGHT).toBe(36)
-      expect(css).toMatch(/\[role="presentation"\]:has\(> \[aria-modal="true"\]\),[\s\S]*> \[aria-modal="true"\] \{[\s\S]*top: var\(--dsh-desktop-frame-height\) !important;/)
+      expect(css).toMatch(/\[data-shell-overlay\] \{[^}]*overflow: hidden;[^}]*transform: translateZ\(0\);/)
+      expect(css).toMatch(/> \[role="presentation"\]:has\(> \[aria-modal="true"\]\),[\s\S]*> \[aria-modal="true"\] \{[\s\S]*top: var\(--dsh-desktop-frame-height\) !important;/)
       expect(css).not.toContain('#root > :has(> [data-shell-overlay])')
       expect(css).toMatch(/body\[data-dsh-desktop-mode="extended"\] \.dshDesktopSidebarSurface \{[^}]*--dsw-specific-sidebar-fill: transparent;[^}]*border-right-color: transparent;[^}]*background: transparent !important;/)
       expect(css).toMatch(/body\[data-dsh-desktop-mode="extended"\] \.dshDesktopFrame \{[^}]*background: var\(--dsh-desktop-frame-fill\);/)
       expect(css).toMatch(/body\[data-dsh-desktop-mode="extended"\] \.dshDesktopConversationSurface \{[^}]*border-top: 1px solid var\(--dsw-alias-border-l1\);[^}]*border-left: 1px solid var\(--dsw-alias-border-l1\);[^}]*border-top-left-radius: 10px;/)
       expect(css).toContain('body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extended"]) #root')
       expect(css).toMatch(/\.dshDesktopFrameTitlebar \{[^}]*-webkit-app-region: drag;/)
+      expect(css).toMatch(/\.dshDesktopFrameTitlebar \{[^}]*z-index: 2147483647;/)
       expect(css).toMatch(/\.dshDesktopFrameIdentity \{[^}]*left: 50%;[^}]*transform: translateX\(-50%\);/)
       expect(css).toMatch(/\.dshDesktopFrameActions \{[^}]*-webkit-app-region: no-drag;/)
       expect(css).toContain('[data-platform="darwin"] .dshDesktopFrameActions { margin-left: auto; }')
@@ -367,7 +369,7 @@ describe('independent Desktop frame', () => {
     }
   })
 
-  it('owns the extended root and exposes its independent frame action seat', () => {
+  it('owns the extended root and keeps its native frame actions private', () => {
     const registrations: Array<Record<string, unknown>> = []
     const occupants: unknown[] = []
     const disposers: Array<() => void> = []
@@ -444,12 +446,14 @@ describe('independent Desktop frame', () => {
       expect(registrations[1]).toMatchObject({
         name: 'shell.overlay',
         id: 'desktop-frame-titlebar',
-        children: { 'desktop.titlebar.action': { kind: 'list', scope: 'root' } },
       })
-      expect(registrations[2]).toMatchObject({
-        name: 'desktop.titlebar.action',
-        id: 'desktop-native-actions',
+      expect(registrations[1]).not.toHaveProperty('children')
+      expect(registrations[1]?.inject).toBeTypeOf('function')
+      expect((registrations[1]?.inject as () => Record<string, unknown>)()).toMatchObject({
+        environment: { mode: 'extended', platform: 'win32', material: 'acrylic' },
+        api: expect.any(Object),
       })
+      expect(registrations).toHaveLength(2)
       expect(dataset).toMatchObject({
         dshDesktopMode: 'extended',
         dshDesktopPlatform: 'win32',
@@ -459,6 +463,62 @@ describe('independent Desktop frame', () => {
       disposers.forEach(dispose => { dispose() })
       expect(dataset).toEqual({})
       expect(rootDataset).toEqual({})
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('does not expose a plugin action seat in compatibility mode', () => {
+    const registrations: Array<Record<string, unknown>> = []
+    const injectedSlots: string[] = []
+    const disposers: Array<() => void> = []
+    const dataset: Record<string, string> = {}
+    const rootDataset: Record<string, string> = {}
+    vi.stubGlobal('document', {
+      body: { dataset },
+      getElementById: (id: string) => id === 'root' ? { dataset: rootDataset } : null,
+      createElement: () => ({ dataset: {}, id: '', remove: vi.fn(), textContent: '' }),
+      head: { appendChild: vi.fn() },
+    })
+    const ctx = {
+      effect: vi.fn((mount: () => void | (() => void)) => {
+        const dispose = mount()
+        if (typeof dispose === 'function') disposers.push(dispose)
+      }),
+      slots: {
+        inject: vi.fn((name: string, mount: () => unknown) => {
+          injectedSlots.push(name)
+          return mount()
+        }),
+        register: vi.fn((options: Record<string, unknown>) => {
+          registrations.push(options)
+          return () => {}
+        }),
+      },
+    } as unknown as ClientContext
+
+    try {
+      applyFramedShell(ctx, {
+        mode: 'compatibility',
+        platform: 'darwin',
+        material: 'transparent',
+        micaSupported: false,
+      })
+      expect(injectedSlots).toEqual(['shell.overlay'])
+      expect(registrations).toHaveLength(1)
+      expect(registrations[0]).toMatchObject({
+        name: 'shell.overlay',
+        id: 'desktop-frame-titlebar',
+      })
+      expect(registrations[0]).not.toHaveProperty('children')
+      expect(JSON.stringify(registrations)).not.toContain('desktop.titlebar.action')
+      expect(dataset).toMatchObject({
+        dshDesktopMode: 'compatibility',
+        dshDesktopPlatform: 'darwin',
+        dshDesktopMaterial: 'transparent',
+      })
+      disposers.forEach(dispose => { dispose() })
+      expect(dataset).toEqual({})
     } finally {
       vi.unstubAllGlobals()
     }

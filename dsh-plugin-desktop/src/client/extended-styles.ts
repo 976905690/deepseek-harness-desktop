@@ -28,10 +28,16 @@ body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extende
   height: 100%;
   padding-top: ${DESKTOP_FRAME_HEIGHT}px;
 }
-/* The custom frame owns the top band. Full-viewport upstream dialogs own only
-   the content viewport below it, including dialogs portalled to body. */
+/* The custom frame owns the top band. A shell overlay is the containing block
+   for fixed plugin surfaces, so they cannot escape into Desktop chrome. */
 body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extended"])
-  [role="presentation"]:has(> [aria-modal="true"]),
+  [data-shell-overlay] {
+  overflow: hidden;
+  transform: translateZ(0);
+}
+/* Full-viewport dialogs portalled directly to body still belong to content. */
+body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extended"])
+  > [role="presentation"]:has(> [aria-modal="true"]),
 body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extended"])
   > [aria-modal="true"] {
   top: var(--dsh-desktop-frame-height) !important;
@@ -75,7 +81,7 @@ body[data-dsh-desktop-mode="extended"]:not([data-dsh-desktop-material="off"]) {
 }
 .dshDesktopFrameTitlebar {
   position: fixed;
-  z-index: 2147483000;
+  z-index: 2147483647;
   top: 0;
   right: 0;
   left: 0;
@@ -157,7 +163,7 @@ body[data-dsh-desktop-mode="extended"]:not([data-dsh-desktop-material="off"]) {
 .dshDesktopNativeActionMenuAnchor { position: relative; }
 .dshDesktopActionMenu {
   position: absolute;
-  z-index: 2147483001;
+  z-index: 1;
   top: calc(100% + 5px);
   display: grid;
   min-width: 190px;
