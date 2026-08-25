@@ -1403,8 +1403,8 @@ describe('Electron desktop runtime', () => {
     expect(electron.dialog.showMessageBox).toHaveBeenCalledOnce()
     expect(electron.dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({
       type: 'error',
-      title: 'Plugin Recovery',
-      message: 'DSH Desktop could not load all plugins.',
+      title: 'Plugin Load Failed',
+      message: 'Some plugins could not be loaded.',
       detail: expect.stringContaining('dsh-vision-router'),
       buttons: ['Open DSH Terminal', 'Restart DSH Desktop', 'Dismiss'],
     }))

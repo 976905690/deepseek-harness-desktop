@@ -53,7 +53,7 @@ describe('Desktop startup recovery confirmations', () => {
 
     expect(desktopDialog.show).toHaveBeenCalledWith(expect.objectContaining({
       type: 'warning',
-      title: 'Confirm plugin disable',
+      title: 'Disable this plugin?',
       buttons: ['Disable', 'Cancel'],
       defaultId: 1,
       cancelId: 1,

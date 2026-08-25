@@ -93,6 +93,7 @@ import {
 } from './windows-volume-diagnostics.ts'
 import type { RendererBootReport } from './renderer-boot-contract.ts'
 import { desktopLocaleFromLanguageTag } from './tray-locale.ts'
+import { desktopNativeCopy } from './native-dialog-copy.ts'
 import {
   desktopDefaultRelaunchArguments,
   desktopRecoveryModeRequested,
@@ -133,12 +134,12 @@ function notifySkippedOptionalEntries(
   entries: readonly SkippedOptionalEntry[],
 ): void {
   if (entries.length === 0) return
+  const copy = desktopNativeCopy(runtime.locale)
   const names = entries.map(entry => entry.name)
-  const suffix = names.length > 1 ? ` and ${names.length - 1} more` : ''
   try {
     runtime.updates.notify({
-      title: 'Skipped Unavailable UI Plugin',
-      body: `${names[0]} is not installed in this profile${suffix}.`,
+      title: copy.skippedPluginTitle,
+      body: copy.skippedPluginBody(names[0]!, names.length - 1),
     })
   } catch (cause) {
     logger.error(`${BIN_NAME}: failed to show skipped plugin notification: ${cause instanceof Error ? cause.message : String(cause)}`)
@@ -159,10 +160,18 @@ function notifyWindowsVolumeConcerns(
   concerns: readonly WindowsVolumeConcern[],
 ): void {
   if (concerns.length === 0) return
+  const copy = desktopNativeCopy(runtime.locale)
+  const concernLabel = concerns[0]?.label
+  const label = runtime.locale === 'zh'
+    ? concernLabel === 'application install' ? '应用安装目录'
+      : concernLabel === 'desktop user data' ? '桌面用户数据'
+        : concernLabel === 'DSH home' ? 'DSH 主目录'
+          : '某个配置路径'
+    : concernLabel ?? 'A configured path'
   try {
     runtime.updates.notify({
-      title: 'Storage May Be Unsupported',
-      body: `${concerns[0]?.label ?? 'A configured path'} is on a volume that may break sandboxed commands or plugin installs.`,
+      title: copy.unsupportedStorageTitle,
+      body: copy.unsupportedStorageBody(label),
     })
   } catch (cause) {
     logger.error(`${BIN_NAME}: failed to show Windows volume warning: ${cause instanceof Error ? cause.message : String(cause)}`)

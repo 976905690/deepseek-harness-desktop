@@ -171,7 +171,7 @@ describe('Desktop native action presentation', () => {
     }))
 
     expect(markup).toContain('Open DSH Terminal')
-    expect(markup).toContain('Restart Desktop')
+    expect(markup).toContain('Restart')
     expect(markup).toContain('aria-haspopup="menu"')
     expect(markup).not.toContain('Developer options')
   })
@@ -191,12 +191,12 @@ describe('Desktop native action presentation', () => {
     }))
 
     expect(restartMarkup.match(/role="menuitem"/g)).toHaveLength(3)
-    expect(restartMarkup.indexOf('Reload renderer')).toBeLessThan(restartMarkup.indexOf('Restart Desktop'))
-    expect(restartMarkup.indexOf('Restart Desktop')).toBeLessThan(restartMarkup.indexOf('Restart in Recovery Mode'))
+    expect(restartMarkup.indexOf('Reload')).toBeLessThan(restartMarkup.indexOf('Restart'))
+    expect(restartMarkup.indexOf('Restart')).toBeLessThan(restartMarkup.indexOf('Restart in Recovery Mode'))
     expect(restartMarkup).not.toContain('Toggle Developer Tools')
     expect(developerMarkup.match(/role="menuitem"/g)).toHaveLength(1)
     expect(developerMarkup).toContain('Toggle Developer Tools')
-    expect(developerMarkup).not.toContain('Reload renderer')
+    expect(developerMarkup).not.toContain('Reload')
   })
 
   it('installs a self-contained vertical settings menu in every presentation mode', () => {
