@@ -86,7 +86,7 @@ export function apply(ctx: ClientContext): void {
     () => provideDesktopWindow(ctx, desktopWindowService(environment)),
     'dsh-plugin-desktop: native window geometry service',
   )
-  applyDesktopSettings(ctx, environment)
+  const desktopSettings = applyDesktopSettings(ctx, environment)
   ctx.effect(
     () => startRendererBootReporter(ctx.loader),
     'dsh-plugin-desktop: renderer boot health report',
@@ -108,8 +108,8 @@ export function apply(ctx: ClientContext): void {
     )
   }
   if (environment.mode === 'advanced') applyAdvancedShell(ctx, environment)
-  if (environment.mode === 'extended') applyExtendedShell(ctx, environment)
+  if (environment.mode === 'extended') applyExtendedShell(ctx, environment, desktopSettings)
   if (environment.platform !== 'linux' && environment.mode === 'compatibility') {
-    applyFramedShell(ctx, environment)
+    applyFramedShell(ctx, environment, desktopSettings)
   }
 }

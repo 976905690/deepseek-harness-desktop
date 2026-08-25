@@ -6,5 +6,5 @@ test('accepts the checked-in operation reliability matrix', async () => {
   const result = await verifyOperationReliability()
   assert.deepEqual(result.failures, [])
   assert.equal(result.operationCount, 6)
-  assert.equal(result.scenarioCount, 17)
+  assert.equal(result.scenarioCount, 14)
 })

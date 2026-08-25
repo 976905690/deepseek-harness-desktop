@@ -53,13 +53,43 @@ describe('Desktop startup recovery confirmations', () => {
 
     expect(desktopDialog.show).toHaveBeenCalledWith(expect.objectContaining({
       type: 'warning',
-      title: 'Confirm plugin disable',
+      title: 'Disable this plugin?',
       buttons: ['Disable', 'Cancel'],
       defaultId: 1,
       cancelId: 1,
     }), parent)
     expect(previewDisable).toHaveBeenCalledWith('bundle-disable-0001')
     expect(executeDisable).toHaveBeenCalledWith('preview-disable-0001')
+  })
+
+  it('delivers a recovery notice to the renderer exactly once', async () => {
+    const recovery = new DesktopStartupRecoveryWindow({
+      locale: 'zh',
+      failureStage: 'health-commit',
+      failureDetail: 'notice test',
+      exportDiagnostics: async () => '/tmp/diagnostics.zip',
+    })
+    const loadFile = vi.fn(async (
+      _path: string,
+      _options: { readonly query: { readonly state: string } },
+    ) => {})
+    const browser = { isDestroyed: () => false, loadFile }
+    const privateRecovery = recovery as unknown as {
+      window: typeof browser
+      notice: { readonly tone: 'success'; readonly title: string; readonly body: string } | undefined
+      render: () => Promise<void>
+    }
+    privateRecovery.window = browser
+    privateRecovery.notice = { tone: 'success', title: 'slot-1', body: 'restored' }
+
+    await privateRecovery.render()
+    await privateRecovery.render()
+
+    const states = browser.loadFile.mock.calls.map(([, options]) => JSON.parse(
+      Buffer.from(options.query.state, 'base64url').toString('utf8'),
+    ) as { readonly notice?: unknown })
+    expect(states[0]!.notice).toEqual({ tone: 'success', title: 'slot-1', body: 'restored' })
+    expect(states[1]!.notice).toBeUndefined()
   })
 })
 
@@ -245,14 +275,13 @@ describe('Desktop startup recovery action parser', () => {
       expect(parseDesktopStartupRecoveryAction(`dsh-recovery://${action}`)).toEqual({ action })
     }
 
-    for (const action of [
-      'preview-disable',
-      'preview-rollback',
-      'preview-retry',
-    ]) {
+    expect(parseDesktopStartupRecoveryAction(
+      'dsh-recovery://preview-disable?id=opaque-id_0001',
+    )).toEqual({ action: 'preview-disable', id: 'opaque-id_0001' })
+    for (const action of ['preview-checkpoint', 'open-checkpoint']) {
       expect(parseDesktopStartupRecoveryAction(
-        `dsh-recovery://${action}?id=opaque-id_0001`,
-      )).toEqual({ action, id: 'opaque-id_0001' })
+        `dsh-recovery://${action}?id=slot-2`,
+      )).toEqual({ action, id: 'slot-2' })
     }
   })
 

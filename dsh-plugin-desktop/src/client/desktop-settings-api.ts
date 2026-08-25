@@ -10,6 +10,7 @@ const RESTART_PATH = '/api/desktop/restart'
 const RECOVERY_RESTART_PATH = '/api/desktop/restart/recovery'
 const RENDERER_RELOAD_PATH = '/api/desktop/developer/reload'
 const DEVELOPER_TOOLS_TOGGLE_PATH = '/api/desktop/developer/devtools'
+const UPDATE_CHECK_PATH = '/api/desktop/updates/check'
 const DIAGNOSTICS_EXPORT_PATH = '/api/desktop/diagnostics/export'
 const MAX_PROFILES = 256
 const MAX_PROFILE_NAME_LENGTH = 255
@@ -58,6 +59,7 @@ export interface DesktopSettingsApi {
   restartToRecovery(): Promise<void>
   reloadRenderer(): Promise<void>
   toggleDeveloperTools(): Promise<void>
+  checkForUpdates(): Promise<void>
   exportDiagnostics(): Promise<void>
 }
 
@@ -201,6 +203,9 @@ export function createDesktopSettingsApi(fetcher: FetchLike = globalThis.fetch.b
     async toggleDeveloperTools() {
       parseDesktopActionAcceptance(await readResponse(await post(fetcher, DEVELOPER_TOOLS_TOGGLE_PATH, {})))
     },
+    async checkForUpdates() {
+      parseDesktopActionAcceptance(await readResponse(await post(fetcher, UPDATE_CHECK_PATH, {})))
+    },
     async exportDiagnostics() {
       parseDesktopActionAcceptance(await readResponse(await post(fetcher, DIAGNOSTICS_EXPORT_PATH, {})))
     },
@@ -218,5 +223,6 @@ export const desktopSettingsPaths = Object.freeze({
   recoveryRestart: RECOVERY_RESTART_PATH,
   rendererReload: RENDERER_RELOAD_PATH,
   developerToolsToggle: DEVELOPER_TOOLS_TOGGLE_PATH,
+  updateCheck: UPDATE_CHECK_PATH,
   diagnosticsExport: DIAGNOSTICS_EXPORT_PATH,
 })

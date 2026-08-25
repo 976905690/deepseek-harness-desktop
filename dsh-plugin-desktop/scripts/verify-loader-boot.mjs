@@ -17,6 +17,9 @@ import { prepareDesktopProfile } from '../lib/profile.js'
 const BIN_NAME = 'dsh-plugin-desktop-loader-smoke'
 const THIRD_PARTY_NAME = 'dsh-desktop-loader-smoke-plugin'
 const THIRD_PARTY_DEPENDENCY_NAME = 'dsh-desktop-loader-smoke-dependency'
+const PRODUCT_VERSION = JSON.parse(
+  readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
+).version
 const RUNNER_ENVIRONMENT_NAMES = new Set([
   'ELECTRON_RUN_AS_NODE',
   'NPM_CONFIG_RUNTIME',
@@ -101,6 +104,7 @@ try {
 
   const runtime = {
     platform: 'darwin',
+    updates: { currentVersion: PRODUCT_VERSION },
     schedule(spec) {
       mountedSpec = spec
       return async () => { await mounted }
@@ -164,7 +168,8 @@ try {
   if (mountedSpec?.mode !== 'compatibility') {
     throw new Error(`desktop plugin produced an unexpected shell mode: ${String(mountedSpec?.mode)}`)
   }
-  if (mountedSpec?.url !== 'http://127.0.0.1:43120/?dsh-desktop-mode=compatibility&dsh-desktop-platform=darwin&dsh-desktop-material=transparent') {
+  const expectedUrl = `http://127.0.0.1:43120/?dsh-desktop-mode=compatibility&dsh-desktop-platform=darwin&dsh-desktop-version=${PRODUCT_VERSION}&dsh-desktop-material=transparent&dsh-desktop-titlebar-inset=36`
+  if (mountedSpec?.url !== expectedUrl) {
     throw new Error(`desktop plugin produced an unexpected renderer URL: ${String(mountedSpec?.url)}`)
   }
 } finally {

@@ -212,12 +212,12 @@ function memoryScope(initial: readonly MarketInstallReceipt[] = []): {
 
 function runner(
   profileDir: string,
-  calls: Array<{ args: readonly string[]; dir: string; signal?: AbortSignal }>,
+  calls: Array<{ args: readonly string[]; signal?: AbortSignal }>,
   outcome: { exitCode: number | null; signal: NodeJS.Signals | null } = { exitCode: 0, signal: null },
 ): MarketDesktopPnpm {
-  return recoverableRunner(profileDir, {
-    runPlugin(args, dir, signal) {
-      calls.push({ args: [...args], dir, ...(signal === undefined ? {} : { signal }) })
+  return {
+    run(args, signal) {
+      calls.push({ args: [...args], ...(signal === undefined ? {} : { signal }) })
       const done = (async () => {
         if (outcome.exitCode === 0 && outcome.signal === null) {
           if (args[0] === 'add') await writeInstalledPlugin(profileDir)
@@ -231,35 +231,6 @@ function runner(
         done,
         cancel: vi.fn(),
       }
-    },
-  })
-}
-
-function recoverableRunner(
-  profileDir: string,
-  implementation: Pick<MarketDesktopPnpm, 'runPlugin'>,
-): MarketDesktopPnpm {
-  let pendingPackageName: string | undefined
-  return {
-    ...implementation,
-    async installPlugin(request) {
-      pendingPackageName = request.recovery.packageName
-      return implementation.runPlugin([
-        'add',
-        ...(request.pnpmOptions ?? []),
-        `${request.recovery.packageName}@${request.recovery.packageVersion}`,
-      ], request.invokingDir, request.signal)
-    },
-    async recoveredInstallReceiptIds() { return [] },
-    async acknowledgeRecoveredInstall() {},
-    async rollbackPluginInstall() {
-      if (pendingPackageName === undefined) return false
-      const handle = implementation.runPlugin(['remove', pendingPackageName], profileDir)
-      handle.stdout.resume()
-      handle.stderr.resume()
-      const outcome = await handle.done
-      pendingPackageName = undefined
-      return outcome.exitCode === 0 && outcome.signal === null
     },
   }
 }
@@ -343,63 +314,9 @@ describe('manual install display instructions', () => {
 })
 
 describe('market install service', () => {
-  it('removes an exact startup-rolled-back receipt before acknowledging recovery', async () => {
-    const profileDir = await createProfile()
-    const recovered: MarketInstallReceipt = {
-      receiptId: 'receipt:startup-rollback-0001',
-      profileName: 'web',
-      packageName,
-      version,
-      integrity,
-      bundlePatch: './cordis.patch.yml',
-      sourceRecordId: 'source-1',
-      providerId: DSH_1024STORE_PROVIDER_ID,
-      itemId: 'example/dsh-plugin-safe',
-      displayName: 'Safe Plugin',
-      installedAt: '2026-08-18T00:00:00.000Z',
-    }
-    const retained = { ...recovered, receiptId: 'receipt:retained-install-0001', packageName: 'retained-plugin' }
-    let document: MarketSettingsDocument = { sources: [], installReceipts: [recovered, retained] }
-    let failSave = true
-    const events: string[] = []
-    const scope: SettingsScope<MarketSettingsDocument> = {
-      get: () => document,
-      watch: () => () => {},
-      update: vi.fn(async patch => {
-        events.push('save')
-        if (failSave) throw new Error('fixture settings failure')
-        document = { ...document, ...patch } as MarketSettingsDocument
-      }),
-      replace: vi.fn(),
-    }
-    const base = runner(profileDir, [])
-    const acknowledgeRecoveredInstall = vi.fn(async (receiptId: string) => {
-      events.push(`ack:${receiptId}`)
-    })
-    const service = new MarketInstallService(
-      scope,
-      () => ({ name: 'web', dir: profileDir }),
-      {
-        ...base,
-        recoveredInstallReceiptIds: vi.fn(async () => [recovered.receiptId]),
-        acknowledgeRecoveredInstall,
-      },
-      { verify: vi.fn(async () => verification) },
-    )
-
-    await expect(service.listReceipts()).rejects.toThrow('fixture settings failure')
-    expect(acknowledgeRecoveredInstall).not.toHaveBeenCalled()
-    expect(document.installReceipts).toEqual([recovered, retained])
-
-    failSave = false
-    await expect(service.listReceipts()).resolves.toEqual([retained])
-    expect(events.slice(-2)).toEqual(['save', `ack:${recovered.receiptId}`])
-    expect(acknowledgeRecoveredInstall).toHaveBeenCalledOnce()
-  })
-
   it('uses one-shot opaque intents, fixed argv, verified bundle state, and profile receipts', async () => {
     const profileDir = await createProfile()
-    const calls: Array<{ args: readonly string[]; dir: string; signal?: AbortSignal }> = []
+    const calls: Array<{ args: readonly string[]; signal?: AbortSignal }> = []
     const settings = memoryScope()
     const verify = vi.fn(async () => verification)
     let profileName = 'web'
@@ -419,7 +336,6 @@ describe('market install service', () => {
     const installed = installedResult
     expect(calls[0]).toMatchObject({
       args: ['add', '--save-exact', '--registry=https://registry.npmjs.org/', `${packageName}@${version}`],
-      dir: profileDir,
     })
     expect(verify).toHaveBeenCalledTimes(2)
     expect(installed.receipt.integrity).toBe(integrity)
@@ -434,7 +350,7 @@ describe('market install service', () => {
     const uninstall = await service.previewUninstall(installed.receipt.receiptId, new AbortController().signal)
     const removed = await service.executePreview(uninstall.intent, new AbortController().signal)
     if (removed.action !== 'uninstall') throw new Error('expected uninstall result')
-    expect(calls[1]).toMatchObject({ args: ['remove', packageName], dir: profileDir })
+    expect(calls[1]).toMatchObject({ args: ['remove', packageName] })
     expect(removed.receiptId).toBe(installed.receipt.receiptId)
     profileName = 'other'
     expect(() => service.consumeRestartToken(removed.restartToken)).toThrow(/active desktop profile changed/u)
@@ -501,18 +417,12 @@ describe('market install service', () => {
     const verifier = {
       verify: vi.fn(async () => verification),
     }
-    const recoveredInstallReceiptIds = vi.fn(async () => [receipt.receiptId])
-    const acknowledgeRecoveredInstall = vi.fn(async () => {})
     const currentProfile = vi.fn(() => ({ name: 'web', dir: profileDir }))
     const disabledPackageNames = vi.fn(() => [`${packageName}-2`])
     const service = new MarketInstallService(
       memoryScope([receipt]).scope,
       currentProfile,
-      {
-        ...runner(profileDir, []),
-        recoveredInstallReceiptIds,
-        acknowledgeRecoveredInstall,
-      },
+      runner(profileDir, []),
       verifier,
       { disabledPackageNames },
     )
@@ -535,8 +445,6 @@ describe('market install service', () => {
     expect(verifier.verify).not.toHaveBeenCalled()
     expect(currentProfile).not.toHaveBeenCalled()
     expect(disabledPackageNames).not.toHaveBeenCalled()
-    expect(recoveredInstallReceiptIds).not.toHaveBeenCalled()
-    expect(acknowledgeRecoveredInstall).not.toHaveBeenCalled()
   })
 
   it('returns the complete local catalog beyond the former 2048-candidate cap', async () => {
@@ -619,7 +527,7 @@ describe('market install service', () => {
 
   it('blocks product-owned packages and pins both registries for scoped targets', async () => {
     const profileDir = await createProfile()
-    const calls: Array<{ args: readonly string[]; dir: string }> = []
+    const calls: Array<{ args: readonly string[] }> = []
     const service = new MarketInstallService(
       memoryScope().scope,
       () => ({ name: 'web', dir: profileDir }),
@@ -656,7 +564,7 @@ describe('market install service', () => {
 
   it('refuses changed profile state and nonzero package-manager outcomes without issuing receipts', async () => {
     const profileDir = await createProfile()
-    const calls: Array<{ args: readonly string[]; dir: string }> = []
+    const calls: Array<{ args: readonly string[] }> = []
     const settings = memoryScope()
     const service = new MarketInstallService(
       settings.scope,
@@ -673,24 +581,23 @@ describe('market install service', () => {
     expect(JSON.parse(await readFile(join(profileDir, 'package.json'), 'utf8')).dependencies).toEqual({})
   })
 
-  it('rolls back a direct dependency written before a nonzero add outcome', async () => {
+  it('does not add install-specific rollback after a nonzero pnpm outcome', async () => {
     const profileDir = await createProfile()
     const calls: string[] = []
     const settings = memoryScope()
-    const pnpm = recoverableRunner(profileDir, {
-      runPlugin(args) {
+    const pnpm: MarketDesktopPnpm = {
+      run(args) {
         calls.push(args[0]!)
         const done = (async () => {
           if (args[0] === 'add') {
             await writeInstalledPlugin(profileDir)
             return { exitCode: 1, signal: null }
           }
-          await removeInstalledPlugin(profileDir)
           return { exitCode: 0, signal: null }
         })()
         return { stdout: Readable.from([]), stderr: Readable.from([]), done, cancel: vi.fn() }
       },
-    })
+    }
     const service = new MarketInstallService(
       settings.scope,
       () => ({ name: 'web', dir: profileDir }),
@@ -701,31 +608,29 @@ describe('market install service', () => {
     const preview = await service.previewInstall('source-1', 'example/dsh-plugin-safe', new AbortController().signal)
     await expect(service.executeInstall(preview.intent, new AbortController().signal)).rejects.toMatchObject({
       code: 'operation-failed',
-      message: expect.stringContaining('partial installation was rolled back'),
     })
-    expect(calls).toEqual(['add', 'remove'])
+    expect(calls).toEqual(['add'])
     expect(settings.receipts()).toEqual([])
-    expect(JSON.parse(await readFile(join(profileDir, 'package.json'), 'utf8')).dependencies).toEqual({})
+    expect(JSON.parse(await readFile(join(profileDir, 'package.json'), 'utf8')).dependencies).toEqual({ [packageName]: version })
   })
 
-  it('rolls back a direct dependency written before a rejected add completion', async () => {
+  it('does not add install-specific rollback after rejected pnpm completion', async () => {
     const profileDir = await createProfile()
     const calls: string[] = []
     const settings = memoryScope()
-    const pnpm = recoverableRunner(profileDir, {
-      runPlugin(args) {
+    const pnpm: MarketDesktopPnpm = {
+      run(args) {
         calls.push(args[0]!)
         const done = (async () => {
           if (args[0] === 'add') {
             await writeInstalledPlugin(profileDir)
             throw new Error('pnpm stream failed')
           }
-          await removeInstalledPlugin(profileDir)
           return { exitCode: 0, signal: null }
         })()
         return { stdout: Readable.from([]), stderr: Readable.from([]), done, cancel: vi.fn() }
       },
-    })
+    }
     const service = new MarketInstallService(
       settings.scope,
       () => ({ name: 'web', dir: profileDir }),
@@ -737,30 +642,28 @@ describe('market install service', () => {
     await expect(service.executeInstall(preview.intent, new AbortController().signal)).rejects.toMatchObject({
       code: 'operation-failed',
     })
-    expect(calls).toEqual(['add', 'remove'])
+    expect(calls).toEqual(['add'])
     expect(settings.receipts()).toEqual([])
   })
 
-  it('uses an independent cleanup signal after caller cancellation follows a partial add', async () => {
+  it('cancels without launching an install-specific cleanup operation', async () => {
     const profileDir = await createProfile()
     const controller = new AbortController()
     const calls: Array<{ readonly verb: string; readonly aborted: boolean }> = []
     const settings = memoryScope()
-    const pnpm = recoverableRunner(profileDir, {
-      runPlugin(args, _dir, signal) {
+    const pnpm: MarketDesktopPnpm = {
+      run(args, signal) {
         calls.push({ verb: args[0]!, aborted: signal?.aborted ?? false })
         const done = (async () => {
           if (args[0] === 'add') {
             await writeInstalledPlugin(profileDir)
             controller.abort()
-          } else {
-            await removeInstalledPlugin(profileDir)
           }
           return { exitCode: 0, signal: null }
         })()
         return { stdout: Readable.from([]), stderr: Readable.from([]), done, cancel: vi.fn() }
       },
-    })
+    }
     const service = new MarketInstallService(
       settings.scope,
       () => ({ name: 'web', dir: profileDir }),
@@ -769,37 +672,30 @@ describe('market install service', () => {
     )
     service.observeCatalog(snapshot())
     const preview = await service.previewInstall('source-1', 'example/dsh-plugin-safe', controller.signal)
-    await expect(service.executeInstall(preview.intent, controller.signal)).rejects.toMatchObject({
-      code: 'operation-failed',
-    })
-    expect(calls).toEqual([
-      { verb: 'add', aborted: false },
-      { verb: 'remove', aborted: false },
-    ])
+    await expect(service.executeInstall(preview.intent, controller.signal)).rejects.toMatchObject({ name: 'AbortError' })
+    expect(calls).toEqual([{ verb: 'add', aborted: false }])
     expect(settings.receipts()).toEqual([])
-    expect(JSON.parse(await readFile(join(profileDir, 'package.json'), 'utf8')).dependencies).toEqual({})
+    expect(JSON.parse(await readFile(join(profileDir, 'package.json'), 'utf8')).dependencies).toEqual({ [packageName]: version })
   })
 
-  it('uses an independent cleanup signal when disposal follows a partial add', async () => {
+  it('disposes without launching an install-specific cleanup operation', async () => {
     const profileDir = await createProfile()
     const calls: Array<{ readonly verb: string; readonly aborted: boolean }> = []
     const settings = memoryScope()
     let service!: MarketInstallService
-    const pnpm = recoverableRunner(profileDir, {
-      runPlugin(args, _dir, signal) {
+    const pnpm: MarketDesktopPnpm = {
+      run(args, signal) {
         calls.push({ verb: args[0]!, aborted: signal?.aborted ?? false })
         const done = (async () => {
           if (args[0] === 'add') {
             await writeInstalledPlugin(profileDir)
             service.dispose()
-          } else {
-            await removeInstalledPlugin(profileDir)
           }
           return { exitCode: 0, signal: null }
         })()
         return { stdout: Readable.from([]), stderr: Readable.from([]), done, cancel: vi.fn() }
       },
-    })
+    }
     service = new MarketInstallService(
       settings.scope,
       () => ({ name: 'web', dir: profileDir }),
@@ -808,15 +704,10 @@ describe('market install service', () => {
     )
     service.observeCatalog(snapshot())
     const preview = await service.previewInstall('source-1', 'example/dsh-plugin-safe', new AbortController().signal)
-    await expect(service.executeInstall(preview.intent, new AbortController().signal)).rejects.toMatchObject({
-      code: 'operation-failed',
-    })
-    expect(calls).toEqual([
-      { verb: 'add', aborted: false },
-      { verb: 'remove', aborted: false },
-    ])
+    await expect(service.executeInstall(preview.intent, new AbortController().signal)).rejects.toMatchObject({ name: 'AbortError' })
+    expect(calls).toEqual([{ verb: 'add', aborted: false }])
     expect(settings.receipts()).toEqual([])
-    expect(JSON.parse(await readFile(join(profileDir, 'package.json'), 'utf8')).dependencies).toEqual({})
+    expect(JSON.parse(await readFile(join(profileDir, 'package.json'), 'utf8')).dependencies).toEqual({ [packageName]: version })
   })
 
   it('revokes candidates and their intents when a source becomes unavailable', async () => {
@@ -859,11 +750,11 @@ describe('market install service', () => {
     await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
   })
 
-  it('rolls back an install whose resulting bundle does not match the verified artifact', async () => {
+  it('leaves an invalid install for unified checkpoint recovery', async () => {
     const profileDir = await createProfile()
     const calls: readonly string[][] = []
-    const pnpm = recoverableRunner(profileDir, {
-      runPlugin(args) {
+    const pnpm: MarketDesktopPnpm = {
+      run(args) {
         ;(calls as string[][]).push([...args])
         const done = (async () => {
           if (args[0] === 'add') {
@@ -871,14 +762,12 @@ describe('market install service', () => {
             const packageManifestPath = join(profileDir, 'node_modules', packageName, 'package.json')
             const manifest = JSON.parse(await readFile(packageManifestPath, 'utf8')) as Record<string, unknown>
             await writeFile(packageManifestPath, JSON.stringify({ ...manifest, dsh: { bundle: { patch: './other.yml' } } }))
-          } else {
-            await removeInstalledPlugin(profileDir)
           }
           return { exitCode: 0, signal: null }
         })()
         return { stdout: Readable.from([]), stderr: Readable.from([]), done, cancel: vi.fn() }
       },
-    })
+    }
     const settings = memoryScope()
     const service = new MarketInstallService(
       settings.scope,
@@ -891,17 +780,17 @@ describe('market install service', () => {
     await expect(service.executeInstall(preview.intent, new AbortController().signal)).rejects.toMatchObject({
       code: 'operation-failed',
     })
-    expect(calls.map(args => args[0])).toEqual(['add', 'remove'])
+    expect(calls.map(args => args[0])).toEqual(['add'])
     expect(settings.receipts()).toEqual([])
-    expect(JSON.parse(await readFile(join(profileDir, 'package.json'), 'utf8')).dependencies).toEqual({})
+    expect(JSON.parse(await readFile(join(profileDir, 'package.json'), 'utf8')).dependencies).toEqual({ [packageName]: version })
   })
 
   it('accepts lockfile v11 slash keys and peer-suffixed exact resolutions', async () => {
     const profileDir = await createProfile()
     const settings = memoryScope()
     const calls: string[] = []
-    const pnpm = recoverableRunner(profileDir, {
-      runPlugin(args) {
+    const pnpm: MarketDesktopPnpm = {
+      run(args) {
         calls.push(args[0]!)
         const done = (async () => {
           if (args[0] === 'add') {
@@ -911,14 +800,12 @@ describe('market install service', () => {
               slashPackageKey: true,
               slashSnapshotKey: true,
             })
-          } else {
-            await removeInstalledPlugin(profileDir)
           }
           return { exitCode: 0, signal: null }
         })()
         return { stdout: Readable.from([]), stderr: Readable.from([]), done, cancel: vi.fn() }
       },
-    })
+    }
     const service = new MarketInstallService(
       settings.scope,
       () => ({ name: 'web', dir: profileDir }),
@@ -933,7 +820,7 @@ describe('market install service', () => {
     expect(calls).toEqual(['add'])
   })
 
-  it('fails closed and rolls back when lockfile provenance does not match npm verification', async () => {
+  it('fails closed without install-specific rollback when lockfile provenance is invalid', async () => {
     const badIntegrity = `sha512-${Buffer.alloc(64, 1).toString('base64')}`
     const cases: readonly LockFixtureOptions[] = [
       { lockfileVersion: '8.0' },
@@ -947,17 +834,16 @@ describe('market install service', () => {
       const profileDir = await createProfile()
       const settings = memoryScope()
       const calls: string[] = []
-      const pnpm = recoverableRunner(profileDir, {
-        runPlugin(args) {
+      const pnpm: MarketDesktopPnpm = {
+        run(args) {
           calls.push(args[0]!)
           const done = (async () => {
             if (args[0] === 'add') await writeInstalledPlugin(profileDir, lockOptions)
-            else await removeInstalledPlugin(profileDir)
             return { exitCode: 0, signal: null }
           })()
           return { stdout: Readable.from([]), stderr: Readable.from([]), done, cancel: vi.fn() }
         },
-      })
+      }
       const service = new MarketInstallService(
         settings.scope,
         () => ({ name: 'web', dir: profileDir }),
@@ -969,12 +855,12 @@ describe('market install service', () => {
       await expect(service.executeInstall(preview.intent, new AbortController().signal)).rejects.toMatchObject({
         code: 'operation-failed',
       })
-      expect(calls).toEqual(['add', 'remove'])
+      expect(calls).toEqual(['add'])
       expect(settings.receipts()).toEqual([])
     }
   })
 
-  it('uses a service-owned cleanup signal when receipt persistence fails', async () => {
+  it('leaves a completed install intact when receipt persistence fails', async () => {
     const profileDir = await createProfile()
     let document: MarketSettingsDocument = { sources: [], installReceipts: [] }
     const scope = {
@@ -984,20 +870,18 @@ describe('market install service', () => {
       replace: vi.fn(async section => { document = section as MarketSettingsDocument }),
     } as SettingsScope<MarketSettingsDocument>
     const calls: Array<{ readonly verb: string; readonly aborted: boolean }> = []
-    const pnpm = recoverableRunner(profileDir, {
-      runPlugin(args, _dir, signal) {
+    const pnpm: MarketDesktopPnpm = {
+      run(args, signal) {
         const done = (async () => {
           calls.push({ verb: args[0]!, aborted: signal?.aborted ?? false })
           if (args[0] === 'add') {
             await writeInstalledPlugin(profileDir)
-          } else {
-            await removeInstalledPlugin(profileDir)
           }
           return { exitCode: 0, signal: null }
         })()
         return { stdout: Readable.from([]), stderr: Readable.from([]), done, cancel: vi.fn() }
       },
-    })
+    }
     const service = new MarketInstallService(
       scope,
       () => ({ name: 'web', dir: profileDir }),
@@ -1009,10 +893,7 @@ describe('market install service', () => {
     await expect(service.executeInstall(preview.intent, new AbortController().signal)).rejects.toMatchObject({
       code: 'persistence-failed',
     })
-    expect(calls).toEqual([
-      { verb: 'add', aborted: false },
-      { verb: 'remove', aborted: false },
-    ])
+    expect(calls).toEqual([{ verb: 'add', aborted: false }])
   })
 })
 

@@ -4,7 +4,6 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
-  readdirSync,
   rmSync,
   symlinkSync,
   unlinkSync,
@@ -32,7 +31,7 @@ function fixture(options: Partial<ProfileCheckpointOptions> = {}): {
   const userData = join(root, 'user-data')
   mkdirSync(profile)
   mkdirSync(userData)
-  writeFileSync(join(profile, 'package.json'), '{"name":"healthy"}\n')
+  writeFileSync(join(profile, 'package.json'), '{"name":"healthy-0"}\n')
   writeFileSync(join(profile, 'pnpm-lock.yaml'), 'lockfileVersion: 9\n')
   writeFileSync(join(profile, 'pnpm-workspace.yaml'), 'packages: []\n')
   writeFileSync(join(profile, 'cordis.patch.yml'), 'patch: []\n')
@@ -42,6 +41,7 @@ function fixture(options: Partial<ProfileCheckpointOptions> = {}): {
     profileIdentity: 'profile-identity',
     profileName: 'work',
     provider: 'dsh-market',
+    appVersion: '2.0.3',
     ...options,
   })
   return { root, profile, userData, checkpoint }
@@ -51,35 +51,122 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
 })
 
-describe('Desktop profile health checkpoint', () => {
-  it('captures required files and records an absent optional market state', () => {
-    const target = fixture()
+describe('Desktop profile health checkpoints', () => {
+  it('captures browseable metadata and keeps all three stable slots visible', () => {
+    const target = fixture({ now: () => Date.parse('2026-08-25T01:02:03.000Z') })
+    writeFileSync(join(target.profile, 'package.json'), `${JSON.stringify({
+      name: 'healthy-0',
+      dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'example-plugin'] } },
+    })}\n`)
     const result = target.checkpoint.captureHealthy()
-    expect(result.snapshotExists).toBe(true)
-    expect(result.manifest.files).toEqual(expect.arrayContaining([
-      { name: '.dsh-market/state.json', present: false },
-    ]))
-    expect(target.checkpoint.inspectRestore()).toMatchObject({
+    expect(result).toMatchObject({
+      status: 'captured',
+      slotId: 'slot-1',
+      manifest: {
+        version: 2,
+        capturedAt: '2026-08-25T01:02:03.000Z',
+        profileName: 'work',
+        provider: 'dsh-market',
+        appVersion: '2.0.3',
+        reason: 'healthy-startup',
+      },
+    })
+    const slots = target.checkpoint.listSlots()
+    expect(slots).toHaveLength(3)
+    expect(slots.map(slot => [slot.slotId, slot.snapshotExists])).toEqual([
+      ['slot-1', true],
+      ['slot-2', false],
+      ['slot-3', false],
+    ])
+    expect(slots[0]!.snapshotDirectory).toBe((result as { snapshotDirectory: string }).snapshotDirectory)
+    expect(slots[0]).toMatchObject({ pluginCount: 3, totalBytes: expect.any(Number) })
+    expect(slots[0]!.totalBytes).toBe(
+      slots[0]!.manifest!.files.reduce((total, file) => total + (file.present ? (file.size ?? 0) : 0), 0),
+    )
+    expect(existsSync(join(slots[0]!.snapshotDirectory, 'manifest.json'))).toBe(true)
+    if (process.platform !== 'win32') {
+      expect(lstatSync(join(slots[0]!.snapshotDirectory, 'manifest.json')).mode & 0o777).toBe(0o600)
+    }
+  })
+
+  it('writes every healthy startup and replaces the oldest slot after three captures', () => {
+    let now = Date.parse('2026-08-25T00:00:00.000Z')
+    const target = fixture({ now: () => now })
+    for (let index = 1; index <= 3; index += 1) {
+      writeFileSync(join(target.profile, 'package.json'), `{"name":"healthy-${index}"}\n`)
+      expect(target.checkpoint.captureHealthy()).toMatchObject({ status: 'captured', slotId: `slot-${index}` })
+      now += 1_000
+    }
+    writeFileSync(join(target.profile, 'package.json'), '{"name":"healthy-4"}\n')
+    expect(target.checkpoint.captureHealthy()).toMatchObject({ status: 'captured', slotId: 'slot-1' })
+    const versions = target.checkpoint.listSlots().map(slot => slot.manifest?.capturedAt)
+    expect(versions).toEqual([
+      '2026-08-25T00:00:03.000Z',
+      '2026-08-25T00:00:01.000Z',
+      '2026-08-25T00:00:02.000Z',
+    ])
+  })
+
+  it('restores an explicitly selected slot and skips exactly the next healthy write', () => {
+    let now = Date.parse('2026-08-25T00:00:00.000Z')
+    const target = fixture({ now: () => now })
+    target.checkpoint.captureHealthy()
+    now += 1_000
+    writeFileSync(join(target.profile, 'package.json'), '{"name":"healthy-1"}\n')
+    target.checkpoint.captureHealthy()
+    mkdirSync(join(target.profile, '.dsh-market'))
+    writeFileSync(join(target.profile, '.dsh-market', 'state.json'), '{}\n')
+
+    expect(target.checkpoint.restoreSlot('slot-1')).toMatchObject({
+      status: 'restored',
+      slotId: 'slot-1',
+      changedFiles: expect.arrayContaining(['package.json', '.dsh-market/state.json']),
+    })
+    expect(readFileSync(join(target.profile, 'package.json'), 'utf8')).toBe('{"name":"healthy-0"}\n')
+    expect(existsSync(join(target.profile, '.dsh-market', 'state.json'))).toBe(false)
+
+    now += 1_000
+    expect(target.checkpoint.captureHealthy()).toEqual({
+      status: 'skipped-after-restore',
+      restoredSlotId: 'slot-1',
+    })
+    expect(target.checkpoint.listSlots()[2]!.snapshotExists).toBe(false)
+    now += 1_000
+    expect(target.checkpoint.captureHealthy()).toMatchObject({ status: 'captured', slotId: 'slot-3' })
+  })
+
+  it('keeps the post-restore skip marker until a healthy capture actually occurs', () => {
+    const target = fixture()
+    target.checkpoint.captureHealthy()
+    target.checkpoint.restoreSlot('slot-1')
+    unlinkSync(join(target.profile, 'package.json'))
+    expect(() => target.checkpoint.captureHealthy()).toThrow('package.json is unavailable')
+    writeFileSync(join(target.profile, 'package.json'), '{"name":"restored"}\n')
+    expect(target.checkpoint.captureHealthy()).toMatchObject({ status: 'skipped-after-restore' })
+  })
+
+  it('keeps slots browseable when the current Market provider changes', () => {
+    const target = fixture()
+    target.checkpoint.captureHealthy()
+    const reopened = new DesktopProfileCheckpoint({
+      userDataDir: target.userData,
+      profileDir: target.profile,
+      profileIdentity: 'profile-identity',
+      profileName: 'work',
+      provider: 'other-market',
+      appVersion: '2.0.3',
+    })
+    expect(reopened.listSlots()[0]).toMatchObject({
       snapshotExists: true,
-      currentDiffers: false,
-      restoreAttempted: false,
+      manifest: { provider: 'dsh-market' },
     })
   })
 
-  it('requires package.json while recording absent declarative files', () => {
-    const target = fixture()
-    unlinkSync(join(target.profile, 'package.json'))
-    expect(() => target.checkpoint.captureHealthy()).toThrow('package.json is unavailable')
+  it('rejects missing package.json, symlinks, oversized files, and empty restore slots', () => {
+    const missing = fixture()
+    unlinkSync(join(missing.profile, 'package.json'))
+    expect(() => missing.checkpoint.captureHealthy()).toThrow('package.json is unavailable')
 
-    const missingLock = fixture()
-    unlinkSync(join(missingLock.profile, 'pnpm-lock.yaml'))
-    expect(() => missingLock.checkpoint.captureHealthy()).not.toThrow()
-
-    const optional = fixture()
-    expect(() => optional.checkpoint.captureHealthy()).not.toThrow()
-  })
-
-  it('rejects a symlink and an oversized allowlisted file', () => {
     const symlink = fixture()
     unlinkSync(join(symlink.profile, 'cordis.patch.yml'))
     writeFileSync(join(symlink.root, 'outside.yml'), 'outside\n')
@@ -88,48 +175,6 @@ describe('Desktop profile health checkpoint', () => {
 
     const oversized = fixture({ maxFileBytes: { 'package.json': 4 } })
     expect(() => oversized.checkpoint.captureHealthy()).toThrow('too large')
-  })
-
-  it('publishes a complete atomic snapshot and deduplicates an unchanged healthy boot', () => {
-    const target = fixture()
-    const first = target.checkpoint.captureHealthy()
-    const second = target.checkpoint.captureHealthy()
-    expect(first.deduplicated).toBe(false)
-    expect(second.deduplicated).toBe(true)
-    expect(readdirSync(join(target.userData, 'health-snapshots'))).toHaveLength(1)
-    expect(readdirSync(target.checkpoint.snapshotDirectory)).not.toEqual(expect.arrayContaining([
-      expect.stringContaining('.tmp'),
-      expect.stringContaining('.staging'),
-    ]))
-    if (process.platform !== 'win32') {
-      expect(lstatSync(join(target.checkpoint.snapshotDirectory, 'manifest.json')).mode & 0o777).toBe(0o600)
-    }
-  })
-
-  it('restores drift, removes files absent from the healthy image, and marks one failed generation', () => {
-    const target = fixture()
-    target.checkpoint.captureHealthy()
-    writeFileSync(join(target.profile, 'package.json'), '{"name":"broken"}\n')
-    mkdirSync(join(target.profile, '.dsh-market'))
-    writeFileSync(join(target.profile, '.dsh-market', 'state.json'), '{}\n', { flag: 'w' })
-    const inspection = target.checkpoint.inspectRestore()
-    expect(inspection.currentDiffers).toBe(true)
-    expect(inspection.changedFiles).toContain('package.json')
-    expect(inspection.changedFiles).toContain('.dsh-market/state.json')
-
-    const restored = target.checkpoint.restoreLatest('generation-1')
-    expect(restored.status).toBe('restored')
-    expect(restored.changedFiles).toContain('package.json')
-    expect(readFileSync(join(target.profile, 'package.json'), 'utf8')).toBe('{"name":"healthy"}\n')
-    expect(existsSync(join(target.profile, '.dsh-market', 'state.json'))).toBe(false)
-    expect(target.checkpoint.inspectRestore()).toMatchObject({
-      currentDiffers: false,
-      restoreAttempted: true,
-      failureGeneration: 'generation-1',
-    })
-    const repeated = target.checkpoint.restoreLatest('generation-1')
-    expect(repeated.status).toBe('already-attempted')
-    target.checkpoint.captureHealthy()
-    expect(target.checkpoint.inspectRestore().restoreAttempted).toBe(false)
+    expect(() => fixture().checkpoint.restoreSlot('slot-3')).toThrow('slot-3 is empty')
   })
 })

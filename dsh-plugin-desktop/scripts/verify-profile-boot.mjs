@@ -131,9 +131,6 @@ try {
         nodeShimPath: pnpmRuntime.nodeShimPath,
         clearEnvironmentPath: pnpmRuntime.clearEnvironmentPath,
         dshBootstrapPath: fileURLToPath(new URL('../lib/desktop-cli.js', import.meta.url)),
-        installRecoveryStatePath: join(home, 'plugin-install-recovery', 'state.json'),
-        generationId: 'profile-smoke-generation',
-        externalMarketInstallEnabled: prepared.market.effective === 'dsh-market',
       })
       await host.plugin(DesktopProfileService, {
         current: {
@@ -186,12 +183,7 @@ try {
     || hostServiceProbe.current.dir !== prepared.profile.dir
     || hostServiceProbe.pnpm?.serviceName !== 'desktopPnpm'
     || hostServiceProbe.pnpm.lookupRun !== 'function'
-    || hostServiceProbe.pnpm.run !== 'function'
-    || hostServiceProbe.pnpm.runPlugin !== 'function'
-    || hostServiceProbe.pnpm.installPlugin !== 'function'
-    || hostServiceProbe.pnpm.recoveredInstallReceiptIds !== 'function'
-    || hostServiceProbe.pnpm.acknowledgeRecoveredInstall !== 'function'
-    || hostServiceProbe.pnpm.rollbackPluginInstall !== 'function') {
+    || hostServiceProbe.pnpm.run !== 'function') {
     throw new Error(
       `profile-local Host service plugin produced an unexpected probe: ${JSON.stringify(hostServiceProbe)}`,
     )
@@ -206,7 +198,7 @@ try {
     throw new Error(`assembled Windows browse picker listed ${listing.path} instead of ${home}`)
   }
 
-  const expectedUrl = `http://127.0.0.1:${String(ctx.webServer.port)}/?dsh-desktop-mode=advanced&dsh-desktop-platform=win32&dsh-desktop-material=acrylic&dsh-desktop-mica=1`
+  const expectedUrl = `http://127.0.0.1:${String(ctx.webServer.port)}/?dsh-desktop-mode=advanced&dsh-desktop-platform=win32&dsh-desktop-version=2.0.0&dsh-desktop-material=acrylic&dsh-desktop-mica=1`
   if (mountedSpec?.url !== expectedUrl) {
     throw new Error(`desktop plugin produced an unexpected renderer URL: ${String(mountedSpec?.url)}`)
   }

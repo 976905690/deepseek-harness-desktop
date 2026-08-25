@@ -15,7 +15,7 @@ DSH Community Market 是 [DSH Desktop](../README.md) 内置的开放插件市场
 3. **已安装**会把有效 Market receipt 与 Desktop 当前 profile 的 direct bundle 清单进行核对。Receipt 持有的 bundle 可以卸载；可变 bundle 可以禁用并重新启用。已禁用且由 receipt 持有的 bundle 会同时保留“启用”和“卸载”。
 4. **来源**用于选择和管理目录来源；同一时间只浏览一个来源。
 
-点击插件卡片会同步打开弹窗，并由 Host 判断这个精确的来源/条目能否使用受管安装。Preview 成功时，Host 才会针对它访问官方 npm registry，完整复核身份、仓库、integrity、runtime、lifecycle script、DSH bundle 证据和当前 profile，然后把同一个弹窗切换成精确确认；真正执行前还会再次检查可变状态。如果受管 preview 不可用，弹窗会保留为详情页，并可能展示 Host 根据规范化身份重建的精确 npm 命令。它不是 provider 命令，不会发送给 Desktop action，也不会自动执行；“打开 DSH 终端”只负责打开 Desktop 内置终端，由用户自行检查、复制和执行命令。通过这个内置终端运行的 `dsh plugin add` 会进入 Desktop 的受保护安装恢复边界；在其中直接执行 `pnpm`、`npm`，或在外部系统终端运行命令，都不受该边界保护。受管 profile 修改成功后，用户可以使用一次性 Desktop action 立即重启，也可以选择稍后重启。市场只是现有 DSH 能力之上的产品壳，不会再发明一套插件格式、包管理器、profile 存储或高权限安装器。
+点击插件卡片会同步打开弹窗，并由 Host 判断这个精确的来源/条目能否使用受管安装。Preview 成功时，Host 才会针对它访问官方 npm registry，完整复核身份、仓库、integrity、runtime、lifecycle script、DSH bundle 证据和当前 Profile，然后把同一个弹窗切换成精确确认；真正执行前还会再次检查可变状态。如果受管 preview 不可用，弹窗会保留为详情页，并可能展示 Host 根据规范化身份重建的精确 npm 命令。它不是 provider 命令，不会发送给 Desktop action，也不会自动执行；“打开 DSH 终端”只负责打开 Desktop 内置终端，由用户自行检查、复制和执行命令。Market mutation 只使用 Desktop 的 `pnpm.run(argv)` 能力，不添加安装专用快照、重试或回滚。恢复统一由 Desktop 的三个健康启动 Profile checkpoint 处理。受管 Profile 修改成功后，用户可以使用一次性 Desktop action 立即重启，也可以选择稍后重启。市场只是现有 DSH 能力之上的产品壳，不会再发明一套插件格式、包管理器、Profile 存储或高权限安装器。
 
 ## 目录来源
 
@@ -44,8 +44,8 @@ dshfind 可以提供包含精确稳定版本和 `repository_backlink` 证据、�
 - 目录提供方返回的命令字符串、安装片段和仓库安装指令都会被丢弃，既不会作为 Host 手动提示展示，也绝不会执行。可用时，Host 会根据规范化身份单独重建一条精确 npm 手动提示；它会明确标为未完成全部验证，只供用户自行决定是否执行。对于符合条件的 dshfind 条目，该规范化身份只能来自受审的结构化 npm method，绝不会来自 `install.cmd`。
 - 受管操作中，renderer 只提交来源/条目或 receipt 标识。“打开 DSH 终端”提交的是空请求，不会接收、复制或执行界面展示的手动命令。
 - 确认框会展示精确 npm package 与版本，以及当前 profile。插件变更使用 Desktop 已有的受管 DSH 插件服务，并且一次只执行一个操作；成功后可以选择**稍后重启**或**立即重启**。
-- Market 安装或内置终端中的 `dsh plugin add` 开始前，Desktop 只会为当前 profile 的 `package.json`、`pnpm-lock.yaml` 和 `pnpm-workspace.yaml` 创建私有恢复快照。它不会备份或主动回滚 `node_modules`，也不会读取环境变量或另行收集凭据存储；这三个白名单文件会按原内容复制，因此其中不应写入凭据。
-- 受保护安装成功后，要等下一次 Desktop generation 成功启动 Host，并在 30 秒期限内收到 Renderer 的健康报告，才算验证完成；此前会拒绝下一次受保护的插件添加。如果启动失败，Desktop 会先在本地保存诊断证据，再仅对已识别的前后配置状态执行恢复，并且最多自动重启一次。出现未知文件漂移时不会覆盖用户数据，而会要求手动修复。
+- Market 只使用 `desktopPnpm.run(argv)`，固定 argv、Profile bundle reconcile、验证和 receipt 都由 Market 负责；不会创建安装专用快照、重试或回滚 operation。
+- Desktop 恢复统一使用严格三个健康启动 Profile checkpoint。启动失败绝不会自动修改激活 Profile；用户可在恢复页面检查、浏览并显式恢复某个 checkpoint。
 - 只有合法 Market receipt 仍与当前 profile 的 direct bundle 匹配时才能卸载。可变 direct bundle 可以禁用或重新启用 Desktop 的加载选择；这不会改变 package 所有权，也不会移除 package 或把插件代码放入安全沙箱。
 - 第一版不包含账号、遥测、静默安装、插件自动更新或自建目录后台。
 

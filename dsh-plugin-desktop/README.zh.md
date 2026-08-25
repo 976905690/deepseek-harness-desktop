@@ -14,7 +14,7 @@ desktop package 拥有普通 Host 与 Web Client 两个 face。它的 Client fac
 
 托盘中的 profile 选择器会列出现有 profile，以及可延迟创建的 `desktop` 与 `web` 默认项。可选 profile 必须直接按顺序组合 `dsh-base` 与 `dsh-web-app`；headless、损坏或已经内嵌 desktop bundle 的 profile 仍会显示，但不可选择。只有 `desktop` 是 Launcher 管理的 profile：它会修复安装方拥有的前缀，同时保留第三方 bundle 的相对顺序。其他被选 profile 的 manifest、用户 patch 与依赖均保持不变。Launcher 只会为当前 generation 在 `dsh-web-app` 后插入自有 desktop layer，不会把该 layer 持久化到被选 bundle 列表。
 
-Profile 选择保存在 Electron user data 下的 desktop 自有状态中，而不是被选 profile 内的另一个字段。切换会先记为 pending，再通过有序重启生效。只有 Cordis 树与原生窗口成功挂载后，新 profile 才会成为 last-known-good；托盘会在 Web surface 加载后才创建，而且该状态提交会在托盘命令能够运行前同步完成。Pending generation 启动失败时会回滚并自动重启一次。官方 profile 默认共用同一个 DSH home 中的 sessions、settings 与 storage，因此切换不会复制或迁移记录；自定义 profile patch 仍可主动重定向其中某个持久化根。
+Profile 选择保存在 Electron user data 下的 desktop 自有状态中，而不是被选 profile 内的另一个字段。被接受的切换会直接持久化精确的激活 profile，并通过有序重启生效。启动失败时不会替换成 last-known-good profile，也不会自动改写 Profile 文件。每次健康启动都会写入三个轮转 Profile checkpoint 之一；恢复时始终打开恢复页面，由用户选择精确槽位。执行恢复后的下一次健康启动会跳过一次 checkpoint 替换。官方 profile 默认共用同一个 DSH home 中的 sessions、settings 与 storage，因此切换不会复制或迁移记录；自定义 profile patch 仍可主动重定向其中某个持久化根。
 
 Launcher 会在 Loader entry 挂载前注册作用于当前 generation 的 `ctx.desktopProfiles` service。其不可变 `current` 值包含激活 profile 的 `name` 与绝对 `dir`；`list()` 只读执行发现，`select(name)` 会串行化“先持久化、再重启”的切换，而不会就地改变当前 generation。该 service 是 Desktop Host capability，不是 renderer bridge，也不是当前上游 DSH 已提供的 active-profile API。
 
@@ -26,9 +26,9 @@ Cordis 的裸插件导入从持久化 profile 解析。一个范围受限的 Nod
 
 Login-shell 恢复完成后，Launcher 才创建 layered launch-environment snapshot。随后，它会把只包含固定版本内置 `pnpm` 命令的私有命令目录前置到当前 Electron main 进程的 `PATH`。因此 Host 与第三方插件从启动开始即可发现该 package manager，也可以通过普通 DSH subprocess provider 使用它，而无需系统安装 Node.js。该 ambient path 是兼容 surface，不是正式的插件管理 contract。
 
-`desktop-pnpm` Host row 会提供 `ctx.desktopPnpm`，用于针对不可变激活 profile 执行受管 package operation。`run(args, signal?)` 会在激活 profile 目录中直接执行内置 pnpm；它是低层 operation，不承诺 DSH profile 初始化、调用方相对 source 锚定或 bundle reconcile。`runPlugin(args, invokingDir, signal?)` 会为 remove、update 和 dependency repair 启动内置 `dsh plugin --profile <active>`，但拒绝 `add`。插件安装使用 `installPlugin(request)`：它把精确 `name@version` 目标与 receipt 绑定，spawn 前快照 profile，并在完成前封存或恢复快照。上游 CLI 仍拥有 pnpm profile working directory 和 bundle reconcile 语义。
+`desktop-pnpm` Host row 只提供一个针对不可变激活 Profile 的 package-manager 能力：`ctx.desktopPnpm.run(argv, signal?)`。它以激活 Profile 目录作为 `cwd`，直接执行内置 pnpm entry。命令构造、Profile bundle reconcile、receipt、结果验证和用户界面进度都由调用方负责。Desktop 不会在该接口中加入插件专用 rewrite、重试、快照或回滚；恢复统一由三个健康启动 checkpoint 处理。
 
-两个方法都会返回实时 stdout 与 stderr stream、在完整 process tree 退出后才 settle 的 `done` promise，以及 `cancel()`。每个 generation 同时最多运行一个 operation。Service 使用普通 DSH subprocess provider、准确的已打包 JavaScript entry、无 shell argv，以及只属于 child 的 DSH home、Electron-backed Node、CI 与 native-module ABI 值。公开 runtime path 仍不会暴露 `node` 或 `dsh`；其中私有 helper、`ELECTRON_RUN_AS_NODE` 与 npm ABI 变量只存在于 package-manager subprocess tree 内。Launcher 不会修改系统 `PATH`、shell 启动文件、profile 配置或 `.env` 文档。
+`run()` 会返回实时 stdout 与 stderr stream、在完整 process tree 退出后才 settle 的 `done` promise，以及 `cancel()`。每个 generation 同时最多运行一个 operation。Service 使用普通 DSH subprocess provider、准确的已打包 JavaScript entry、无 shell argv，以及只属于 child 的 DSH home、Electron-backed Node、CI 与 native-module ABI 值。公开 runtime path 仍不会暴露 `node` 或 `dsh`；其中私有 helper、`ELECTRON_RUN_AS_NODE` 与 npm ABI 变量只存在于 package-manager subprocess tree 内。Launcher 不会修改系统 `PATH`、shell 启动文件、profile 配置或 `.env` 文档。
 
 插件作者应遵循 [Desktop 插件 service 架构](docs/plugin-services.zh.md)中记录的受支持 contract import、生命周期规则与适配模式。
 
@@ -69,15 +69,15 @@ Cordis row 会在 profile 激活期间登记原生窗口参数。Launcher 只在
 
 居中的产品标题和模式 pill 不受两侧操作组影响。第一方操作使用紧凑图标：macOS 把它们放在红绿灯相对的右侧，Windows 则把它们放在原生标题栏按钮相对的左侧。图标可以打开 DSH 终端、打开包含普通重启与恢复模式重启的菜单，或打开开发者菜单来重载 renderer 与切换分离式开发者工具。这些固定操作通过私有同源 launcher 边界执行；页面不会获得原始 Electron 或任意命令接口。
 
-即使上游 overlay 打开，操作栏仍会保持可见且可以拖动窗口。macOS 红绿灯和 Windows 原生标题栏按钮保留各自命中区域；第一方图标以及注册到可叠加 `desktop.titlebar.action` slot 的 contribution 会明确退出拖动区域，因此仍可正常点击。
+即使上游 overlay 打开，操作栏仍会保持可见且可以拖动窗口。macOS 红绿灯和 Windows 原生标题栏按钮保留各自命中区域；这个私有 surface 只直接渲染 Desktop 自有的第一方图标，它们会明确退出拖动区域并保持可点击。Web Client 插件在兼容模式和扩展窗口中都不能向操作栏贡献 action。
 
-DOM 会把操作栏声明为 Desktop frame，并把下移后的上游 root 声明为它的 content viewport。全视口上游对话框——包括 portal 到 `body` 的对话框——都会被限制在这个 content viewport 内，因此 mask 与卡片会从 36 像素 frame 下方开始，不会再压暗或拦截顶栏。
+DOM 会把操作栏声明为 Desktop frame，并把下移后的上游 root 声明为它的 content viewport。`shell.overlay` 会成为 fixed 插件 surface 的 containing block，直接 portal 到 `body` 的对话框则获得相同的内容偏移；两条路径都会被限制在 36 像素 frame 下方，不会再压暗或拦截顶栏。
 
 自定义窗口材质独立于模式设置。macOS 可选“关闭”或“透明材质”；Windows 可选“关闭”和原生“亚克力”，仅 Windows 11 build 22621 及以上显示 Mica。Windows 10 因此使用真正的原生亚克力，而不是 CSS 模拟。已持久化但系统不支持的 Mica 会按能力门槛回退到亚克力。切换模式或材质都会执行有序重启。
 
-## 高级模式
+## 增强模式
 
-高级模式是为 macOS 与 Windows 显式组合的 desktop 呈现。Launcher 会在读取全部用户 patch 后禁用官方 `ui-layout` Loader row，保持官方 `ui-sidebar` 与 `ui-conversation` row 启用，并把所选模式应用到 `desktop-shell`。
+增强模式是为 macOS 与 Windows 显式组合的 desktop 呈现。Launcher 会在读取全部用户 patch 后禁用官方 `ui-layout` Loader row，保持官方 `ui-sidebar` 与 `ui-conversation` row 启用，并把所选模式应用到 `desktop-shell`。
 
 desktop Client 会在所有呈现模式中提供不可变的 `desktopWindow` 原生几何 service。增强模式拥有独立的 Cordis effects、`layout` service 与 `root` slot registration，不会安装兼容/扩展模式的独立 frame。其 root 为不变的上游 sidebar、conversation、details 与 overlay contribution 声明 seat。官方 sidebar 继续作为 `sidebar` occupant，并继续声明 workspace browser、settings shell 与纯新增 footer action seat。这样会保留其组件行为、收起动画与第三方扩展点，而 desktop package 只拥有增强模式自己的紧凑内部 caption 几何与原生材质。
 
@@ -250,10 +250,10 @@ corepack.cmd yarn dist:win-portable
 ## 已知限制与暂缓事项
 
 - 添加或删除 profile bundle 后必须重启 DSH Desktop；Launcher 不监听 profile manifest。从托盘选择其他 profile 时会自动完成该重启。
-- 切换 compatibility/extended/advanced 模式或修改材质，按设计都会重启应用；存活的 generation 不会热切换 Loader row、slot 所有权或原生材质。
+- 切换兼容模式、扩展窗口或增强模式，或修改材质，按设计都会重启应用；存活的 generation 不会热切换 Loader row、slot 所有权或原生材质。
 - Linux 不支持扩展窗口与增强模式。Linux 继续使用兼容呈现。
 - macOS 与 Windows 托盘终端会提供私有 `dsh`、`pnpm` 与 `node` shim。除此之外，Host runtime 会在当前 Electron 进程的 `PATH` 中公开内置 `pnpm` 命令作为 ambient compatibility，并提供受管 `desktopPnpm` service；这些命令都不会加入系统 `PATH`，Linux 目前也没有 desktop 终端命令。
-- 在 Windows 上，ambient `pnpm` 命令与 lifecycle Node helper 是 `.cmd` shim。`desktopPnpm.run()`、`runPlugin()` 和 `installPlugin()` 会启动准确的已打包 entry，从而避免 manager process 的 shell lookup；上游 `dsh plugin`、PowerShell 与命令提示符则可通过 command interpreter 解析 ambient shim。第三方插件直接调用 Node `spawn('pnpm', { shell: false })`，或 lifecycle script 直接以 `shell: false` 执行其 `.cmd` `npm_node_execpath`，仍属于不可移植行为，应改用受管 service 或 shell-aware 启动路径。
+- 在 Windows 上，ambient `pnpm` 命令与 lifecycle Node helper 是 `.cmd` shim。`desktopPnpm.run()` 会启动准确的已打包 pnpm entry，从而避免 manager process 的 shell lookup；上游 `dsh plugin`、PowerShell 与命令提示符则可通过 command interpreter 解析 ambient shim。第三方插件直接调用 Node `spawn('pnpm', { shell: false })`，或 lifecycle script 直接以 `shell: false` 执行其 `.cmd` `npm_node_execpath`，仍属于不可移植行为，应改用该 service 或 shell-aware 启动路径。
 - `dshmarket@1.2.3` 仍是用户可选安装的第三方 package，而不是内置 marketplace。只有重新审计的版本同时消费可选 Desktop service、保留普通 DSH fallback，并包含再分发所需的完整 license notice 后，才会重新评估预装。
 - 更新交接只验证下载容器，不验证 publisher 身份。macOS 仍要求用户从已打开的 DMG 替换应用；Windows 会运行已下载的 NSIS 安装器，但本地 `dist:win` 产物没有签名。签名产物、Authenticode/publisher 校验、SmartScreen 信誉与原生升级测试仍是发布 gate。
 - 共享 carrier 使用 loopback HTTP 与 WebSocket，而不是 Electron IPC。替换它需要上游 DSH 提供 transport 扩展点，不属于该独立包的范围。

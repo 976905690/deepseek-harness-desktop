@@ -14,7 +14,8 @@ const DIALOG_DOCUMENT = fileURLToPath(new URL('./native-ui/desktop-dialog.html',
 const MAX_BUTTONS = 4
 const DIALOG_WIDTH = 480
 const DIALOG_INITIAL_HEIGHT = 300
-const DIALOG_MAX_HEIGHT = 440
+/** Electron omits the 2rem shadcn action row from the reported preferred height. */
+const DIALOG_PREFERRED_HEIGHT_OFFSET = 32
 const DIALOG_REVEAL_FALLBACK_MS = 250
 
 export interface DesktopDialogOptions {
@@ -53,20 +54,6 @@ export function parseDesktopDialogResponse(href: string, buttonCount: number): n
   return Number.isSafeInteger(response) && response >= 0 && response < buttonCount ? response : undefined
 }
 
-/** Accept only a bounded rendered content height from the isolated local UI. */
-export function parseDesktopDialogLayout(href: string): number | undefined {
-  let url: URL
-  try { url = new URL(href) } catch { return undefined }
-  if (url.protocol !== DIALOG_SCHEME || url.hostname !== 'layout'
-    || url.username !== '' || url.password !== '' || url.port !== ''
-    || url.pathname !== '' || url.hash !== ''
-    || [...url.searchParams.keys()].some(key => key !== 'height')) return undefined
-  const raw = url.searchParams.get('height')
-  if (raw === null || !/^[1-9]\d*$/u.test(raw)) return undefined
-  const height = Number(raw)
-  return Number.isSafeInteger(height) && height <= DIALOG_MAX_HEIGHT ? height : undefined
-}
-
 /** One-shot modal Desktop window; closing it always produces the cancel result. */
 export class DesktopDialogWindow {
   constructor(
@@ -100,9 +87,9 @@ export class DesktopDialogWindow {
       ...auxiliaryWindowChromeOptions(process.platform, windowControls),
       width: DIALOG_WIDTH,
       height: DIALOG_INITIAL_HEIGHT,
+      useContentSize: true,
       minWidth: 420,
       maxWidth: 620,
-      maxHeight: DIALOG_MAX_HEIGHT,
       resizable: windowControls,
       maximizable: false,
       fullscreenable: false,
@@ -118,6 +105,7 @@ export class DesktopDialogWindow {
         webSecurity: true,
         webviewTag: false,
         spellcheck: false,
+        enablePreferredSizeMode: true,
         partition: 'dsh-desktop-dialog',
       },
     })
@@ -128,12 +116,15 @@ export class DesktopDialogWindow {
 
     return await new Promise<DesktopDialogResult>((resolve, reject) => {
       let settled = false
-      let documentReady = false
+      let documentLoaded = false
+      let paintReady = false
       let layoutReady = false
       let revealed = false
+      let preferredHeight: number | undefined
+      let appliedHeight: number | undefined
       let revealTimer: ReturnType<typeof setTimeout> | undefined
       const reveal = (): void => {
-        if (revealed || !documentReady || window.isDestroyed()) return
+        if (revealed || !documentLoaded || !paintReady || window.isDestroyed()) return
         revealed = true
         if (revealTimer !== undefined) clearTimeout(revealTimer)
         revealTimer = undefined
@@ -146,38 +137,49 @@ export class DesktopDialogWindow {
         if (!window.isDestroyed()) window.destroy()
         resolve(Object.freeze({ response }))
       }
+      const scheduleReveal = (): void => {
+        if (!documentLoaded || !paintReady || revealed) return
+        if (layoutReady) {
+          reveal()
+        } else if (revealTimer === undefined) {
+          revealTimer = setTimeout(reveal, DIALOG_REVEAL_FALLBACK_MS)
+        }
+      }
+      const applyPreferredSize = (): void => {
+        if (!documentLoaded || preferredHeight === undefined || window.isDestroyed()) return
+        const height = preferredHeight
+        layoutReady = true
+        if (height === appliedHeight) {
+          scheduleReveal()
+          return
+        }
+        appliedHeight = height
+        // Keep this as one content-area resize. On macOS modal sheets the
+        // native geometry update can lag this call; reading outer bounds and
+        // writing them back immediately can restore the stale, shorter height.
+        window.setContentSize(DIALOG_WIDTH, height, false)
+        scheduleReveal()
+      }
       const navigate = (event: Electron.Event, href: string): void => {
         event.preventDefault()
         const response = parseDesktopDialogResponse(href, this.options.buttons.length)
-        if (response !== undefined) {
-          finish(response)
-          return
-        }
-        const renderedHeight = parseDesktopDialogLayout(href)
-        if (renderedHeight === undefined || window.isDestroyed()) return
-        const previousBounds = window.getBounds()
-        // The renderer reports web-content height. setBounds() consumes the
-        // outer window height and clips the footer wherever native chrome or
-        // invisible window borders consume part of that space.
-        window.setContentSize(DIALOG_WIDTH, renderedHeight, false)
-        const sizedBounds = window.getBounds()
-        window.setBounds({
-          ...sizedBounds,
-          x: previousBounds.x + Math.round((previousBounds.width - sizedBounds.width) / 2),
-          y: previousBounds.y + Math.round((previousBounds.height - sizedBounds.height) / 2),
-        }, false)
-        layoutReady = true
-        if (documentReady) reveal()
+        if (response !== undefined) finish(response)
       }
       window.webContents.on('will-navigate', navigate)
       window.webContents.on('will-redirect', navigate)
+      window.webContents.on('preferred-size-changed', (_event, size) => {
+        if (!Number.isSafeInteger(size.height) || size.height <= 0) return
+        preferredHeight = size.height + DIALOG_PREFERRED_HEIGHT_OFFSET
+        applyPreferredSize()
+      })
+      window.webContents.on('did-finish-load', () => {
+        documentLoaded = true
+        applyPreferredSize()
+        scheduleReveal()
+      })
       window.once('ready-to-show', () => {
-        documentReady = true
-        if (layoutReady) {
-          reveal()
-        } else {
-          revealTimer = setTimeout(reveal, DIALOG_REVEAL_FALLBACK_MS)
-        }
+        paintReady = true
+        scheduleReveal()
       })
       window.on('closed', () => { finish(cancelId) })
       void window.loadFile(DIALOG_DOCUMENT, {

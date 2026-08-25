@@ -20,8 +20,6 @@ import {
   createDesktopWebProfile,
   deleteDesktopProfile,
   listDesktopProfiles,
-  markDesktopProfileFailed,
-  markDesktopProfileHealthy,
   readDesktopProfileState,
   selectDesktopProfile,
 } from '../src/profile-manager.ts'
@@ -161,9 +159,8 @@ describe('desktop profile discovery', () => {
 
 describe('desktop profile deletion', () => {
   function writeSelection(home: string, statePath: string, state: Record<string, unknown> = {
-    version: 1,
+    version: 2,
     active: 'desktop',
-    lastKnownGood: 'desktop',
   }): void {
     mkdirSync(join(home, 'profiles'), { recursive: true })
     mkdirSync(join(statePath, '..'), { recursive: true })
@@ -196,9 +193,8 @@ describe('desktop profile deletion', () => {
     const home = temporaryRoot()
     const statePath = join(home, 'state', 'profiles.json')
     writeSelection(home, statePath, {
-      version: 1,
+      version: 2,
       active: 'work',
-      lastKnownGood: 'work',
     })
     writeProfile(home, 'desktop', ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'])
     writeProfile(home, 'web', ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'])
@@ -236,19 +232,11 @@ describe('desktop profile deletion', () => {
     expect(clearCheckpoint).toHaveBeenCalledOnce()
   })
 
-  it('rejects a recovery transaction and restores the directory after cleanup failure', async () => {
+  it('restores the directory after cleanup failure', async () => {
     const home = temporaryRoot()
     const statePath = join(home, 'state', 'profiles.json')
     writeSelection(home, statePath)
     const profileDir = writeProfile(home, 'work', ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'])
-    await expect(deleteDesktopProfile({
-      home,
-      selectionStatePath: statePath,
-      currentProfileName: 'desktop',
-      installRecovery: { read: async () => ({ profileName: 'work' }) },
-    }, 'work')).rejects.toThrow('pending install recovery')
-    expect(existsSync(profileDir)).toBe(true)
-
     await expect(deleteDesktopProfile({
       home,
       selectionStatePath: statePath,
@@ -275,15 +263,12 @@ describe('desktop profile selection state', () => {
     ])
 
     expect(readDesktopProfileState(statePath)).toEqual({
-      version: 1,
+      version: 2,
       active: 'desktop',
-      lastKnownGood: 'desktop',
     })
     expect(selectDesktopProfile(statePath, home, 'work')).toEqual({
-      version: 1,
-      active: 'desktop',
-      pending: 'work',
-      lastKnownGood: 'desktop',
+      version: 2,
+      active: 'work',
     })
     expect(() => selectDesktopProfile(statePath, home, 'headless')).toThrow(
       'must directly include @deepseek-ai/dsh-base before @deepseek-ai/dsh-web-app',
@@ -299,7 +284,7 @@ describe('desktop profile selection state', () => {
     }
   })
 
-  it('consumes a pending profile and rolls back an unconfirmed startup on the next launch', () => {
+  it('keeps the exact selected profile across repeated startup attempts', () => {
     const root = temporaryRoot()
     const home = join(root, 'harness')
     const statePath = join(root, 'private', 'state.json')
@@ -308,39 +293,28 @@ describe('desktop profile selection state', () => {
 
     expect(beginDesktopProfileStartup(statePath, home)).toEqual({
       profileName: 'work',
-      state: { version: 1, active: 'work', lastKnownGood: 'desktop' },
+      state: { version: 2, active: 'work' },
       recoveredState: false,
     })
     expect(beginDesktopProfileStartup(statePath, home)).toEqual({
-      profileName: 'desktop',
-      state: { version: 1, active: 'desktop', lastKnownGood: 'desktop' },
-      recoveredState: true,
-      rolledBackFrom: 'work',
+      profileName: 'work',
+      state: { version: 2, active: 'work' },
+      recoveredState: false,
     })
   })
 
-  it('promotes a healthy profile and explicitly rolls a later failed profile back', () => {
+  it('does not accept or migrate the removed v1 last-known-good state', () => {
     const root = temporaryRoot()
     const home = join(root, 'harness')
     const statePath = join(root, 'private', 'state.json')
     writeProfile(home, 'work', ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'])
-
-    selectDesktopProfile(statePath, home, 'work')
-    beginDesktopProfileStartup(statePath, home)
-    expect(markDesktopProfileHealthy(statePath, 'work')).toEqual({
-      version: 1,
-      active: 'work',
-      lastKnownGood: 'work',
+    mkdirSync(join(statePath, '..'), { recursive: true })
+    writeFileSync(statePath, JSON.stringify({ version: 1, active: 'work', lastKnownGood: 'work' }))
+    expect(beginDesktopProfileStartup(statePath, home)).toEqual({
+      profileName: 'desktop',
+      state: { version: 2, active: 'desktop' },
+      recoveredState: true,
     })
-
-    selectDesktopProfile(statePath, home, 'web')
-    beginDesktopProfileStartup(statePath, home)
-    expect(markDesktopProfileFailed(statePath, 'web')).toEqual({
-      version: 1,
-      active: 'work',
-      lastKnownGood: 'work',
-    })
-    expect(() => markDesktopProfileHealthy(statePath, 'web')).toThrow('cannot confirm inactive profile')
   })
 
   it('recovers malformed or symlinked private state without touching profile files', () => {
@@ -353,19 +327,18 @@ describe('desktop profile selection state', () => {
 
     expect(beginDesktopProfileStartup(statePath, home)).toEqual({
       profileName: 'desktop',
-      state: { version: 1, active: 'desktop', lastKnownGood: 'desktop' },
+      state: { version: 2, active: 'desktop' },
       recoveredState: true,
     })
     expect(JSON.parse(readFileSync(statePath, 'utf8'))).toEqual({
-      version: 1,
+      version: 2,
       active: 'desktop',
-      lastKnownGood: 'desktop',
     })
     expect(lstatSync(statePath).isSymbolicLink()).toBe(false)
     expect(existsSync(join(home, 'profiles'))).toBe(false)
   })
 
-  it('falls back when a queued profile disappears before restart', () => {
+  it('does not substitute another profile when the selected profile disappears', () => {
     const root = temporaryRoot()
     const home = join(root, 'harness')
     const statePath = join(root, 'private', 'state.json')
@@ -373,11 +346,7 @@ describe('desktop profile selection state', () => {
     selectDesktopProfile(statePath, home, 'work')
     rmSync(profileDir, { recursive: true })
 
-    expect(beginDesktopProfileStartup(statePath, home)).toEqual({
-      profileName: 'desktop',
-      state: { version: 1, active: 'desktop', lastKnownGood: 'desktop' },
-      recoveredState: true,
-      rolledBackFrom: 'work',
-    })
+    expect(() => beginDesktopProfileStartup(statePath, home)).toThrow('does not exist')
+    expect(readDesktopProfileState(statePath)).toEqual({ version: 2, active: 'work' })
   })
 })

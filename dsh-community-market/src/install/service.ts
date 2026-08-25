@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from 'node:crypto'
-import { readFile, realpath, stat } from 'node:fs/promises'
+import { lstat, readFile, realpath, rename, stat, unlink, writeFile } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import type { Readable } from 'node:stream'
 import type { SettingsScope } from '@deepseek-ai/dsh-settings'
@@ -49,24 +49,7 @@ export interface MarketDesktopPnpmHandle {
 }
 
 export interface MarketDesktopPnpm {
-  runPlugin(
-    args: readonly string[],
-    invokingDir: string,
-    signal?: AbortSignal,
-  ): MarketDesktopPnpmHandle
-  installPlugin(request: {
-    readonly pnpmOptions?: readonly string[]
-    readonly invokingDir: string
-    readonly recovery: {
-      readonly packageName: string
-      readonly packageVersion: string
-      readonly receiptId: string
-    }
-    readonly signal?: AbortSignal
-  }): Promise<MarketDesktopPnpmHandle>
-  recoveredInstallReceiptIds(): Promise<readonly string[]>
-  acknowledgeRecoveredInstall(receiptId: string): Promise<void>
-  rollbackPluginInstall(receiptId: string): Promise<boolean>
+  run(argv: readonly string[], signal?: AbortSignal): MarketDesktopPnpmHandle
 }
 
 export interface MarketInstallPreview {
@@ -399,6 +382,47 @@ async function readManifest(path: string): Promise<JsonManifest> {
   return value as JsonManifest
 }
 
+/** Atomically update only the Profile bundle list after pnpm changes dependencies. */
+async function setProfileBundle(
+  profile: MarketDesktopProfile,
+  packageName: string,
+  present: boolean,
+): Promise<void> {
+  const manifestPath = join(profile.dir, 'package.json')
+  const item = await lstat(manifestPath)
+  if (!item.isFile() || item.isSymbolicLink()) throw new Error('unsafe profile manifest')
+  const manifest = await readManifest(manifestPath) as UnknownRecord
+  const dsh = record(manifest.dsh) ?? {}
+  const profileDocument = record(dsh.profile) ?? {}
+  const current = profileBundles(manifest)
+  const bundles = present
+    ? current.includes(packageName) ? [...current] : [...current, packageName]
+    : current.filter(bundle => bundle !== packageName)
+  const next = {
+    ...manifest,
+    dsh: {
+      ...dsh,
+      profile: {
+        ...profileDocument,
+        bundles,
+      },
+    },
+  }
+  const temporary = join(profile.dir, `.package.json.${process.pid}.${randomUUID()}.tmp`)
+  try {
+    await writeFile(temporary, `${JSON.stringify(next, undefined, 2)}\n`, {
+      encoding: 'utf8',
+      flag: 'wx',
+      mode: item.mode & 0o777,
+    })
+    await rename(temporary, manifestPath)
+  } finally {
+    await unlink(temporary).catch(cause => {
+      if ((cause as NodeJS.ErrnoException).code !== 'ENOENT') throw cause
+    })
+  }
+}
+
 function profileDependency(manifest: JsonManifest, packageName: string): string | undefined {
   if (manifest.dependencies === null || typeof manifest.dependencies !== 'object' || Array.isArray(manifest.dependencies)) {
     return undefined
@@ -417,10 +441,6 @@ function profileBundles(manifest: JsonManifest): readonly string[] {
 
 function profileReferencesPlugin(manifest: JsonManifest, packageName: string): boolean {
   return profileDependency(manifest, packageName) !== undefined || profileBundles(manifest).includes(packageName)
-}
-
-async function profileHasPluginReference(profile: MarketDesktopProfile, packageName: string): Promise<boolean> {
-  return profileReferencesPlugin(await readManifest(join(profile.dir, 'package.json')), packageName)
 }
 
 function bundlePatch(manifest: JsonManifest): string | undefined {
@@ -598,7 +618,6 @@ export class MarketInstallService {
   private readonly maxCandidates: number
   private readonly disabledPackageNames: () => readonly string[]
   private readonly generation = new AbortController()
-  private recoveryReconciliation: Promise<void> | undefined
   private operationActive = false
   private closed = false
 
@@ -677,7 +696,6 @@ export class MarketInstallService {
 
   async listReceipts(): Promise<readonly MarketInstallReceipt[]> {
     this.assertOpen()
-    await this.ensureRecoveredInstallReconciled()
     const profile = this.profile()
     return this.receipts().filter(receipt => receipt.profileName === profile.name)
   }
@@ -685,7 +703,6 @@ export class MarketInstallService {
   /** Receipts that still prove one exact installed bundle in the active profile. */
   async listVerifiedReceipts(signal: AbortSignal = this.generation.signal): Promise<readonly MarketInstallReceipt[]> {
     const operationSignal = this.operationSignal(signal)
-    await this.ensureRecoveredInstallReconciled()
     operationSignal.throwIfAborted()
     const profile = this.profile()
     const receipts = this.receipts().filter(receipt => receipt.profileName === profile.name)
@@ -756,7 +773,6 @@ export class MarketInstallService {
     signal: AbortSignal,
   ): Promise<MarketInstallPreview> {
     const operationSignal = this.operationSignal(signal)
-    await this.ensureRecoveredInstallReconciled()
     operationSignal.throwIfAborted()
     this.purge()
     const key = candidateKey(sourceRecordId, itemId)
@@ -848,27 +864,13 @@ export class MarketInstallService {
         displayName: candidate.displayName,
         installedAt: new Date(this.now()).toISOString(),
       }
+      await this.runPnpm([
+        'add',
+        ...this.installOptions(candidate.packageName),
+        `${candidate.packageName}@${candidate.version}`,
+      ], operationSignal)
       try {
-        await this.runPlugin(
-          this.installOptions(candidate.packageName),
-          profile,
-          operationSignal,
-          true,
-          {
-            packageName: receipt.packageName,
-            packageVersion: receipt.version,
-            receiptId: receipt.receiptId,
-          },
-        )
-      } catch (cause) {
-        if (!await this.installMayHaveMutatedProfile(profile, candidate.packageName)) throw cause
-        await this.rollbackInstall(profile, candidate.packageName, receipt.receiptId)
-        throw new MarketInstallError(
-          'operation-failed',
-          'The package manager failed after changing the active profile, so the partial installation was rolled back.',
-        )
-      }
-      try {
+        await setProfileBundle(profile, candidate.packageName, true)
         await assertInstalledBundle(
           profile,
           candidate.packageName,
@@ -878,17 +880,18 @@ export class MarketInstallService {
         )
         operationSignal.throwIfAborted()
       } catch {
-        await this.rollbackInstall(profile, candidate.packageName, receipt.receiptId)
         throw new MarketInstallError(
           'operation-failed',
-          'The package manager finished, but the plugin bundle was invalid, so the installation was rolled back.',
+          'The package manager changed the Profile, but the plugin bundle could not be validated. Use a Recovery checkpoint if you need to restore the previous Profile state.',
         )
       }
       try {
         await this.saveReceipts([...this.receipts(), receipt])
       } catch {
-        await this.rollbackInstall(profile, candidate.packageName, receipt.receiptId)
-        throw new MarketInstallError('persistence-failed', 'The install receipt could not be saved, so the installation was rolled back.')
+        throw new MarketInstallError(
+          'persistence-failed',
+          'The plugin was installed, but its Market receipt could not be saved. Use a Recovery checkpoint if you need to restore the previous Profile state.',
+        )
       }
       return { receipt }
     })
@@ -921,7 +924,6 @@ export class MarketInstallService {
 
   async previewUninstall(receiptId: string, signal: AbortSignal): Promise<MarketUninstallPreview> {
     const operationSignal = this.operationSignal(signal)
-    await this.ensureRecoveredInstallReconciled()
     operationSignal.throwIfAborted()
     const profile = this.profile()
     const receipt = this.receipts().find(value => value.receiptId === receiptId && value.profileName === profile.name)
@@ -966,7 +968,14 @@ export class MarketInstallService {
         operationSignal.throwIfAborted()
       }
       catch { throw new MarketInstallError('conflict', 'The installed plugin no longer matches its market receipt.') }
-      await this.runPlugin(['remove', currentReceipt.packageName], profile, operationSignal)
+      await this.runPnpm(['remove', currentReceipt.packageName], operationSignal)
+      try { await setProfileBundle(profile, currentReceipt.packageName, false) }
+      catch {
+        throw new MarketInstallError(
+          'operation-failed',
+          'The package was removed, but the Profile bundle list could not be updated. Use a Recovery checkpoint to restore a consistent Profile state.',
+        )
+      }
       try { await assertRemoved(profile, currentReceipt.packageName) }
       catch { throw new MarketInstallError('operation-failed', 'The package manager finished, but the plugin remains in the active profile.') }
       try {
@@ -1038,29 +1047,6 @@ export class MarketInstallService {
   private async saveReceipts(receipts: readonly MarketInstallReceipt[]): Promise<void> {
     if (receipts.length > MAX_RECEIPTS || !receipts.every(validReceipt)) throw new Error('invalid receipts')
     await this.scope.update({ installReceipts: receipts })
-  }
-
-  private async ensureRecoveredInstallReconciled(): Promise<void> {
-    const existing = this.recoveryReconciliation
-    if (existing !== undefined) return await existing
-    const operation = this.reconcileRecoveredInstall()
-    this.recoveryReconciliation = operation
-    try {
-      await operation
-    } catch (cause) {
-      if (this.recoveryReconciliation === operation) this.recoveryReconciliation = undefined
-      throw cause
-    }
-  }
-
-  private async reconcileRecoveredInstall(): Promise<void> {
-    const receiptIds = await this.pnpm.recoveredInstallReceiptIds()
-    if (receiptIds.length === 0) return
-    const uniqueIds = new Set(receiptIds)
-    const current = this.receipts()
-    const retained = current.filter(receipt => !uniqueIds.has(receipt.receiptId))
-    if (retained.length !== current.length) await this.saveReceipts(retained)
-    for (const receiptId of uniqueIds) await this.pnpm.acknowledgeRecoveredInstall(receiptId)
   }
 
   private issueIntent(intent: MarketIntent): string {
@@ -1140,35 +1126,11 @@ export class MarketInstallService {
     return AbortSignal.any([signal, this.generation.signal])
   }
 
-  private async installMayHaveMutatedProfile(profile: MarketDesktopProfile, packageName: string): Promise<boolean> {
-    try { return await profileHasPluginReference(profile, packageName) }
-    catch { return true }
-  }
-
-  private async runPlugin(
-    args: readonly string[],
-    profile: MarketDesktopProfile,
-    signal: AbortSignal,
-    includeGeneration = true,
-    installRecovery?: {
-      readonly packageName: string
-      readonly packageVersion: string
-      readonly receiptId: string
-    },
-  ): Promise<void> {
-    const combinedSignal = includeGeneration ? AbortSignal.any([signal, this.generation.signal]) : signal
+  private async runPnpm(args: readonly string[], signal: AbortSignal): Promise<void> {
+    const combinedSignal = AbortSignal.any([signal, this.generation.signal])
     combinedSignal.throwIfAborted()
     let handle: MarketDesktopPnpmHandle
-    try {
-      handle = installRecovery === undefined
-        ? this.pnpm.runPlugin(args, profile.dir, combinedSignal)
-        : await this.pnpm.installPlugin({
-            pnpmOptions: args,
-            invokingDir: profile.dir,
-            recovery: installRecovery,
-            signal: combinedSignal,
-          })
-    }
+    try { handle = this.pnpm.run(args, combinedSignal) }
     catch { throw new MarketInstallError('operation-failed', 'The desktop package manager could not start.') }
     handle.stdout.resume()
     handle.stderr.resume()
@@ -1196,19 +1158,4 @@ export class MarketInstallService {
     ]
   }
 
-  private async rollbackInstall(
-    profile: MarketDesktopProfile,
-    packageName: string,
-    receiptId: string,
-  ): Promise<void> {
-    try {
-      await this.pnpm.rollbackPluginInstall(receiptId)
-      await assertRemoved(profile, packageName)
-    } catch {
-      throw new MarketInstallError(
-        'persistence-failed',
-        'The failed installation could not be restored safely. Use the saved recovery state before another plugin change.',
-      )
-    }
-  }
 }

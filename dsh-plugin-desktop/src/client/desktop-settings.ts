@@ -17,6 +17,12 @@ export const DESKTOP_SETTINGS_LOCALE_NAMESPACE = 'desktop.settings'
 export const DESKTOP_SHELL_SETTINGS_NAMESPACE = 'dsh-desktop'
 export const DESKTOP_NOTIFICATIONS_SETTINGS_NAMESPACE = 'dsh-desktop-notifications'
 
+/** Shared client controls consumed by settings and Desktop-owned window chrome. */
+export interface DesktopSettingsClientControl {
+  readonly api: ReturnType<typeof createDesktopSettingsApi>
+  setMode(mode: DesktopShellSettings['mode']): Promise<void>
+}
+
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
     /** Desktop-only settings page copy. */
@@ -25,7 +31,10 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 }
 
 /** Register the Desktop page in the settings.section list slot. */
-export function applyDesktopSettings(ctx: ClientContext, environment: DesktopClientEnvironment): void {
+export function applyDesktopSettings(
+  ctx: ClientContext,
+  environment: DesktopClientEnvironment,
+): DesktopSettingsClientControl {
   const desktopSettings = ctx.settingsScope.bind<DesktopShellSettings>({
     namespace: DESKTOP_SHELL_SETTINGS_NAMESPACE,
   })
@@ -65,4 +74,11 @@ export function applyDesktopSettings(ctx: ClientContext, environment: DesktopCli
     locale: DESKTOP_SETTINGS_LOCALE_NAMESPACE,
     inject: () => ({ api }),
   }, DesktopTerminalSettingsAction))
+
+  return Object.freeze({
+    api,
+    async setMode(mode: DesktopShellSettings['mode']) {
+      await desktopSettings.set('mode', mode)
+    },
+  })
 }

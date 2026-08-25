@@ -117,21 +117,17 @@ Preview 会针对这一个 package 完整检查 npm registry、规范仓库、de
 在 Desktop 中，Market Host 使用 `dsh-plugin-desktop` 已提供的公开服务：
 
 1. 从 `desktopProfiles.current` 读取当前身份。
-2. 调用 Desktop 的可恢复安装能力，使用固定构造的 `add --save-exact` 参数、官方 npm registry、明确的绝对 profile 目录和 `AbortSignal`。Child 启动前只为 `package.json`、`pnpm-lock.yaml` 和 `pnpm-workspace.yaml` 创建快照；操作报告完成前会封存成功结果或已识别的部分结果。
+2. 使用固定 `add --save-exact` argv、官方 npm registry 和 `AbortSignal` 调用 `desktopPnpm.run()`；激活 Profile `cwd` 由 service 自己拥有。
 3. 不把 stdout、stderr、环境变量、本地路径或命令内部细节交给 renderer；唯一允许交付的命令文本，是上面定义的有界、只展示指引。
 4. 同一时间只允许一个修改操作，并拒绝已变化的 profile。
-5. 保存 receipt 前验证 profile dependency 和没有越出 package 的 DSH bundle；安装结果非法或无法记录，并且文件状态可识别时，恢复白名单配置快照。
-6. 成功后签发短时、一次性重启许可，让用户选择**立即重启**或**稍后重启**；绝不静默重启。恢复记录继续保持 pending，直到下一次 Desktop generation 验证启动健康或完成回滚 reconcile；此前拒绝另一次受保护的插件添加。
+5. Reconcile `dsh.profile.bundles`，再验证 Profile dependency、lockfile 和没有越出 package 的 DSH bundle，最后保存 receipt。
+6. 成功后签发短时、一次性重启许可，让用户选择**立即重启**或**稍后重启**；绝不静默重启。
 
-没有 Desktop 服务时，目录浏览仍可使用，package 操作则会说明需要 DSH Desktop。受管安装不会退回 ambient `pnpm`、shell 命令、猜测的 `dsh` executable 或未激活 profile。**打开 DSH 终端**是独立的用户控制入口：请求不携带命令、路径或 profile，只负责打开 Desktop 内置终端；是否复制并运行展示文本完全由用户决定。之后通过该内置终端运行的 `dsh plugin add` 会获得相同的配置恢复 handoff；在其中直接执行 `pnpm`、`npm`，或在外部系统终端运行命令，都不会获得这项保护。
+没有 Desktop 服务时，目录浏览仍可使用，package 操作则会说明需要 DSH Desktop。受管安装不会退回 ambient `pnpm`、shell 命令、猜测的 `dsh` executable 或未激活 Profile。**打开 DSH 终端**是独立的用户控制入口：请求不携带命令、路径或 Profile，只负责打开 Desktop 内置终端；是否复制并运行展示文本完全由用户决定。手动终端操作不会生成 Market receipt，也没有安装专用恢复行为。
 
-## 安装恢复边界
+## 统一 Profile 恢复
 
-恢复记录是针对一次受保护 `plugin add` 的 Desktop 私有 write-ahead log，不是完整 profile 或插件备份。它保存 metadata，以及当前 profile 的 `package.json`、`pnpm-lock.yaml` 和 `pnpm-workspace.yaml` 私有前镜像。它不会备份或主动移除 `node_modules`，不会收集环境变量或独立凭据存储，也不适用于卸载或 direct-bundle 启用/禁用。三个白名单文件会按原内容复制，因此其中不得嵌入凭据。
-
-Add 成功后，系统会在开放重启许可前封存白名单文件的结果 hash 和 Market receipt 标识。下一次 Desktop generation 会在准备 profile 前认领这条 pending 记录。Host 成功启动，并且 Renderer 在 30 秒期限内报告健康后，安装才会提交并清除恢复材料。如果发生 Host 故障、主 frame 加载失败、Renderer 故障、超时或验证中断，系统会先保存本地诊断归档，再仅恢复当前 hash 与已记录前镜像或后镜像匹配的文件。未知第三方漂移会 fail closed 到手动恢复，不会被覆盖。自动恢复成功后最多重新启动 Desktop 一次，绝不会形成循环。
-
-诊断归档只保留在本地，其中可能包含日志、系统信息和 crash 证据；产品不能宣称每一种 artifact 都已经彻底脱敏。如果启动恢复回滚了一次已经保存 Market receipt 的安装，Market 会在确认恢复记录前只移除这条精确 receipt。Receipt store 更新失败时，记录保持 pending，等待之后重试。只要记录仍然存在，write-ahead-log 边界就会拒绝下一次受保护的插件添加；这不是针对外部工具或其他文件系统修改的全局 gate。
+Market 不创建安装专用恢复记录。Desktop 独立地把每次健康启动写入严格三个轮转 Profile checkpoint 槽位。恢复页面显示每个槽位的 metadata，并允许用户浏览或显式恢复某个槽位。启动失败不会自动选择槽位、修改 Profile 或 relaunch。恢复后的第一次健康启动跳过一次 checkpoint 替换，再下一次健康启动恢复最老槽位轮转。
 
 ## 卸载边界
 
@@ -149,7 +145,7 @@ Add 成功后，系统会在开放重启许可前封存白名单文件的结果 
 - 切换 profile 继续由 `desktopProfiles.select()` 管理，并通过已有的受控重启生效。
 - 市场不会在后台修改未激活 profile。
 - profile 切换或服务释放时，必须先取消或等待自己拥有的操作，再结束插件 generation。
-- 受保护的插件添加会保留一条 pending 恢复记录，直到下一次 Desktop generation 验证 Host 与 Renderer 健康；记录仍在时拒绝第二次受保护添加。
+- Package operation 没有跨 generation 的恢复专用 gate；普通的单 operation service gate 仍会阻止并发 mutation。
 
 安装 receipt 保存在本地并记录所属 profile；界面只列出当前 profile 的 receipt。它只说明 Market 完成并验证过一次受管安装，不表示 provider 仍然可用，也不表示插件代码安全。会话不属于市场职责。市场不会承诺任意自定义 profile 共享存储，只负责报告和修改当前 profile 中由 receipt 持有的插件成员。
 
@@ -162,11 +158,9 @@ Add 成功后，系统会在开放重启许可前封存白名单文件的结果 
 | Preview 成功后 registry、候选或当前 profile 发生变化 | Host 拒绝已经确认的执行 | 无 |
 | 缺少 Desktop package 能力 | 可以浏览，但安装和卸载不可用 | 无 |
 | 用户取消确认 | 返回详情页 | 无 |
-| 安装取消，或在产生可识别的部分修改后失败 | 有界错误摘要和重试入口 | 封存部分镜像后恢复三个白名单配置文件；不会主动回滚 `node_modules` |
-| 安装成功 | 提示需要重启 | 当前 profile 与本地 receipt 已更新；恢复记录等待下一次启动健康验证 |
-| 下一次启动时 Host 失败，或 Renderer 失败、未在 30 秒内报告健康 | 自动重启后显示恢复说明 | 保存本地诊断，恢复已识别配置状态，并且最多自动重启 Desktop 一次 |
-| 白名单文件出现未知第三方漂移 | 要求手动恢复 | 不进行部分自动覆盖 |
-| 已经存在 Market receipt 的安装被启动恢复回滚 | Reconcile 后该安装从界面消失 | 确认恢复记录前先移除精确 receipt |
+| 安装取消，或在产生部分修改后失败 | 有界错误摘要和重试入口 | 不写 receipt，也不自动启动 cleanup operation；仍可显式使用 Desktop checkpoint 恢复 |
+| 安装成功 | 提示需要重启 | 当前 Profile 与本地 receipt 已更新 |
+| Host 或 Renderer 启动失败 | 打开 Desktop 恢复页面 | 不自动修改激活 Profile；用户可以检查并恢复精确 checkpoint |
 | Receipt 或已安装 bundle 不再匹配 | 拒绝卸载 | 无 |
 | 卸载成功 | 提示需要重启 | 已从当前 profile 移除 package 与 receipt |
 
@@ -193,7 +187,7 @@ Add 成功后，系统会在开放重启许可前封存白名单文件的结果 
 - Desktop 能力检测和不可用状态。
 - 精确稳定 npm 目标复核和两步用户意图。
 - 受管、串行化且带验证 receipt 的安装；读取和预览可取消，已接受的 mutation 则由 Host 持有。
-- 为 Market 安装和内置终端中的 `dsh plugin add` 提供配置级 write-ahead 恢复，并在下一次启动验证 Host/Renderer 健康。
+- 由 Desktop 统一提供三个健康 Profile checkpoint 槽位，而不是让 Market 安装操作拥有恢复状态。
 - 不依赖目录来源、基于 receipt 的卸载，以及针对可变 direct bundle 的不透明启用/禁用。
 - profile 修改成功后的重启说明。
 

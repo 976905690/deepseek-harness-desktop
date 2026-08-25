@@ -32,14 +32,14 @@ export const DESKTOP_RENDERER_RELOAD_PATH = '/api/desktop/developer/reload'
 /** Toggle the mounted window's Developer Tools through the launcher. */
 export const DESKTOP_DEVELOPER_TOOLS_TOGGLE_PATH = '/api/desktop/developer/devtools'
 
+/** Run the generation-owned manual update check. */
+export const DESKTOP_UPDATE_CHECK_PATH = '/api/desktop/updates/check'
+
 /** Export one local diagnostic archive through the launcher-owned flow. */
 export const DESKTOP_DIAGNOSTICS_EXPORT_PATH = '/api/desktop/diagnostics/export'
 
 /** Open the isolated native Profile creator without accepting a path. */
 export const DESKTOP_PROFILE_CREATE_WINDOW_PATH = '/api/desktop/profiles/create-window'
-
-/** Restore the last successful Profile and its latest healthy configuration. */
-export const DESKTOP_PROFILE_ROLLBACK_PATH = '/api/desktop/profiles/rollback'
 
 /** Renderer-safe projection of one discovered profile. */
 export interface DesktopSettingsProfileView {
@@ -151,6 +151,14 @@ export interface DesktopDeveloperToolsToggleResponse {
   readonly accepted: true
 }
 
+/** Exact empty body accepted by the manual update-check endpoint. */
+export type DesktopUpdateCheckRequest = Readonly<Record<string, never>>
+
+/** Successful completion of the interactive update-check flow. */
+export interface DesktopUpdateCheckResponse {
+  readonly accepted: true
+}
+
 /** Exact empty body accepted by the diagnostic-export endpoint. */
 export type DesktopDiagnosticsExportRequest = Readonly<Record<string, never>>
 
@@ -165,14 +173,6 @@ export type DesktopProfileCreateWindowRequest = Readonly<Record<string, never>>
 /** Successful handoff to the isolated native Profile creator. */
 export interface DesktopProfileCreateWindowResponse {
   readonly accepted: true
-}
-
-/** Exact empty body accepted by the last-known-good rollback endpoint. */
-export type DesktopProfileRollbackRequest = Readonly<Record<string, never>>
-
-/** Persisted rollback handoff returned before the running Host is quiesced. */
-export interface DesktopProfileRollbackResponse extends DesktopRestartAcceptance {
-  readonly targetProfile: string
 }
 
 /** Stable API failure shape that never contains native paths or raw causes. */

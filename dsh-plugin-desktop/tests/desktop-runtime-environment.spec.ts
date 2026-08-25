@@ -390,7 +390,6 @@ describe('desktop Host dsh runtime', () => {
       '  args: process.argv.slice(3),',
       '  defaultProfile: process.env.DSH_DESKTOP_DEFAULT_PROFILE,',
       '  home: process.env.DSH_HOME,',
-      '  installRecoveryStatePath: process.env.DSH_DESKTOP_INSTALL_RECOVERY_STATE_PATH,',
       '}))',
       '',
     ].join('\n'))
@@ -403,7 +402,6 @@ describe('desktop Host dsh runtime', () => {
       dshBootstrapPath: captureEntry,
       profileName: 'web',
       homeDir,
-      installRecoveryStatePath: join(root, 'plugin-install-recovery', 'state.json'),
       stateDir,
       environment,
     })
@@ -426,7 +424,6 @@ describe('desktop Host dsh runtime', () => {
       args: ['--probe'],
       defaultProfile: 'web',
       home: homeDir,
-      installRecoveryStatePath: join(root, 'plugin-install-recovery', 'state.json'),
     })
     expect(environment.Path).toBe(`${installation.pathDir};${original.Path ?? ''}`)
 

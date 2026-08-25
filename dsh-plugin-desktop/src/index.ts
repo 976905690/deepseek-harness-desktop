@@ -33,7 +33,6 @@ import {
   DESKTOP_PROFILE_CREATE_PATH,
   DESKTOP_PROFILE_CREATE_WINDOW_PATH,
   DESKTOP_PROFILE_DELETE_PATH,
-  DESKTOP_PROFILE_ROLLBACK_PATH,
   DESKTOP_PROFILE_SELECT_PATH,
   DESKTOP_RESTART_PATH,
   DESKTOP_RECOVERY_RESTART_PATH,
@@ -48,7 +47,6 @@ import {
   handleDesktopProfileCreateRequest,
   handleDesktopProfileCreateWindowRequest,
   handleDesktopProfileDeleteRequest,
-  handleDesktopProfileRollbackRequest,
   handleDesktopProfileSelectRequest,
   handleDesktopRestartRequest,
   handleDesktopRecoveryRestartRequest,
@@ -61,6 +59,7 @@ import { desktopBootRecoveryInjections } from './desktop-boot-recovery.ts'
 import type { DesktopShellMode } from './runtime.ts'
 import type {} from './runtime.ts'
 import { DESKTOP_DEFAULT_WEB_PORT } from './desktop-port.ts'
+import { DESKTOP_FRAME_HEIGHT } from './window-chrome.ts'
 import {
   DEFAULT_MACOS_WINDOW_MATERIAL,
   DEFAULT_WINDOWS_WINDOW_MATERIAL,
@@ -150,13 +149,20 @@ export function desktopRendererUrl(
   port: number,
   mode: DesktopShellMode,
   platform: Context['desktopRuntime']['platform'],
+  appVersion: string,
   material: DesktopWindowMaterial = 'off',
   windowsBuild?: number,
 ): string {
   const url = new URL(`http://127.0.0.1:${String(port)}/`)
   url.searchParams.set('dsh-desktop-mode', mode)
   url.searchParams.set('dsh-desktop-platform', platform)
+  url.searchParams.set('dsh-desktop-version', appVersion)
   url.searchParams.set('dsh-desktop-material', material)
+  if (mode === 'extended' || (mode === 'compatibility' && platform !== 'linux')) {
+    // Body-level plugin portals do not inherit the framed root's geometry.
+    // Publish the exact content boundary so they can yield Desktop chrome.
+    url.searchParams.set('dsh-desktop-titlebar-inset', String(DESKTOP_FRAME_HEIGHT))
+  }
   if (platform === 'win32') {
     url.searchParams.set('dsh-desktop-mica', windowsSupportsMica(windowsBuild) ? '1' : '0')
   }
@@ -221,7 +227,6 @@ export function apply(ctx: Context, config: Config): void {
       [DESKTOP_PROFILE_CREATE_PATH, handleDesktopProfileCreateRequest],
       [DESKTOP_PROFILE_CREATE_WINDOW_PATH, handleDesktopProfileCreateWindowRequest],
       [DESKTOP_PROFILE_DELETE_PATH, handleDesktopProfileDeleteRequest],
-      [DESKTOP_PROFILE_ROLLBACK_PATH, handleDesktopProfileRollbackRequest],
       [DESKTOP_PROFILE_SELECT_PATH, handleDesktopProfileSelectRequest],
       [DESKTOP_MARKET_SELECT_PATH, handleDesktopMarketSelectRequest],
       [DESKTOP_TERMINAL_OPEN_PATH, handleDesktopTerminalOpenRequest],
@@ -342,7 +347,14 @@ export function apply(ctx: Context, config: Config): void {
         ...config,
         material,
         ...(runtime.windowsBuild === undefined ? {} : { windowsBuild: runtime.windowsBuild }),
-        url: desktopRendererUrl(ctx.webServer.port, config.mode, runtime.platform, material, runtime.windowsBuild),
+        url: desktopRendererUrl(
+          ctx.webServer.port,
+          config.mode,
+          runtime.platform,
+          runtime.updates.currentVersion,
+          material,
+          runtime.windowsBuild,
+        ),
         productName: 'DSH Desktop',
         windowTitle: 'DeepSeek Harness Desktop',
         iconPath,

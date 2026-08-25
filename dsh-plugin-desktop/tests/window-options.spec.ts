@@ -108,7 +108,7 @@ describe('compatibility BrowserWindow options', () => {
     )).toThrow('unsupported compatibility window mode advanced')
   })
 
-  it('uses hidden-inset transparent vibrancy on macOS advanced windows', () => {
+  it('uses hidden-inset transparent vibrancy on macOS enhanced windows', () => {
     const advanced = { ...spec, mode: 'advanced' as const, material: 'transparent' as const }
     const options = advancedWindowOptions(advanced, {} as NativeImage, 'darwin', preload)
 
@@ -123,7 +123,7 @@ describe('compatibility BrowserWindow options', () => {
     expect(desktopWindowOptions(advanced, {} as NativeImage, 'darwin', preload)).toEqual(options)
   })
 
-  it('uses native Windows controls, Mica, shadow, and rounded corners in advanced mode', () => {
+  it('uses native Windows controls, Mica, shadow, and rounded corners in enhanced mode', () => {
     const options = advancedWindowOptions(
       { ...spec, mode: 'advanced', material: 'mica' },
       {} as NativeImage,
@@ -176,7 +176,7 @@ describe('compatibility BrowserWindow options', () => {
     expect(DESKTOP_FRAME_HEIGHT).toBe(36)
   })
 
-  it('rejects advanced mode on Linux', () => {
+  it('rejects enhanced mode on Linux', () => {
     expect(() => advancedWindowOptions(
       { ...spec, mode: 'advanced' },
       {} as NativeImage,

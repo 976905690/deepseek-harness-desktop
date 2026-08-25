@@ -2,6 +2,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { Readable } from 'node:stream'
 import { Context } from '@deepseek-ai/cordis'
 import { FileSettingsProvider } from '@deepseek-ai/dsh-settings-file'
@@ -40,10 +41,7 @@ function bootstrap(root: string, profileDir: string): DesktopPnpmBootstrap {
     nodeBinDir: join(root, 'runtime', 'node-bin'),
     nodeShimPath: join(root, 'runtime', 'node-bin', 'node'),
     clearEnvironmentPath: join(root, 'runtime', 'clear-env.mjs'),
-    dshBootstrapPath: join(root, 'app.asar', 'lib', 'desktop-cli.js'),
-    installRecoveryStatePath: join(root, 'plugin-install-recovery', 'state.json'),
-    generationId: 'market-integration-generation-0001',
-    externalMarketInstallEnabled: false,
+    dshBootstrapPath: join(root, 'runtime', 'desktop-cli.js'),
   }
 }
 
@@ -218,11 +216,9 @@ describe('desktop pnpm and community market integration', () => {
       expect(spawn.mock.calls[0]?.[0]).toMatchObject({
         argv: [
           selectedBootstrap.appExecutable,
-          '--expose-internals',
-          selectedBootstrap.dshBootstrapPath,
-          'plugin',
-          '--profile',
-          'web',
+          '--import',
+          pathToFileURL(selectedBootstrap.clearEnvironmentPath).href,
+          selectedBootstrap.pnpmBinPath,
           'remove',
           PACKAGE_NAME,
         ],

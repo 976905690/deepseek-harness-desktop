@@ -117,21 +117,17 @@ Preview performs the full npm registry, canonical-repository, deprecation, lifec
 On Desktop, the Market Host uses the public services already owned by `dsh-plugin-desktop`:
 
 1. Read the active identity from `desktopProfiles.current`.
-2. Invoke the recoverable Desktop install capability with fixed `add --save-exact` arguments, the official npm registry, an explicit absolute profile directory, and an `AbortSignal`. Before the child starts, it snapshots only `package.json`, `pnpm-lock.yaml`, and `pnpm-workspace.yaml`; the operation seals its successful or recognized partial result before reporting completion.
+2. Invoke `desktopPnpm.run()` with fixed `add --save-exact` argv, the official npm registry, and an `AbortSignal`; the service owns the active Profile `cwd`.
 3. Keep stdout, stderr, environment variables, local paths, and command internals out of the renderer; the only command text it may receive is the bounded display-only instruction described above.
 4. Permit one mutation at a time and reject a changed profile.
-5. Verify the installed profile dependency and contained DSH bundle before saving a receipt; restore the allowlisted configuration snapshot when an invalid or unrecordable install has a recognized file image.
-6. After success, issue a short-lived one-shot restart grant so the user can choose **Restart now** or **Restart later**; never restart silently. Keep the recovery record pending and refuse another protected plugin add until the next Desktop generation verifies startup health or reconciles a rollback.
+5. Reconcile `dsh.profile.bundles`, then verify the installed Profile dependency, lockfile, and contained DSH bundle before saving a receipt.
+6. After success, issue a short-lived one-shot restart grant so the user can choose **Restart now** or **Restart later**; never restart silently.
 
-When Desktop services are unavailable, browsing stays available while package operations explain that they require DSH Desktop. Managed installation never falls back to ambient `pnpm`, a shell command, a guessed `dsh` executable, or an inactive profile. **Open DSH Terminal** is a separate user-controlled escape hatch: its request contains no command, path, or profile and only opens Desktop's built-in terminal; the user decides whether to copy and run displayed text. A later `dsh plugin add` through that built-in terminal receives the same configuration-recovery handoff. Direct `pnpm` or `npm` commands in that terminal and commands run in an external system terminal do not.
+When Desktop services are unavailable, browsing stays available while package operations explain that they require DSH Desktop. Managed installation never falls back to ambient `pnpm`, a shell command, a guessed `dsh` executable, or an inactive Profile. **Open DSH Terminal** is a separate user-controlled escape hatch: its request contains no command, path, or Profile and only opens Desktop's built-in terminal; the user decides whether to copy and run displayed text. Manual terminal operations receive no Market receipt or install-specific recovery behavior.
 
-## Install recovery boundary
+## Unified Profile recovery
 
-The recovery record is a Desktop-private write-ahead log for one protected `plugin add`, not a full profile or plugin backup. It contains metadata plus private preimages for the active profile's `package.json`, `pnpm-lock.yaml`, and `pnpm-workspace.yaml`. It does not back up or actively remove `node_modules`, does not collect environment variables or separate credential stores, and does not apply to uninstall or direct-bundle enable/disable. Because the three allowlisted files are copied as-is, they must not contain embedded credentials.
-
-After a successful add, the resulting allowlisted file hashes and a Market receipt identifier are sealed before a restart grant is exposed. The next Desktop generation claims this pending record before preparing the profile. Successful Host startup followed by a healthy Renderer report within its 30-second deadline commits the install and clears the recovery material. A Host failure, main-frame load failure, Renderer failure, timeout, or interrupted verification first saves a local diagnostics archive and then restores only files whose current hashes match a recorded before/after image. Unknown third-party drift fails closed to manual recovery instead of being overwritten. A successful automatic restore may relaunch Desktop once, never in a loop.
-
-The diagnostics archive remains local and may contain logs, system information, and crash evidence; the product must not describe every artifact as completely redacted. If startup recovery rolled back an install after its Market receipt was saved, the Market removes only that exact receipt before acknowledging the recovery record. A failed receipt-store update leaves the record pending for retry. While any record remains, the write-ahead-log boundary rejects the next protected plugin add; this is not a global gate for external tools or other filesystem changes.
+Market creates no install-specific recovery record. Desktop independently records every healthy startup into exactly three rotating Profile checkpoint slots. Recovery shows each slot's metadata and lets the user browse or explicitly restore one slot. Startup failure never chooses a slot, mutates the Profile, or relaunches automatically. The first healthy startup after a restore skips checkpoint replacement once; the next healthy startup resumes oldest-slot rotation.
 
 ## Uninstall boundary
 
@@ -149,7 +145,7 @@ Mutable direct bundles also expose generation-scoped opaque capabilities for ena
 - Switching profiles remains owned by `desktopProfiles.select()` and takes effect through the existing controlled restart.
 - The market never modifies an inactive profile in the background.
 - A profile switch or service disposal cancels or joins any owned operation before the plugin generation ends.
-- A protected plugin add leaves one pending recovery record until the next Desktop generation verifies Host and Renderer health; a second protected add is refused while it remains.
+- Package operations have no recovery-specific cross-generation gate; the ordinary one-operation service gate still prevents concurrent mutations.
 
 Install receipts are stored locally and include their owning profile; only receipts for the active profile are listed. They record that the Market completed and verified one managed install, not that the provider remains available or that the plugin code is safe. Sessions remain outside the market's responsibility. The market does not promise that arbitrary custom profiles share storage; it only reports and mutates receipt-owned plugin membership for the selected profile.
 
@@ -162,11 +158,9 @@ Install receipts are stored locally and include their owning profile; only recei
 | Registry, candidate, or active profile changes after a successful preview | Host refuses the confirmed execution | None |
 | Desktop package capability missing | Browsing works; Install and Uninstall are unavailable | None |
 | User cancels confirmation | Return to details | None |
-| Installation is cancelled or fails after a recognized partial change | Bounded error summary and Retry | The three allowlisted configuration files are restored after sealing the partial image; `node_modules` is not actively rolled back |
-| Installation succeeds | Restart-required message | Active profile and local receipt are updated; the recovery record remains pending until next-start health verification |
-| Host startup fails, or the Renderer fails or does not report healthy within 30 seconds on the next start | Recovery notification after relaunch | Local diagnostics are saved, recognized configuration images are restored, and Desktop relaunches at most once |
-| An allowlisted file has unknown third-party drift | Manual recovery is required | No partial automatic overwrite |
-| A rolled-back install already has a Market receipt | The installation disappears after reconciliation | The exact receipt is removed before the recovery record is acknowledged |
+| Installation is cancelled or fails after a partial change | Bounded error summary and Retry | No receipt and no automatic cleanup operation; explicit Desktop checkpoint recovery remains available |
+| Installation succeeds | Restart-required message | Active Profile and local receipt are updated |
+| Host or Renderer startup fails | Desktop Recovery opens | The active Profile is not mutated automatically; the user may inspect and restore an exact checkpoint |
 | Receipt or installed bundle no longer matches | Uninstall is refused | None |
 | Uninstall succeeds | Restart-required message | Package and receipt were removed from the active profile |
 
@@ -193,7 +187,7 @@ Raw response bodies, filesystem paths, tokens, environment variables, and comman
 - Desktop capability detection and unavailable state.
 - Exact stable npm target verification and two-step user intent.
 - Managed, serialized install with a verified receipt; reads and previews are cancellable, while an accepted mutation is Host-owned.
-- Configuration-level write-ahead recovery for Market installs and built-in-terminal `dsh plugin add`, followed by next-start Host/Renderer health verification.
+- Unified three-slot healthy Profile checkpoints owned by Desktop rather than Market install operations.
 - Receipt-backed uninstall independent of the catalog source, plus opaque enable/disable for mutable direct bundles.
 - Restart guidance after a successful profile change.
 

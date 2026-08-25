@@ -1,3 +1,4 @@
+import { unlinkSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DesktopShellSpec } from '../src/runtime.ts'
@@ -38,6 +39,16 @@ const childProcess = vi.hoisted(() => {
     spawn: vi.fn(() => child),
   }
 })
+
+const MAIN_WINDOW_STATE_PATH = '/tmp/dsh-desktop-user-data/main-window-state.json'
+
+function clearMainWindowState(): void {
+  try {
+    unlinkSync(MAIN_WINDOW_STATE_PATH)
+  } catch (cause) {
+    if ((cause as NodeJS.ErrnoException).code !== 'ENOENT') throw cause
+  }
+}
 
 vi.mock('../src/desktop-terminal.ts', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/desktop-terminal.ts')>(),
@@ -127,6 +138,7 @@ const electron = vi.hoisted(() => {
     readonly isVisible = vi.fn(() => false)
     readonly isMinimized = vi.fn(() => false)
     readonly isFullScreen = vi.fn(() => false)
+    readonly getNormalBounds = vi.fn(() => ({ x: 120, y: 80, width: 1280, height: 840 }))
     readonly flashFrame = vi.fn()
     readonly restore = vi.fn()
     readonly show = vi.fn()
@@ -223,6 +235,11 @@ const electron = vi.hoisted(() => {
     notifications,
     resetZoomLevel: () => { zoomLevel = 0 },
     resetDevTools: () => { devToolsOpened = false },
+    screen: {
+      getDisplayMatching: vi.fn(() => ({
+        workArea: { x: 0, y: 0, width: 1920, height: 1080 },
+      })),
+    },
     shell: {
       openExternal: vi.fn(async () => {}),
       openPath: vi.fn(async () => ''),
@@ -257,6 +274,7 @@ vi.mock('electron', () => ({
   nativeTheme: electron.nativeTheme,
   net: electron.net,
   Notification: electron.Notification,
+  screen: electron.screen,
   shell: electron.shell,
   Tray: electron.Tray,
 }))
@@ -286,6 +304,7 @@ const spec: DesktopShellSpec = {
 
 describe('Electron desktop runtime', () => {
   beforeEach(() => {
+    clearMainWindowState()
     electron.app.isPackaged = false
     electron.browserWindowOptions.length = 0
     electron.browserWindowThemeSources.length = 0
@@ -323,6 +342,7 @@ describe('Electron desktop runtime', () => {
   })
 
   afterEach(() => {
+    clearMainWindowState()
     vi.useRealTimers()
     vi.restoreAllMocks()
   })
@@ -382,6 +402,71 @@ describe('Electron desktop runtime', () => {
     await release()
     expect(electron.browserWindowOff).toHaveBeenCalledWith('page-title-updated', titleListener)
     expect(electron.trays[0]?.off).toHaveBeenCalledWith('click', expect.any(Function))
+  })
+
+  it('restores, debounces, and flushes main-window bounds across shell generations', async () => {
+    vi.useFakeTimers()
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    const { FileMainWindowStateStore } = await import('../src/main-window-state.ts')
+    const store = new FileMainWindowStateStore('/tmp/dsh-desktop-user-data')
+    store.write({ x: 260, y: 140, width: 1440, height: 900 })
+    const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
+    const runtime = new ElectronDesktopRuntime(async () => {})
+    const release = runtime.schedule(spec)
+
+    await runtime.mountScheduled()
+
+    expect(electron.browserWindowOptions[0]).toEqual(expect.objectContaining({
+      x: 260,
+      y: 140,
+      width: 1440,
+      height: 900,
+    }))
+    const window = electron.browserWindows[0]
+    const move = electron.browserWindowOn.mock.calls.find(([event]) => event === 'move')?.[1]
+    const close = electron.browserWindowOn.mock.calls.find(([event]) => event === 'close')?.[1]
+    expect(move).toEqual(expect.any(Function))
+    expect(close).toEqual(expect.any(Function))
+
+    window?.getNormalBounds.mockReturnValue({ x: 320, y: 180, width: 1500, height: 920 })
+    move()
+    expect(store.read()).toEqual({ x: 260, y: 140, width: 1440, height: 900 })
+    await vi.advanceTimersByTimeAsync(250)
+    expect(store.read()).toEqual({ x: 320, y: 180, width: 1500, height: 920 })
+
+    window?.getNormalBounds.mockReturnValue({ x: 360, y: 220, width: 1520, height: 940 })
+    close({ preventDefault: vi.fn() })
+    expect(store.read()).toEqual({ x: 360, y: 220, width: 1520, height: 940 })
+
+    await release()
+    expect(electron.browserWindowOff).toHaveBeenCalledWith('move', move)
+    expect(electron.browserWindowOff).toHaveBeenCalledWith('resize', expect.any(Function))
+  })
+
+  it('fits stale saved bounds into the current display work area', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
+    const { FileMainWindowStateStore } = await import('../src/main-window-state.ts')
+    const store = new FileMainWindowStateStore('/tmp/dsh-desktop-user-data')
+    const stale = { x: 5_000, y: -2_000, width: 2_000, height: 1_400 }
+    store.write(stale)
+    electron.screen.getDisplayMatching.mockReturnValueOnce({
+      workArea: { x: 0, y: 24, width: 1440, height: 876 },
+    })
+    const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
+    const runtime = new ElectronDesktopRuntime(async () => {})
+    const release = runtime.schedule(spec)
+
+    await runtime.mountScheduled()
+
+    expect(electron.screen.getDisplayMatching).toHaveBeenCalledWith(stale)
+    expect(electron.browserWindowOptions[0]).toEqual(expect.objectContaining({
+      x: 0,
+      y: 24,
+      width: 1440,
+      height: 876,
+    }))
+
+    await release()
   })
 
   it('reloads the renderer and toggles Developer Tools only for a mounted generation', async () => {
@@ -1240,7 +1325,6 @@ describe('Electron desktop runtime', () => {
         productVersion: '2.0.3',
         profileDir: expect.stringMatching(/profiles[\\/]+desktop$/u),
         homeDir: expect.stringContaining('dsh-desktop-user-data'),
-        installRecoveryStatePath: expect.stringMatching(/[\\/]plugin-install-recovery[\\/]state\.json$/u),
         spawn: expect.any(Function),
         onLaunchError: expect.any(Function),
       }))
@@ -1404,8 +1488,8 @@ describe('Electron desktop runtime', () => {
     expect(electron.dialog.showMessageBox).toHaveBeenCalledOnce()
     expect(electron.dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({
       type: 'error',
-      title: 'Plugin Recovery',
-      message: 'DSH Desktop could not load all plugins.',
+      title: 'Plugin Load Failed',
+      message: 'Some plugins could not be loaded.',
       detail: expect.stringContaining('dsh-vision-router'),
       buttons: ['Open DSH Terminal', 'Restart DSH Desktop', 'Dismiss'],
     }))
@@ -1904,7 +1988,7 @@ describe('Electron desktop runtime', () => {
     expect(windowsAcrylic.set).toHaveBeenCalledOnce()
     expect(windowsAcrylic.set).toHaveBeenCalledWith(electron.browserWindows[0], true, true)
     expect(electron.menuTemplates[0]).toEqual(expect.arrayContaining([
-      expect.objectContaining({ label: 'Switch to Advanced Mode', enabled: true }),
+      expect.objectContaining({ label: 'Switch to Enhanced Mode', enabled: true }),
     ]))
 
     await release()

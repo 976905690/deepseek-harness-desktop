@@ -13,7 +13,6 @@ import type {
   DesktopProfileCreateResponse,
   DesktopProfileCreateWindowResponse,
   DesktopProfileDeleteResponse,
-  DesktopProfileRollbackResponse,
   DesktopProfileSelectResponse,
   DesktopRestartResponse,
   DesktopRecoveryRestartResponse,
@@ -49,8 +48,6 @@ export interface DesktopSettingsControllerBootstrap {
   exportDiagnostics(): void | Promise<void>
   /** Open the isolated native Profile creator. */
   openProfileCreator(): void
-  /** Prepare a last-known-good rollback without quiescing the Host yet. */
-  prepareProfileRollback(): DesktopSettingsPostResponse<DesktopProfileRollbackResponse>
 }
 
 /** A persisted response plus work that must run only after `res.end()`. */
@@ -205,10 +202,6 @@ export class DesktopSettingsController {
     return Object.freeze({ accepted: true })
   }
 
-  /** Hand off a validated rollback that starts only after the HTTP response. */
-  rollbackProfile(): DesktopSettingsPostResponse<DesktopProfileRollbackResponse> {
-    return this.bootstrap.prepareProfileRollback()
-  }
 }
 
 declare module '@deepseek-ai/cordis' {

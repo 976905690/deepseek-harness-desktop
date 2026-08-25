@@ -8,44 +8,11 @@ import {
 } from './auxiliary-window-options.ts'
 import { revealApplication } from './electron-reveal.ts'
 import type { DesktopLocale } from './runtime.ts'
+import { desktopProfileCreateCopy } from './profile-create-copy.ts'
 
 const PROFILE_CREATE_SCHEME = 'dsh-profile-create:'
 const MAX_NAME_QUERY_BYTES = 1024
 const PROFILE_CREATE_DOCUMENT = fileURLToPath(new URL('./native-ui/profile-create.html', import.meta.url))
-
-interface ProfileCreateCopy {
-  readonly title: string
-  readonly heading: string
-  readonly label: string
-  readonly placeholder: string
-  readonly start: string
-  readonly cancel: string
-  readonly empty: string
-  readonly failed: string
-}
-
-const COPY: Record<DesktopLocale, ProfileCreateCopy> = {
-  en: {
-    title: 'Add Profile',
-    heading: 'Create and start a Profile',
-    label: 'Profile name',
-    placeholder: 'For example: work',
-    start: 'Create and Start',
-    cancel: 'Cancel',
-    empty: 'Enter a Profile name.',
-    failed: 'The Profile could not be created. Check the name and try again.',
-  },
-  zh: {
-    title: '添加配置',
-    heading: '创建并启动配置',
-    label: '配置名称',
-    placeholder: '例如：work',
-    start: '创建并启动',
-    cancel: '取消',
-    empty: '请输入配置名称。',
-    failed: '配置创建失败，请检查名称后重试。',
-  },
-}
 
 export interface ProfileCreateWindowOptions {
   readonly locale: DesktopLocale
@@ -89,7 +56,7 @@ export class ProfileCreateWindow {
     }
     this.disposed = false
     this.busy = false
-    const copy = COPY[this.options.locale]
+    const copy = desktopProfileCreateCopy(this.options.locale)
     const window = new BrowserWindow({
       title: copy.title,
       ...auxiliaryWindowChromeOptions(),
@@ -164,7 +131,7 @@ export class ProfileCreateWindow {
       this.busy = false
       const window = this.window
       if (window === undefined || window.isDestroyed()) return
-      const message = JSON.stringify(COPY[this.options.locale].failed)
+      const message = JSON.stringify(desktopProfileCreateCopy(this.options.locale).failed)
       await window.webContents.executeJavaScript(
         `window.dispatchEvent(new CustomEvent('dsh-profile-create-error', { detail: ${message} }))`,
         true,

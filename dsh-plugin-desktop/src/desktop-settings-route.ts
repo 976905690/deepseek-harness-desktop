@@ -420,6 +420,30 @@ export async function handleDesktopDeveloperToolsToggleRequest(
   }
 }
 
+/** Run the generation-owned interactive update flow from an exact empty request. */
+export async function handleDesktopUpdateCheckRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  expectedOrigin: string,
+  checkNow: () => Promise<void>,
+  reportError: (operation: string, cause: unknown) => void = () => {},
+): Promise<void> {
+  if (req.method !== 'POST') return finishJson(res, 405, error('method not allowed'), 'POST')
+  if (!isSameOriginLoopbackRequest(req, expectedOrigin, true)) {
+    return finishJson(res, 403, error('forbidden'))
+  }
+  const value = await parsePostBody(req, res)
+  if (value === INVALID_BODY) return
+  if (!isEmptyRequest(value)) return finishJson(res, 400, error('invalid update check request'))
+  try {
+    await checkNow()
+    finishJson(res, 200, { accepted: true })
+  } catch (cause) {
+    reportError('check for updates', cause)
+    finishJson(res, 500, error('updates could not be checked'))
+  }
+}
+
 /** Export diagnostics from an exact empty same-origin request. */
 export async function handleDesktopDiagnosticsExportRequest(
   req: IncomingMessage,
@@ -463,35 +487,6 @@ export async function handleDesktopProfileCreateWindowRequest(
   } catch (cause) {
     reportError('open Profile creator', cause)
     finishJson(res, 500, error('Profile creator could not be opened'))
-  }
-}
-
-/** Restore the last-known-good Profile from an exact empty request. */
-export async function handleDesktopProfileRollbackRequest(
-  req: IncomingMessage,
-  res: ServerResponse,
-  expectedOrigin: string,
-  controller: DesktopSettingsController,
-  reportError: (operation: string, cause: unknown) => void = () => {},
-): Promise<void> {
-  if (req.method !== 'POST') return finishJson(res, 405, error('method not allowed'), 'POST')
-  if (!isSameOriginLoopbackRequest(req, expectedOrigin, true)) {
-    return finishJson(res, 403, error('forbidden'))
-  }
-  const value = await parsePostBody(req, res)
-  if (value === INVALID_BODY) return
-  if (!isEmptyRequest(value)) return finishJson(res, 400, error('invalid Profile rollback request'))
-  try {
-    finishPostResponse(
-      res,
-      202,
-      controller.rollbackProfile(),
-      'restore last-known-good Profile',
-      reportError,
-    )
-  } catch (cause) {
-    reportError('prepare last-known-good Profile restore', cause)
-    finishJson(res, 409, error('last-known-good Profile could not be restored'))
   }
 }
 

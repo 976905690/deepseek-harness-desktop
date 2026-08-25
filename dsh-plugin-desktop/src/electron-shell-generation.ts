@@ -6,6 +6,7 @@ import {
   nativeImage,
   nativeTheme,
   Notification,
+  screen,
   shell,
   Tray,
 } from 'electron'
@@ -17,9 +18,16 @@ import type { DesktopNotification, DesktopShellSpec } from './runtime.ts'
 import { prepareTrayIcon } from './tray-icons.ts'
 import { desktopWindowOptions } from './window-options.ts'
 import { setWindowsAcrylic } from './windows-acrylic.ts'
+import {
+  fitMainWindowBounds,
+  sameMainWindowBounds,
+  type MainWindowBounds,
+  type MainWindowStateStore,
+} from './main-window-state.ts'
 
 const MIN_ZOOM_LEVEL = -4
 const MAX_ZOOM_LEVEL = 4
+const WINDOW_STATE_WRITE_DELAY_MS = 250
 
 function clampedZoomLevel(level: number): number {
   return Math.min(MAX_ZOOM_LEVEL, Math.max(MIN_ZOOM_LEVEL, level))
@@ -44,6 +52,7 @@ export interface ElectronShellGenerationOptions {
   readonly abortRendererBootMonitoring: (cause: unknown) => void
   readonly failRendererBoot: (error: string) => void
   readonly logError: (message: string) => void
+  readonly mainWindowState: MainWindowStateStore
 }
 
 /** Own one BrowserWindow and Tray generation, including every native listener. */
@@ -55,6 +64,7 @@ export class ElectronShellGeneration {
   private attentionCount = 0
   private prepareFullscreenReveal: (() => void) | undefined
   private refreshNativeMaterial: (() => void) | undefined
+  private flushWindowState: (() => void) | undefined
   private cleanupListeners: (() => void) | undefined
 
   constructor(private readonly options: ElectronShellGenerationOptions) {}
@@ -72,7 +82,24 @@ export class ElectronShellGeneration {
     platform.configureApplication(icon, spec.productName, this.options.buildApplicationMenuItems())
     const origin = new URL(spec.url).origin
     if (platform.platform !== 'linux') nativeTheme.themeSource = spec.readThemeSource()
-    const window = new BrowserWindow(desktopWindowOptions(spec, icon, platform.platform, this.options.preloadPath))
+    let persistedBounds: MainWindowBounds | undefined
+    let restoredBounds: MainWindowBounds | undefined
+    try {
+      persistedBounds = this.options.mainWindowState.read()
+      if (persistedBounds !== undefined) {
+        const display = screen.getDisplayMatching(persistedBounds)
+        restoredBounds = fitMainWindowBounds(persistedBounds, display.workArea, {
+          width: spec.minWidth,
+          height: spec.minHeight,
+        })
+      }
+    } catch (cause) {
+      this.options.logError(`dsh-plugin-desktop: failed to restore main-window state: ${cause instanceof Error ? cause.message : String(cause)}`)
+    }
+    const window = new BrowserWindow({
+      ...desktopWindowOptions(spec, icon, platform.platform, this.options.preloadPath),
+      ...(restoredBounds ?? {}),
+    })
     window.accessibleTitle = spec.windowTitle
     platform.configureWindow(window)
     const refreshNativeMaterial = (): void => {
@@ -91,6 +118,29 @@ export class ElectronShellGeneration {
     this.refreshNativeMaterial = refreshNativeMaterial
     refreshNativeMaterial()
     this.window = window
+
+    let stateWriteTimer: ReturnType<typeof setTimeout> | undefined
+    const persistWindowState = (): void => {
+      if (stateWriteTimer !== undefined) {
+        clearTimeout(stateWriteTimer)
+        stateWriteTimer = undefined
+      }
+      if (window.isDestroyed()) return
+      const bounds = window.getNormalBounds()
+      if (persistedBounds !== undefined && sameMainWindowBounds(bounds, persistedBounds)) return
+      try {
+        this.options.mainWindowState.write(bounds)
+        persistedBounds = { ...bounds }
+      } catch (cause) {
+        this.options.logError(`dsh-plugin-desktop: failed to save main-window state: ${cause instanceof Error ? cause.message : String(cause)}`)
+      }
+    }
+    const scheduleWindowStateWrite = (): void => {
+      if (stateWriteTimer !== undefined) clearTimeout(stateWriteTimer)
+      stateWriteTimer = setTimeout(persistWindowState, WINDOW_STATE_WRITE_DELAY_MS)
+      stateWriteTimer.unref()
+    }
+    this.flushWindowState = persistWindowState
 
     const show = (): void => { this.show() }
     const activate = (): void => {
@@ -141,6 +191,7 @@ export class ElectronShellGeneration {
     }
     this.prepareFullscreenReveal = prepareFullscreenReveal
     const close = (event: Electron.Event): void => {
+      persistWindowState()
       if (this.options.isQuitting()) return
       event.preventDefault()
       if (platform.platform === 'darwin' && fullscreenExitPending) {
@@ -219,6 +270,8 @@ export class ElectronShellGeneration {
     if (platform.platform === 'darwin') app.on('did-become-active', activate)
     window.on('close', close)
     window.on('focus', clearAttention)
+    window.on('move', scheduleWindowStateWrite)
+    window.on('resize', scheduleWindowStateWrite)
     window.on('page-title-updated', preserveBlankTitle)
     window.webContents.on('before-input-event', handleZoomShortcut)
     window.webContents.on('will-frame-navigate', navigate)
@@ -245,6 +298,8 @@ export class ElectronShellGeneration {
       if (platform.platform === 'darwin') app.off('did-become-active', activate)
       window.off('close', close)
       window.off('focus', clearAttention)
+      window.off('move', scheduleWindowStateWrite)
+      window.off('resize', scheduleWindowStateWrite)
       window.off('page-title-updated', preserveBlankTitle)
       window.off('ready-to-show', show)
       cleanupFullscreenTransition()
@@ -254,6 +309,10 @@ export class ElectronShellGeneration {
       window.webContents.off('render-process-gone', rendererGone)
       window.webContents.off('did-fail-load', loadFailed)
       tray?.off('click', show)
+      if (stateWriteTimer !== undefined) {
+        clearTimeout(stateWriteTimer)
+        stateWriteTimer = undefined
+      }
     }
 
     try {
@@ -351,10 +410,12 @@ export class ElectronShellGeneration {
     const window = this.window
     const tray = this.tray
     this.clearAttention()
+    this.flushWindowState?.()
     this.window = undefined
     this.tray = undefined
     this.prepareFullscreenReveal = undefined
     this.refreshNativeMaterial = undefined
+    this.flushWindowState = undefined
     if (window === undefined) return
 
     this.cleanupListeners?.()
