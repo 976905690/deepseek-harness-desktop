@@ -52,7 +52,7 @@ export interface DesktopWindowService {
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Desktop-owned layout service in extended and advanced modes. */
+    /** Desktop-owned layout service in extended and enhanced modes. */
     layout: DesktopLayoutService
     /** Native window geometry for the current Desktop renderer generation. */
     desktopWindow: DesktopWindowService

@@ -74,7 +74,7 @@ export function advancedWindowOptions(
   preload: string,
 ): BrowserWindowConstructorOptions {
   if (spec.mode !== 'advanced') {
-    throw new Error(`dsh-plugin-desktop: unsupported advanced window mode ${spec.mode}`)
+    throw new Error(`dsh-plugin-desktop: unsupported enhanced window mode ${spec.mode}`)
   }
   return customChromeWindowOptions(spec, icon, platform, preload, {
     titlebarHeight: ADVANCED_WINDOWS_TITLEBAR_HEIGHT,

@@ -1903,7 +1903,7 @@ describe('Electron desktop runtime', () => {
     expect(windowsAcrylic.set).toHaveBeenCalledOnce()
     expect(windowsAcrylic.set).toHaveBeenCalledWith(electron.browserWindows[0], true, true)
     expect(electron.menuTemplates[0]).toEqual(expect.arrayContaining([
-      expect.objectContaining({ label: 'Switch to Advanced Mode', enabled: true }),
+      expect.objectContaining({ label: 'Switch to Enhanced Mode', enabled: true }),
     ]))
 
     await release()
