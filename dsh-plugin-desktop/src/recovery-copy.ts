@@ -62,8 +62,6 @@ export interface DesktopRecoveryCopy {
   readonly openCheckpoint: string
   readonly rollbackCheckpoint: string
   readonly desktopVersion: string
-  readonly checkpointSource: string
-  readonly automaticCheckpoint: string
   readonly pluginCount: string
   readonly configurationFileCount: string
   readonly checkpointSize: string
@@ -141,8 +139,6 @@ const COPY: Record<DesktopLocale, DesktopRecoveryCopy> = {
     openCheckpoint: 'Browse files',
     rollbackCheckpoint: 'Roll back to this slot',
     desktopVersion: 'DSH Desktop version',
-    checkpointSource: 'Created by',
-    automaticCheckpoint: 'DSH Desktop healthy-start check',
     pluginCount: 'Plugins',
     configurationFileCount: 'Configuration files',
     checkpointSize: 'Checkpoint size',
@@ -218,8 +214,6 @@ const COPY: Record<DesktopLocale, DesktopRecoveryCopy> = {
     openCheckpoint: '浏览文件',
     rollbackCheckpoint: '回滚到此槽位',
     desktopVersion: 'DSH Desktop 版本',
-    checkpointSource: '创建方式',
-    automaticCheckpoint: 'DSH Desktop 健康启动检查',
     pluginCount: '插件',
     configurationFileCount: '配置文件',
     checkpointSize: 'Checkpoint 大小',
