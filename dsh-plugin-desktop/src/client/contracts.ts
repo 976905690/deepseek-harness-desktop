@@ -36,6 +36,8 @@ export interface DesktopWindowDragRegion {
 
 /** Generation-stable native window geometry exposed to Desktop client plugins. */
 export interface DesktopWindowService {
+  /** Installed Desktop product version for this renderer generation. */
+  readonly version: string
   readonly mode: 'compatibility' | 'extended' | 'advanced'
   readonly platform: 'darwin' | 'win32' | 'linux'
   /** Capability-gated native material active behind this renderer. */

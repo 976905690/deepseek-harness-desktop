@@ -7,6 +7,7 @@ import {
   DesktopNativeActions,
   DesktopRestartMenuItems,
 } from '../src/client/DesktopNativeActions.tsx'
+import { DesktopVersionControl } from '../src/client/ExtendedTitlebar.tsx'
 import { DesktopSettingsSection } from '../src/client/DesktopSettingsSection.tsx'
 import { DesktopTerminalSettingsAction } from '../src/client/DesktopTerminalSettingsAction.tsx'
 import {
@@ -67,7 +68,8 @@ describe('Desktop settings API', () => {
         || path === desktopSettingsPaths.restart
         || path === desktopSettingsPaths.recoveryRestart
         || path === desktopSettingsPaths.rendererReload
-        || path === desktopSettingsPaths.developerToolsToggle) {
+        || path === desktopSettingsPaths.developerToolsToggle
+        || path === desktopSettingsPaths.updateCheck) {
         return json({ accepted: true })
       }
       return path === desktopSettingsPaths.settings || path === desktopSettingsPaths.profileCreate || path === desktopSettingsPaths.profileDelete
@@ -86,6 +88,7 @@ describe('Desktop settings API', () => {
     await expect(api.restartToRecovery()).resolves.toBeUndefined()
     await expect(api.reloadRenderer()).resolves.toBeUndefined()
     await expect(api.toggleDeveloperTools()).resolves.toBeUndefined()
+    await expect(api.checkForUpdates()).resolves.toBeUndefined()
 
     expect(fetcher.mock.calls.map(call => call[0])).toEqual([
       desktopSettingsPaths.settings,
@@ -98,6 +101,7 @@ describe('Desktop settings API', () => {
       desktopSettingsPaths.recoveryRestart,
       desktopSettingsPaths.rendererReload,
       desktopSettingsPaths.developerToolsToggle,
+      desktopSettingsPaths.updateCheck,
     ])
     expect(fetcher.mock.calls[1]?.[1]).toMatchObject({
       method: 'POST',
@@ -147,6 +151,7 @@ describe('Desktop native action presentation', () => {
     restartToRecovery: vi.fn(async () => {}),
     reloadRenderer: vi.fn(async () => {}),
     toggleDeveloperTools: vi.fn(async () => {}),
+    checkForUpdates: vi.fn(async () => {}),
   }
   const t = (key: DesktopSettingsLocaleKey): string => en[key]
 
@@ -161,6 +166,18 @@ describe('Desktop native action presentation', () => {
     expect(markup).toContain('aria-label="Open DSH Terminal"')
     expect(markup).toContain('aria-label="Restart options"')
     expect(markup).toContain('aria-label="Developer options"')
+  })
+
+  it('renders the Host-supplied version through the shadcn hover-card trigger', () => {
+    const markup = renderToStaticMarkup(createElement(DesktopVersionControl, {
+      version: '2.0.3',
+      checkForUpdates: api.checkForUpdates,
+      t,
+    }))
+
+    expect(markup).toContain('v2.0.3')
+    expect(markup).toContain('aria-label="Current version v2.0.3"')
+    expect(markup).toContain('data-slot="hover-card-trigger"')
   })
 
   it('keeps explicit text labels in settings', () => {
@@ -259,6 +276,7 @@ describe('Desktop settings Slot registration', () => {
     } as unknown as ClientContext
 
     applyDesktopSettings(ctx, {
+      version: '2.0.3',
       mode: 'compatibility',
       platform: 'darwin',
       material: 'off',

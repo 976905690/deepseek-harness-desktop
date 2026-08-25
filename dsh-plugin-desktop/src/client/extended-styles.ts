@@ -117,6 +117,97 @@ body[data-dsh-desktop-mode="extended"]:not([data-dsh-desktop-material="off"]) {
   pointer-events: none;
 }
 .dshDesktopFrameProduct { font-size: 13px; font-weight: 600; white-space: nowrap; }
+.dshDesktopFrameVersion {
+  min-height: 22px;
+  padding: 2px 5px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: default;
+  font: inherit;
+  font-size: 11px;
+  pointer-events: auto;
+  white-space: nowrap;
+  -webkit-app-region: no-drag;
+}
+.dshDesktopFrameVersion:hover,
+.dshDesktopFrameVersion[data-popup-open],
+.dshDesktopFrameVersion:focus-visible {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+.dshDesktopFrameVersion:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary);
+  outline-offset: 1px;
+}
+.dshShadcnHoverCardPositioner {
+  z-index: 2147483647;
+  outline: none;
+  -webkit-app-region: no-drag;
+}
+.dshShadcnHoverCardContent {
+  transform-origin: var(--transform-origin);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+.dshShadcnHoverCardContent[data-starting-style],
+.dshShadcnHoverCardContent[data-ending-style] {
+  opacity: 0;
+  transform: scale(.98);
+}
+.dshDesktopVersionPopover {
+  display: grid;
+  gap: 9px;
+  box-sizing: border-box;
+  width: 210px;
+  padding: 10px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1);
+  box-shadow: 0 12px 32px color-mix(in srgb, #000 28%, transparent);
+  -webkit-app-region: no-drag;
+}
+.dshDesktopVersionPopoverHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 11px;
+}
+.dshDesktopVersionPopoverHeader strong {
+  color: var(--dsw-alias-label-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+.dshDesktopVersionCheckButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 30px;
+  padding: 5px 9px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--dsw-alias-bg-base) 48%, transparent);
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  -webkit-app-region: no-drag;
+}
+.dshDesktopVersionCheckButton:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
+.dshDesktopVersionCheckButton:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary);
+  outline-offset: 1px;
+}
+.dshDesktopVersionCheckButton:disabled { cursor: default; opacity: .55; }
+.dshDesktopVersionCheckButton svg { width: 14px; height: 14px; stroke-width: 1.8; }
+.dshDesktopVersionCheckError {
+  color: var(--dsw-alias-state-error-primary);
+  font-size: 11px;
+  line-height: 1.4;
+}
 .dshDesktopFrameMode {
   padding: 2px 8px;
   border: 1px solid var(--dsw-alias-border-l2);

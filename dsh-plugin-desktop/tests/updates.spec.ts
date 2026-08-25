@@ -82,6 +82,10 @@ async function createHarness(options: {
   } as unknown as DesktopRuntime
   const ctx = {
     desktopRuntime: runtime,
+    webServer: {
+      port: 43120,
+      register: () => () => {},
+    },
     logger: { warn: (...args: unknown[]) => { warnings.push(args) } },
     effect: (register: () => (() => void | Promise<void>)) => {
       disposer = register()
@@ -111,7 +115,7 @@ afterEach(() => {
 
 describe('desktop update Host plugin', () => {
   it('exposes the packaged 60-second and six-hour background policy', () => {
-    expect(inject).toEqual(['desktopRuntime'])
+    expect(inject).toEqual(['desktopRuntime', 'webServer'])
     expect(Config({} as UpdateConfig)).toEqual({
       enabled: true,
       initialDelayMs: 60_000,

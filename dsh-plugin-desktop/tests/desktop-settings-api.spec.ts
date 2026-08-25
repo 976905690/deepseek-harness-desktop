@@ -18,6 +18,7 @@ import {
   handleDesktopRendererReloadRequest,
   handleDesktopSettingsRequest,
   handleDesktopTerminalOpenRequest,
+  handleDesktopUpdateCheckRequest,
   desktopSettingsRouteConstants,
 } from '../src/desktop-settings-route.ts'
 import type { DesktopProfileSummary } from '../src/profile-manager.ts'
@@ -531,6 +532,24 @@ describe('desktop settings HTTP boundary', () => {
       expect(rejected.statusCode).toBe(req.headers.origin === ORIGIN ? 400 : 403)
     }
     expect(openTerminal).toHaveBeenCalledOnce()
+  })
+
+  it('runs the shared interactive update flow only for an exact empty request', async () => {
+    const checkNow = vi.fn(async () => {})
+    const accepted = response()
+
+    await handleDesktopUpdateCheckRequest(jsonRequest({}), accepted, ORIGIN, checkNow)
+
+    expect(accepted.statusCode).toBe(200)
+    expect(JSON.parse(accepted.body)).toEqual({ accepted: true })
+    expect(checkNow).toHaveBeenCalledOnce()
+
+    const rejected = response()
+    await handleDesktopUpdateCheckRequest(
+      jsonRequest({ version: '9.9.9' }), rejected, ORIGIN, checkNow,
+    )
+    expect(rejected.statusCode).toBe(400)
+    expect(checkNow).toHaveBeenCalledOnce()
   })
 
   it('queues an explicit restart only after an exact request has been acknowledged', async () => {

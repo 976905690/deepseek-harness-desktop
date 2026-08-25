@@ -149,12 +149,14 @@ export function desktopRendererUrl(
   port: number,
   mode: DesktopShellMode,
   platform: Context['desktopRuntime']['platform'],
+  appVersion: string,
   material: DesktopWindowMaterial = 'off',
   windowsBuild?: number,
 ): string {
   const url = new URL(`http://127.0.0.1:${String(port)}/`)
   url.searchParams.set('dsh-desktop-mode', mode)
   url.searchParams.set('dsh-desktop-platform', platform)
+  url.searchParams.set('dsh-desktop-version', appVersion)
   url.searchParams.set('dsh-desktop-material', material)
   if (mode === 'extended' || (mode === 'compatibility' && platform !== 'linux')) {
     // Body-level plugin portals do not inherit the framed root's geometry.
@@ -345,7 +347,14 @@ export function apply(ctx: Context, config: Config): void {
         ...config,
         material,
         ...(runtime.windowsBuild === undefined ? {} : { windowsBuild: runtime.windowsBuild }),
-        url: desktopRendererUrl(ctx.webServer.port, config.mode, runtime.platform, material, runtime.windowsBuild),
+        url: desktopRendererUrl(
+          ctx.webServer.port,
+          config.mode,
+          runtime.platform,
+          runtime.updates.currentVersion,
+          material,
+          runtime.windowsBuild,
+        ),
         productName: 'DSH Desktop',
         windowTitle: 'DeepSeek Harness Desktop',
         iconPath,

@@ -32,6 +32,9 @@ export const DESKTOP_RENDERER_RELOAD_PATH = '/api/desktop/developer/reload'
 /** Toggle the mounted window's Developer Tools through the launcher. */
 export const DESKTOP_DEVELOPER_TOOLS_TOGGLE_PATH = '/api/desktop/developer/devtools'
 
+/** Run the generation-owned manual update check. */
+export const DESKTOP_UPDATE_CHECK_PATH = '/api/desktop/updates/check'
+
 /** Export one local diagnostic archive through the launcher-owned flow. */
 export const DESKTOP_DIAGNOSTICS_EXPORT_PATH = '/api/desktop/diagnostics/export'
 
@@ -145,6 +148,14 @@ export type DesktopDeveloperToolsToggleRequest = Readonly<Record<string, never>>
 
 /** Successful handoff to the launcher-owned Developer Tools action. */
 export interface DesktopDeveloperToolsToggleResponse {
+  readonly accepted: true
+}
+
+/** Exact empty body accepted by the manual update-check endpoint. */
+export type DesktopUpdateCheckRequest = Readonly<Record<string, never>>
+
+/** Successful completion of the interactive update-check flow. */
+export interface DesktopUpdateCheckResponse {
   readonly accepted: true
 }
 

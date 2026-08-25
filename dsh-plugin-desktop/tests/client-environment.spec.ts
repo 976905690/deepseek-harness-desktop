@@ -38,12 +38,12 @@ describe('desktop client environment', () => {
   })
 
   it('accepts the Electron-owned kebab query markers', () => {
-    expect(parseDesktopClientEnvironment('?dsh-desktop-mode=advanced&dsh-desktop-platform=darwin&dsh-desktop-material=transparent'))
-      .toEqual({ mode: 'advanced', platform: 'darwin', material: 'transparent', micaSupported: false })
-    expect(parseDesktopClientEnvironment('?dsh-desktop-platform=win32&dsh-desktop-mode=compatibility&dsh-desktop-material=off&dsh-desktop-mica=0'))
-      .toEqual({ mode: 'compatibility', platform: 'win32', material: 'off', micaSupported: false })
-    expect(parseDesktopClientEnvironment('?dsh-desktop-mode=extended&dsh-desktop-platform=win32&dsh-desktop-material=mica&dsh-desktop-mica=1'))
-      .toEqual({ mode: 'extended', platform: 'win32', material: 'mica', micaSupported: true })
+    expect(parseDesktopClientEnvironment('?dsh-desktop-mode=advanced&dsh-desktop-platform=darwin&dsh-desktop-version=2.0.3&dsh-desktop-material=transparent'))
+      .toEqual({ version: '2.0.3', mode: 'advanced', platform: 'darwin', material: 'transparent', micaSupported: false })
+    expect(parseDesktopClientEnvironment('?dsh-desktop-platform=win32&dsh-desktop-mode=compatibility&dsh-desktop-version=2.0.3&dsh-desktop-material=off&dsh-desktop-mica=0'))
+      .toEqual({ version: '2.0.3', mode: 'compatibility', platform: 'win32', material: 'off', micaSupported: false })
+    expect(parseDesktopClientEnvironment('?dsh-desktop-mode=extended&dsh-desktop-platform=win32&dsh-desktop-version=2.0.3&dsh-desktop-material=mica&dsh-desktop-mica=1'))
+      .toEqual({ version: '2.0.3', mode: 'extended', platform: 'win32', material: 'mica', micaSupported: true })
   })
 
   it.each([
@@ -52,7 +52,8 @@ describe('desktop client environment', () => {
     ['?dsh-desktop-platform=darwin', 'dsh-desktop-mode'],
     ['?dsh-desktop-mode=advanced&dsh-desktop-platform=android', 'dsh-desktop-platform'],
     ['?dsh-desktop-mode=advanced&dsh-desktop-platform=darwin', 'dsh-desktop-material'],
-    ['?dsh-desktop-mode=advanced&dsh-desktop-platform=win32&dsh-desktop-material=mica&dsh-desktop-mica=0', 'incompatible'],
+    ['?dsh-desktop-mode=advanced&dsh-desktop-platform=darwin&dsh-desktop-material=off', 'dsh-desktop-version'],
+    ['?dsh-desktop-mode=advanced&dsh-desktop-platform=win32&dsh-desktop-version=2.0.3&dsh-desktop-material=mica&dsh-desktop-mica=0', 'incompatible'],
   ])('fails loud for malformed marker %s', (search, field) => {
     expect(() => parseDesktopClientEnvironment(search)).toThrow(field)
   })
@@ -186,6 +187,7 @@ describe('advanced desktop layout', () => {
 
     try {
       applyAdvancedShell(ctx, {
+        version: '2.0.3',
         mode: 'advanced',
         platform: 'darwin',
         material: 'transparent',
@@ -210,8 +212,9 @@ describe('advanced desktop layout', () => {
 
   it('reports generation-stable safe areas and drag geometry to client plugins', () => {
     expect(desktopWindowService({
-      mode: 'compatibility', platform: 'darwin', material: 'off', micaSupported: false,
+      version: '2.0.3', mode: 'compatibility', platform: 'darwin', material: 'off', micaSupported: false,
     })).toEqual({
+      version: '2.0.3',
       mode: 'compatibility',
       platform: 'darwin',
       material: 'off',
@@ -225,9 +228,10 @@ describe('advanced desktop layout', () => {
       },
     })
     const mac = desktopWindowService({
-      mode: 'advanced', platform: 'darwin', material: 'transparent', micaSupported: false,
+      version: '2.0.3', mode: 'advanced', platform: 'darwin', material: 'transparent', micaSupported: false,
     })
     expect(mac).toEqual({
+      version: '2.0.3',
       mode: 'advanced',
       platform: 'darwin',
       material: 'transparent',
@@ -244,8 +248,9 @@ describe('advanced desktop layout', () => {
     expect(Object.isFrozen(mac.safeAreaInsets)).toBe(true)
     expect(Object.isFrozen(mac.dragRegion)).toBe(true)
     expect(desktopWindowService({
-      mode: 'advanced', platform: 'win32', material: 'acrylic', micaSupported: false,
+      version: '2.0.3', mode: 'advanced', platform: 'win32', material: 'acrylic', micaSupported: false,
     })).toEqual({
+      version: '2.0.3',
       mode: 'advanced',
       platform: 'win32',
       material: 'acrylic',
@@ -259,8 +264,9 @@ describe('advanced desktop layout', () => {
       },
     })
     expect(desktopWindowService({
-      mode: 'extended', platform: 'win32', material: 'mica', micaSupported: true,
+      version: '2.0.3', mode: 'extended', platform: 'win32', material: 'mica', micaSupported: true,
     })).toEqual({
+      version: '2.0.3',
       mode: 'extended',
       platform: 'win32',
       material: 'mica',
@@ -427,6 +433,7 @@ describe('independent Desktop frame', () => {
 
     try {
       applyExtendedShell(ctx, {
+        version: '2.0.3',
         mode: 'extended',
         platform: 'win32',
         material: 'acrylic',
@@ -504,6 +511,7 @@ describe('independent Desktop frame', () => {
 
     try {
       applyFramedShell(ctx, {
+        version: '2.0.3',
         mode: 'compatibility',
         platform: 'darwin',
         material: 'transparent',
