@@ -380,6 +380,14 @@ describe('published package surface', () => {
     expect(config).toContain("updates: 'src/updates.ts'")
   })
 
+  it('builds the browser client without Node process globals', () => {
+    const config = readFileSync(new URL('tsdown.config.ts', packageRoot), 'utf8')
+    const client = readFileSync(new URL('lib/client.js', packageRoot), 'utf8')
+
+    expect(config).toContain("'process.env.NODE_ENV': JSON.stringify('production')")
+    expect(client).not.toMatch(/\bprocess(?:\.|\[)/u)
+  })
+
   it('installs Host command PATHs after the launch snapshot and before profile boot', () => {
     const main = readFileSync(new URL('src/main.ts', packageRoot), 'utf8')
     const recover = main.indexOf('await resolveDesktopShellEnvironment')
