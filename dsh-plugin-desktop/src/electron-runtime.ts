@@ -61,6 +61,10 @@ import { ElectronWorkspaceAdmission } from './workspace-admission.ts'
 import { ProfileCreateWindow, type ProfileCreateWindowOptions } from './profile-create-window.ts'
 import { windowsBuildNumber } from './window-material.ts'
 import { desktopNativeCopy } from './native-dialog-copy.ts'
+import {
+  FileMainWindowStateStore,
+  type MainWindowStateStore,
+} from './main-window-state.ts'
 
 /** Return the presentation mode opposite the active generation. */
 export function nextDesktopShellMode(mode: DesktopShellSpec['mode']): DesktopShellSpec['mode'] {
@@ -125,6 +129,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
     private readonly onRendererBoot: (report: RendererBootReport) => boolean | void = () => {},
     private readonly logger: DesktopLogger | undefined = undefined,
     workspaceVolumeQuery: WindowsVolumeQuery | undefined = undefined,
+    private readonly mainWindowState: MainWindowStateStore = new FileMainWindowStateStore(app.getPath('userData')),
   ) {
     this.platformStrategy = electronPlatformStrategy()
     this.platform = this.platformStrategy.platform
@@ -240,6 +245,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
         abortRendererBootMonitoring: cause => { this.rendererHealthGate?.stop(cause) },
         failRendererBoot: error => { this.failRendererBoot('renderer-failed', error) },
         logError: message => { this.logError(message) },
+        mainWindowState: this.mainWindowState,
       })
       this.generation = generation
       this.mountTask = generation.mount(beforeInteractive).then(() => {
