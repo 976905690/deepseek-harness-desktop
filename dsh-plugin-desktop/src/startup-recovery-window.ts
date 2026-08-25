@@ -686,6 +686,7 @@ export class DesktopStartupRecoveryWindow {
   private async render(): Promise<void> {
     const window = this.window
     if (window === undefined || window.isDestroyed()) return
+    const notice = this.notice
     const model: DesktopStartupRecoveryViewModel = {
       locale: this.options.locale,
       failureStage: this.options.failureStage,
@@ -694,7 +695,7 @@ export class DesktopStartupRecoveryWindow {
       ...(this.snapshot === undefined ? {} : { snapshot: this.snapshot }),
       ...(this.snapshotError === undefined ? {} : { snapshotError: this.snapshotError }),
       diagnostics: this.diagnostics,
-      ...(this.notice === undefined ? {} : { notice: this.notice }),
+      ...(notice === undefined ? {} : { notice }),
       busy: this.busy,
       restartReady: this.restartReady,
       activeTab: this.activeTab,
@@ -712,6 +713,7 @@ export class DesktopStartupRecoveryWindow {
         frame: String(auxiliaryWindowHasCustomFrame()),
       },
     })
+    if (this.notice === notice) this.notice = undefined
   }
 
   private finish(result: RecoveryWindowResult): void {

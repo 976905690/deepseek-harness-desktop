@@ -61,6 +61,36 @@ describe('Desktop startup recovery confirmations', () => {
     expect(previewDisable).toHaveBeenCalledWith('bundle-disable-0001')
     expect(executeDisable).toHaveBeenCalledWith('preview-disable-0001')
   })
+
+  it('delivers a recovery notice to the renderer exactly once', async () => {
+    const recovery = new DesktopStartupRecoveryWindow({
+      locale: 'zh',
+      failureStage: 'health-commit',
+      failureDetail: 'notice test',
+      exportDiagnostics: async () => '/tmp/diagnostics.zip',
+    })
+    const loadFile = vi.fn(async (
+      _path: string,
+      _options: { readonly query: { readonly state: string } },
+    ) => {})
+    const browser = { isDestroyed: () => false, loadFile }
+    const privateRecovery = recovery as unknown as {
+      window: typeof browser
+      notice: { readonly tone: 'success'; readonly title: string; readonly body: string } | undefined
+      render: () => Promise<void>
+    }
+    privateRecovery.window = browser
+    privateRecovery.notice = { tone: 'success', title: 'slot-1', body: 'restored' }
+
+    await privateRecovery.render()
+    await privateRecovery.render()
+
+    const states = browser.loadFile.mock.calls.map(([, options]) => JSON.parse(
+      Buffer.from(options.query.state, 'base64url').toString('utf8'),
+    ) as { readonly notice?: unknown })
+    expect(states[0]!.notice).toEqual({ tone: 'success', title: 'slot-1', body: 'restored' })
+    expect(states[1]!.notice).toBeUndefined()
+  })
 })
 
 describe('Desktop startup recovery diagnostics export', () => {

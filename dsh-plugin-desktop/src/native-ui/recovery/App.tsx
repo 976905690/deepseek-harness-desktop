@@ -1,12 +1,14 @@
 import {
-  AlertTriangle, Archive, CheckCircle2, FilePenLine, FolderOpen, History, LifeBuoy,
+  AlertTriangle, Archive, FilePenLine, FolderOpen, History, LifeBuoy,
   PackageX, Plug, Plus, Power, RefreshCw, RotateCcw, Stethoscope, Terminal, Users,
 } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
+import { toast } from 'sonner'
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert.tsx'
 import { buttonVariants } from '../components/ui/button.tsx'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card.tsx'
 import { ScrollArea } from '../components/ui/scroll-area.tsx'
+import { Toaster } from '../components/ui/sonner.tsx'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs.tsx'
 import { cn } from '../lib/utils.ts'
 import { DesktopFrame } from '../shared/DesktopFrame.tsx'
@@ -80,7 +82,16 @@ function decodeState(): RecoveryState | undefined {
 }
 function href(action: string, id?: string, name?: string): string { const url = new URL(`${SCHEME}//${action}`); if (id !== undefined) url.searchParams.set('id', id); if (name !== undefined) url.searchParams.set('name', name); return url.href }
 function Action({ action, children, className, icon, id, name, variant = 'outline' }: { readonly action: string; readonly children: ReactNode; readonly className?: string; readonly icon?: ReactNode; readonly id?: string; readonly name?: string; readonly variant?: 'default' | 'outline' | 'secondary' | 'destructive' }): JSX.Element { return <a className={cn(buttonVariants({ variant }), className)} href={href(action, id, name)}>{icon}{children}</a> }
-function Notice({ notice }: { readonly notice: RecoveryNotice }): JSX.Element { return <Alert className={cn(notice.tone === 'success' && 'border-emerald-500/50', notice.tone === 'warning' && 'border-amber-500/60')} variant={notice.tone === 'error' ? 'destructive' : 'default'}>{notice.tone === 'success' ? <CheckCircle2 /> : <AlertTriangle />}<AlertTitle>{notice.title}</AlertTitle><AlertDescription>{notice.body}</AlertDescription></Alert> }
+function RecoveryNoticeToast({ notice }: { readonly notice: RecoveryNotice }): null {
+  useEffect(() => {
+    const options = { id: 'dsh-recovery-notice', description: notice.body, duration: 8_000 }
+    if (notice.tone === 'success') toast.success(notice.title, options)
+    else if (notice.tone === 'warning') toast.warning(notice.title, options)
+    else if (notice.tone === 'error') toast.error(notice.title, options)
+    else toast.info(notice.title, options)
+  }, [notice.body, notice.title, notice.tone])
+  return null
+}
 function PanelScroll({ children }: { readonly children: ReactNode }): JSX.Element { return <ScrollArea className="h-full pr-3"><div className="space-y-4 pb-2 pt-4">{children}</div></ScrollArea> }
 
 function PluginsPanel({ copy, state }: { readonly copy: Copy; readonly state: RecoveryState }): JSX.Element {
@@ -124,5 +135,5 @@ export function RecoveryApp(): JSX.Element {
   const state = decodeState()
   if (state === undefined) return <><DesktopFrame /><main className="dshNativeContent flex h-screen items-center justify-center p-6"><Alert variant="destructive"><AlertTriangle /><AlertTitle>DSH Desktop Recovery</AlertTitle><AlertDescription>The recovery state could not be read. Quit and start DSH Desktop again.</AlertDescription></Alert></main></>
   const copy = COPY[state.locale]
-  return <><DesktopFrame /><main className={cn('dshNativeContent h-screen overflow-hidden p-5 sm:p-6', state.busy && 'pointer-events-none opacity-70')}><div className="mx-auto flex h-full w-full max-w-5xl flex-col gap-4"><Reason copy={copy} state={state} />{state.notice === undefined ? null : <Notice notice={state.notice} />}<Tabs defaultValue={state.activeTab}><TabsList className="w-full justify-start overflow-x-auto"><TabsTrigger value="plugins"><Plug />{copy.tabs.plugins}</TabsTrigger><TabsTrigger value="rollback"><History />{copy.tabs.rollback}</TabsTrigger><TabsTrigger value="profiles"><Users />{copy.tabs.profiles}</TabsTrigger><TabsTrigger value="diagnostics"><Stethoscope />{copy.tabs.diagnostics}</TabsTrigger></TabsList><TabsContent value="plugins"><PluginsPanel copy={copy} state={state} /></TabsContent><TabsContent value="rollback"><RollbackPanel copy={copy} state={state} /></TabsContent><TabsContent value="profiles"><ProfilesPanel copy={copy} state={state} /></TabsContent><TabsContent value="diagnostics"><DiagnosticsPanel copy={copy} state={state} /></TabsContent></Tabs><footer className="flex shrink-0 flex-wrap justify-end gap-2 border-t pt-4">{state.busy ? <span className="mr-auto inline-flex items-center gap-2 text-sm text-muted-foreground"><RefreshCw className="size-4 animate-spin" />{copy.working}</span> : null}<Action action="restart" icon={<RotateCcw />} variant={state.restartReady ? 'default' : 'outline'}>{copy.restart}</Action><Action action="quit" icon={<Power />}>{copy.quit}</Action></footer></div></main></>
+  return <><DesktopFrame /><main className={cn('dshNativeContent h-screen overflow-hidden p-5 sm:p-6', state.busy && 'pointer-events-none opacity-70')}><div className="mx-auto flex h-full w-full max-w-5xl flex-col gap-4"><Reason copy={copy} state={state} /><Tabs defaultValue={state.activeTab}><TabsList className="w-full justify-start overflow-x-auto"><TabsTrigger value="plugins"><Plug />{copy.tabs.plugins}</TabsTrigger><TabsTrigger value="rollback"><History />{copy.tabs.rollback}</TabsTrigger><TabsTrigger value="profiles"><Users />{copy.tabs.profiles}</TabsTrigger><TabsTrigger value="diagnostics"><Stethoscope />{copy.tabs.diagnostics}</TabsTrigger></TabsList><TabsContent value="plugins"><PluginsPanel copy={copy} state={state} /></TabsContent><TabsContent value="rollback"><RollbackPanel copy={copy} state={state} /></TabsContent><TabsContent value="profiles"><ProfilesPanel copy={copy} state={state} /></TabsContent><TabsContent value="diagnostics"><DiagnosticsPanel copy={copy} state={state} /></TabsContent></Tabs><footer className="flex shrink-0 flex-wrap justify-end gap-2 border-t pt-4">{state.busy ? <span className="mr-auto inline-flex items-center gap-2 text-sm text-muted-foreground"><RefreshCw className="size-4 animate-spin" />{copy.working}</span> : null}<Action action="restart" icon={<RotateCcw />} variant={state.restartReady ? 'default' : 'outline'}>{copy.restart}</Action><Action action="quit" icon={<Power />}>{copy.quit}</Action></footer></div></main>{state.notice === undefined ? null : <RecoveryNoticeToast notice={state.notice} />}<Toaster closeButton offset={{ top: 52, right: 24 }} position="top-right" richColors /></>
 }

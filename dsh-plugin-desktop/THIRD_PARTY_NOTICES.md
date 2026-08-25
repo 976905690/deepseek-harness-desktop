@@ -515,6 +515,7 @@ the package names, versions, and licenses for transparency.
 | side-channel-list | 1.0.1 | MIT |
 | side-channel-map | 1.0.1 | MIT |
 | side-channel-weakmap | 1.0.2 | MIT |
+| sonner | 2.0.8 | MIT |
 | space-separated-tokens | 2.0.2 | MIT |
 | statuses | 2.0.2 | MIT |
 | stringify-entities | 4.0.4 | MIT |
