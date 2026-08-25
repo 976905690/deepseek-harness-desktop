@@ -5,7 +5,7 @@ import type { DesktopClientEnvironment } from './environment.ts'
 import { AdvancedFrame } from './AdvancedFrame.tsx'
 import { DesktopLayoutState } from './layout-state.ts'
 import { provideDesktopLayout } from './layout-service.ts'
-import { installAdvancedStyles } from './styles.ts'
+import { installDesktopOwnedStyles } from './styles.ts'
 import { ThreerouterAuthUI } from './threerouter-auth-ui.tsx'
 import { ThreerouterSidebar } from './threerouter-sidebar.tsx'
 import { DesktopThemePresenter } from './theme-presenter.ts'
@@ -81,11 +81,13 @@ export function applyAdvancedShell(ctx: ClientContext, environment: DesktopClien
   ctx.effect(() => {
     document.body.dataset.dshDesktopMode = 'advanced'
     document.body.dataset.dshDesktopPlatform = environment.platform
-    const removeStyles = installAdvancedStyles()
+    document.body.dataset.dshDesktopMaterial = environment.material
+    const removeStyles = installDesktopOwnedStyles()
     return () => {
       removeStyles()
       delete document.body.dataset.dshDesktopMode
       delete document.body.dataset.dshDesktopPlatform
+      delete document.body.dataset.dshDesktopMaterial
     }
   }, 'desktop: advanced shell styles')
 

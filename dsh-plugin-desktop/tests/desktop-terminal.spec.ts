@@ -292,10 +292,20 @@ describe('desktop terminal environment', () => {
     const stateDir = join(temporaryDirectory(), 'terminal-state')
     const harness = spawnHarness()
     const options = windowsOptions(stateDir, harness.spawn)
-    options.windowsExecutableResolver = (command) => {
-      if (command === 'pwsh.exe') return 'C:\\Program Files\\PowerShell\\7\\pwsh.exe'
-      if (command === 'wt.exe') return 'C:\\Users\\Example\\AppData\\Local\\Microsoft\\WindowsApps\\wt.exe'
-      return undefined
+    options.windowsExecutableResolver = command => command === 'pwsh.exe'
+      ? 'C:\\Program Files\\PowerShell\\7\\pwsh.exe'
+      : undefined
+    options.windowsTerminal = {
+      executable: 'C:\\Users\\Example\\AppData\\Local\\Microsoft\\WindowsApps\\wt.exe',
+      arguments: [
+        '--window',
+        'new',
+        'new-tab',
+        '--title',
+        'DSH Desktop',
+        '--startingDirectory',
+        options.profileDir,
+      ],
     }
 
     const launch = openDesktopTerminal(options)
@@ -370,7 +380,7 @@ describe('desktop terminal environment', () => {
     const cause = new Error('launcher unavailable')
     expect(() => { harness.emitError(cause) }).not.toThrow()
 
-    expect(commands).toEqual(['pwsh.exe', 'wt.exe', 'cmd.exe'])
+    expect(commands).toEqual(['pwsh.exe', 'cmd.exe'])
     expect(harness.calls[0]?.command).toBe('C:\\Windows\\System32\\cmd.exe')
     expect(onLaunchError).toHaveBeenCalledWith(cause)
 
@@ -391,7 +401,7 @@ describe('desktop terminal environment', () => {
     expect(exitReporter).toHaveBeenCalledOnce()
   })
 
-  it('discovers the Windows Terminal app execution alias through LocalAppData', () => {
+  it('does not trust the Windows Terminal app execution alias without an explicit adapter', () => {
     const stateDir = join(temporaryDirectory(), 'terminal-state')
     const harness = spawnHarness()
     const probes: string[] = []
@@ -404,15 +414,16 @@ describe('desktop terminal environment', () => {
     options.windowsExecutableExists = (filename) => {
       probes.push(filename)
       return filename === 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
+        || filename === 'C:\\Windows\\System32\\cmd.exe'
         || filename === 'C:\\Users\\Example\\AppData\\Local\\Microsoft\\WindowsApps\\wt.exe'
     }
 
     openDesktopTerminal(options)
 
     expect(probes).toContain('C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe')
-    expect(probes).toContain('C:\\Users\\Example\\AppData\\Local\\Microsoft\\WindowsApps\\wt.exe')
+    expect(probes).not.toContain('C:\\Users\\Example\\AppData\\Local\\Microsoft\\WindowsApps\\wt.exe')
     expect(harness.calls[0]?.command).toBe(
-      'C:\\Users\\Example\\AppData\\Local\\Microsoft\\WindowsApps\\wt.exe',
+      'C:\\Windows\\System32\\cmd.exe',
     )
     expect(harness.calls[0]?.options.shell).toBe(false)
   })
@@ -466,7 +477,7 @@ describe('desktop terminal environment', () => {
 
     const unsafe = macOptions(join(root, 'unsafe'), harness.spawn)
     unsafe.profileName = '../desktop'
-    expect(() => openDesktopTerminal(unsafe)).toThrow('invalid profile name')
+    expect(() => openDesktopTerminal(unsafe)).toThrow('invalid desktop profile name')
     expect(() => lstatSync(unsafe.stateDir)).toThrow()
 
     const localized = macOptions(join(root, 'localized'), harness.spawn)

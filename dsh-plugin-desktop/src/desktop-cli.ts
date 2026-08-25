@@ -10,35 +10,23 @@ const DSH_ENTRY_URL = pathToFileURL(
   packagedDependencyPath(import.meta.url, '@deepseek-ai/dsh/lib/bin.js'),
 ).href
 
-/** Remove Electron Node mode before the DSH CLI creates any child process. */
 export function clearElectronRunAsNode(environment: NodeJS.ProcessEnv): void {
   for (const key of Object.keys(environment)) {
     if (key.toUpperCase() === RUN_AS_NODE) delete environment[key]
   }
 }
 
-/**
- * Apply the terminal-owned default without overriding global help or an explicit profile.
- * @param argv - arguments after the executable and bootstrap entry.
- * @param profileName - validated profile selected by the desktop launcher.
- * @returns argv accepted by the upstream DSH command parser.
- */
 export function withDefaultDesktopProfile(argv: readonly string[], profileName: string): string[] {
   assertDesktopProfileName(profileName)
-  if (argv.some(argument => argument === '--profile' || argument.startsWith('--profile='))) {
-    return [...argv]
-  }
+  if (argv.some(argument => argument === '--profile' || argument.startsWith('--profile='))) return [...argv]
   const first = argv[0]
   if (first === 'web' || first === '--help' || first === '-h' || first === '--version' || first === '-V') {
     return [...argv]
   }
-  if (first === 'plugin') {
-    return ['plugin', '--profile', profileName, ...argv.slice(1)]
-  }
+  if (first === 'plugin') return ['plugin', '--profile', profileName, ...argv.slice(1)]
   return ['--profile', profileName, ...argv]
 }
 
-/** Remove and return the case-insensitive terminal default-profile marker. */
 function takeDefaultProfile(environment: NodeJS.ProcessEnv): string | undefined {
   let profileName: string | undefined
   for (const key of Object.keys(environment)) {
@@ -54,11 +42,8 @@ function takeDefaultProfile(environment: NodeJS.ProcessEnv): string | undefined 
 }
 
 /**
- * Enter the packaged DSH CLI after removing the Electron-only launch marker.
- * @param environment - process environment inherited from the generated shim.
- * @param load - ESM loader used by the executable and focused tests.
- * @param argv - mutable process arguments presented to the upstream CLI.
- * @returns once the imported CLI entry completes its top-level work.
+ * Enter the packaged DSH CLI without any plugin-install transaction wrapper.
+ * Manual plugin commands and Market operations rely on unified checkpoints.
  */
 export async function runDesktopDshCli(
   environment: NodeJS.ProcessEnv = process.env,

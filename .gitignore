@@ -12,4 +12,9 @@ node_modules/
 dsh-plugin-desktop/dist/
 dsh-plugin-desktop/lib/
 dsh-community-market/lib/
+<<<<<<< HEAD
 .electron-cache/63857c95525ff62c967a319a9c3921773c3420b77c6ebce7f47c8c76e68d9e11/electron-v43.4.0-win32-x64.zip
+=======
+
+.env.yarn
+>>>>>>> upstream/master

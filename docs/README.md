@@ -46,4 +46,4 @@
 
 ## 状态约定
 
-文档会明确区分已实现能力、平台限制和 roadmap。Desktop 的兼容模式保留上游默认 Web 客户端；高级模式才安装 Desktop 自有的布局和原生材质。插件市场已建立 [`dsh-community-market`](../dsh-community-market/README.zh.md) 文档初始化工程，但尚无可用页面或安装器；手机远程和 Channels 也仍是独立 roadmap，不代表当前安装包已经提供这些产品入口。
+文档会明确区分已实现能力、平台限制和 roadmap。Desktop 的兼容模式在独立 Desktop frame 下保留上游默认 Web 客户端；扩展窗口安装自己独立注册的 Desktop layout/sidebar surface，并在倒 L 中承载官方 occupant；增强模式保留独立 root registration 与紧凑内部 caption。Desktop frame 会按系统能力提供原生材质。插件市场已建立 [`dsh-community-market`](../dsh-community-market/README.zh.md) 文档初始化工程，但尚无可用页面或安装器；手机远程和 Channels 也仍是独立 roadmap，不代表当前安装包已经提供这些产品入口。

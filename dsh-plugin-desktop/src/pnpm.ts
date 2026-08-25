@@ -1,4 +1,4 @@
-/** Desktop-owned package-manager capability for the active DSH profile. */
+/** Desktop-owned pnpm execution capability for the active DSH Profile. */
 
 import { delimiter, isAbsolute } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -15,55 +15,50 @@ const BIN_NAME = 'dsh-plugin-desktop'
 const ELECTRON_HEADERS_URL = 'https://electronjs.org/headers'
 const TERMINATION_GRACE_MS = 3_000
 
-/** Launcher-resolved values used by the active desktop pnpm generation. */
+/** Launcher-resolved values used by the active Desktop pnpm generation. */
 export interface DesktopPnpmBootstrap {
-  /** Profile selected for this immutable Cordis generation. */
   readonly activeProfileName: string
-  /** Absolute directory containing the active profile manifest. */
   readonly activeProfileDir: string
-  /** Harness home containing every managed profile. */
   readonly homeDir: string
-  /** Electron executable reused through RunAsNode. */
   readonly appExecutable: string
-  /** Physical JavaScript entry for the packaged pnpm release. */
   readonly pnpmBinPath: string
-  /** Electron version used when pnpm installs native dependencies. */
   readonly electronVersion: string
-  /** Private directory containing the Electron-backed Node command. */
   readonly nodeBinDir: string
-  /** Private Electron-backed Node command used by pnpm lifecycle scripts. */
   readonly nodeShimPath: string
-  /** Preloaded module that removes RunAsNode before a JavaScript entry executes. */
   readonly clearEnvironmentPath: string
-  /** Desktop bootstrap that clears RunAsNode before importing the packaged DSH CLI. */
   readonly dshBootstrapPath: string
 }
 
-/** Exit facts for one desktop-owned package-manager operation. */
 export interface DesktopPnpmOutcome {
-  /** Process exit code, or `null` when a signal terminated the operation. */
   readonly exitCode: number | null
-  /** Terminating signal, or `null` after a normal exit. */
   readonly signal: NodeJS.Signals | null
 }
 
-/** Streaming handle for one package-manager operation. */
 export interface DesktopPnpmHandle {
-  /** Standard output emitted by DSH and pnpm. */
   readonly stdout: Readable
-  /** Standard error emitted by DSH and pnpm. */
   readonly stderr: Readable
-  /** Settles only after the complete operation process tree has exited. */
   readonly done: Promise<DesktopPnpmOutcome>
-  /** Begin termination of the complete operation process tree. */
   cancel(): void
+}
+
+/**
+ * Package-manager API plus narrow legacy plugin-manager adapters. Desktop
+ * deliberately performs no install snapshot, rollback, retry, protection,
+ * receipt reconciliation, or recovery bookkeeping.
+ */
+export interface DesktopPnpm {
+  run(argv: readonly string[], signal?: AbortSignal): DesktopPnpmHandle
+  runPlugin(argv: readonly string[], invokingDir: string, signal?: AbortSignal): DesktopPnpmHandle
+  runExternalMarketPluginInstall(
+    argv: readonly string[],
+    invokingDir: string,
+    signal?: AbortSignal,
+  ): DesktopPnpmHandle
 }
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Launcher-private inputs from which the Host provider constructs the service. */
     desktopPnpmBootstrap: DesktopPnpmBootstrap
-    /** Package-manager operations scoped to the active desktop profile generation. */
     desktopPnpm: DesktopPnpm
   }
 }
@@ -73,37 +68,55 @@ interface ActiveOperation {
   done: Promise<DesktopPnpmOutcome>
 }
 
-/** Read PATH with Windows-compatible environment-name matching. */
 function inheritedPath(): string {
   const exact = process.env.PATH
   if (exact !== undefined || process.platform !== 'win32') return exact ?? ''
-  return Object.entries(process.env)
-    .find(([key]) => key.toUpperCase() === 'PATH')?.[1] ?? ''
+  return Object.entries(process.env).find(([key]) => key.toUpperCase() === 'PATH')?.[1] ?? ''
 }
 
-/** Reject an unsafe or unresolved bootstrap path. */
 function assertAbsolutePath(label: string, value: string): void {
   if (value.length === 0 || value.includes('\0') || !isAbsolute(value)) {
     throw new Error(`${BIN_NAME}: desktop pnpm ${label} must be an absolute path without NUL`)
   }
 }
 
-/** Validate one argv list before it crosses the process boundary. */
-function validatedArgs(args: readonly string[]): string[] {
-  if (args.length === 0) {
-    throw new Error(`${BIN_NAME}: desktop pnpm arguments must not be empty`)
+function validatedArgv(argv: readonly string[]): string[] {
+  if (argv.length === 0) throw new Error(`${BIN_NAME}: desktop pnpm argv must not be empty`)
+  if (argv.some(argument => typeof argument !== 'string' || argument.includes('\0'))) {
+    throw new Error(`${BIN_NAME}: desktop pnpm argv must contain only strings without NUL`)
   }
-  if (args.some(argument => argument.includes('\0'))) {
-    throw new Error(`${BIN_NAME}: desktop pnpm arguments must not contain NUL`)
-  }
-  return [...args]
+  return [...argv]
 }
 
-/** Validate the immutable launcher values once, before the service is published. */
+const NPM_PACKAGE_NAME_PATTERN = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/u
+const NPM_EXACT_VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u
+
+function validatedExternalMarketArgv(argv: readonly string[]): string[] {
+  const args = validatedArgv(argv)
+  if (args[0] !== 'add') {
+    throw new Error(`${BIN_NAME}: external Market plugin install requires add with one exact npm package target`)
+  }
+  const targets = args.slice(1).filter(argument => !argument.startsWith('-'))
+  const target = targets[0]
+  const separator = target?.lastIndexOf('@') ?? -1
+  const packageName = separator > 0 ? target?.slice(0, separator) : undefined
+  const packageVersion = separator > 0 ? target?.slice(separator + 1) : undefined
+  if (
+    targets.length !== 1
+    || packageName === undefined
+    || packageVersion === undefined
+    || !NPM_PACKAGE_NAME_PATTERN.test(packageName)
+    || !NPM_EXACT_VERSION_PATTERN.test(packageVersion)
+  ) {
+    throw new Error(`${BIN_NAME}: external Market plugin install requires exactly one exact npm package target`)
+  }
+  return args
+}
+
 function validateBootstrap(bootstrap: DesktopPnpmBootstrap): void {
   assertDesktopProfileName(bootstrap.activeProfileName)
   for (const [label, value] of [
-    ['active profile directory', bootstrap.activeProfileDir],
+    ['active Profile directory', bootstrap.activeProfileDir],
     ['Harness home', bootstrap.homeDir],
     ['application executable', bootstrap.appExecutable],
     ['pnpm entry', bootstrap.pnpmBinPath],
@@ -117,16 +130,10 @@ function validateBootstrap(bootstrap: DesktopPnpmBootstrap): void {
   }
 }
 
-/** Host service providing one managed pnpm operation at a time. */
-export class DesktopPnpm extends Service {
+class DesktopPnpmService extends Service implements DesktopPnpm {
   private active: ActiveOperation | undefined
   private closed = false
 
-  /**
-   * Register the service for one immutable desktop profile generation.
-   * @param ctx - Host context providing the managed subprocess capability.
-   * @param bootstrap - launcher-resolved profile and packaged runtime paths.
-   */
   constructor(ctx: Context, private readonly bootstrap: DesktopPnpmBootstrap) {
     validateBootstrap(bootstrap)
     super(ctx, 'desktopPnpm')
@@ -142,40 +149,34 @@ export class DesktopPnpm extends Service {
     )
   }
 
-  /**
-   * Run packaged pnpm directly in the active profile.
-   * @param args - pnpm arguments following the executable name.
-   * @param signal - optional cancellation for this operation.
-   * @returns live output streams, completion, and cancellation.
-   */
-  run(args: readonly string[], signal?: AbortSignal): DesktopPnpmHandle {
-    const resolvedArgs = validatedArgs(args)
+  run(argv: readonly string[], signal?: AbortSignal): DesktopPnpmHandle {
+    const args = validatedArgv(argv)
     return this.start({
       argv: [
         this.bootstrap.appExecutable,
         '--import',
         pathToFileURL(this.bootstrap.clearEnvironmentPath).href,
         this.bootstrap.pnpmBinPath,
-        ...resolvedArgs,
+        ...args,
       ],
       cwd: this.bootstrap.activeProfileDir,
       ...(signal === undefined ? {} : { signal }),
     })
   }
 
-  /**
-   * Run the packaged `dsh plugin` command so upstream profile reconciliation remains authoritative.
-   * @param args - pnpm arguments forwarded by `dsh plugin`.
-   * @param invokingDir - absolute caller directory used to anchor relative package specifications.
-   * @param signal - optional cancellation for this operation.
-   * @returns live output streams, completion, and cancellation.
-   */
-  runPlugin(
-    args: readonly string[],
+  runPlugin(argv: readonly string[], invokingDir: string, signal?: AbortSignal): DesktopPnpmHandle {
+    return this.startPlugin(validatedArgv(argv), invokingDir, signal)
+  }
+
+  runExternalMarketPluginInstall(
+    argv: readonly string[],
     invokingDir: string,
     signal?: AbortSignal,
   ): DesktopPnpmHandle {
-    const resolvedArgs = validatedArgs(args)
+    return this.startPlugin(validatedExternalMarketArgv(argv), invokingDir, signal)
+  }
+
+  private startPlugin(argv: readonly string[], invokingDir: string, signal?: AbortSignal): DesktopPnpmHandle {
     assertAbsolutePath('plugin invoking directory', invokingDir)
     return this.start({
       argv: [
@@ -185,41 +186,32 @@ export class DesktopPnpm extends Service {
         'plugin',
         '--profile',
         this.bootstrap.activeProfileName,
-        ...resolvedArgs,
+        ...argv,
       ],
       cwd: invokingDir,
       ...(signal === undefined ? {} : { signal }),
     })
   }
 
-  /** Start one managed child after applying the generation-wide gate. */
   private start(command: {
-    argv: readonly string[]
-    cwd: string
-    signal?: AbortSignal
+    readonly argv: readonly string[]
+    readonly cwd: string
+    readonly signal?: AbortSignal
   }): DesktopPnpmHandle {
-    if (this.closed) {
-      throw new Error(`${BIN_NAME}: desktop pnpm generation is closed`)
-    }
-    if (this.active !== undefined) {
-      throw new Error(`${BIN_NAME}: another desktop pnpm operation is already running`)
-    }
+    if (this.closed) throw new Error(`${BIN_NAME}: desktop pnpm generation is closed`)
+    if (this.active !== undefined) throw new Error(`${BIN_NAME}: another desktop pnpm operation is already running`)
     command.signal?.throwIfAborted()
-    const path = inheritedPath()
+    const inherited = inheritedPath()
     const spec: SubprocessSpawnSpec = {
       argv: command.argv,
       cwd: command.cwd,
-      stdio: {
-        stdin: 'ignore',
-        stdout: 'pipe',
-        stderr: 'pipe',
-      },
+      stdio: { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' },
       graceMs: TERMINATION_GRACE_MS,
       ...(command.signal === undefined ? {} : { signal: command.signal }),
       env: {
-        PATH: path.length === 0
+        PATH: inherited.length === 0
           ? this.bootstrap.nodeBinDir
-          : `${this.bootstrap.nodeBinDir}${delimiter}${path}`,
+          : `${this.bootstrap.nodeBinDir}${delimiter}${inherited}`,
         NODE: this.bootstrap.nodeShimPath,
         ELECTRON_RUN_AS_NODE: '1',
         DSH_HOME: this.bootstrap.homeDir,
@@ -248,31 +240,22 @@ export class DesktopPnpm extends Service {
     }
   }
 
-  /** Keep the operation gate held until the complete process tree is gone. */
   private async settle(active: ActiveOperation): Promise<DesktopPnpmOutcome> {
+    let outcome: SubprocessOutcome
     try {
-      const outcome: SubprocessOutcome = await active.child.done
+      outcome = await active.child.done
       return { exitCode: outcome.exitCode, signal: outcome.signal }
     } finally {
-      try {
-        await active.child.waitForExit()
-      } finally {
+      try { await active.child.waitForExit() } finally {
         if (this.active === active) this.active = undefined
       }
     }
   }
 }
 
-/** Stable Cordis provider name. */
 export const name = 'desktop-pnpm'
-
-/** Launcher bootstrap and subprocess service required by this Host provider. */
 export const inject = ['desktopPnpmBootstrap', 'subprocess']
 
-/**
- * Provide the active generation's desktop package-manager capability.
- * @param ctx - Host context carrying launcher bootstrap values and subprocess ownership.
- */
 export function apply(ctx: Context): void {
-  new DesktopPnpm(ctx, ctx.desktopPnpmBootstrap)
+  new DesktopPnpmService(ctx, ctx.desktopPnpmBootstrap)
 }

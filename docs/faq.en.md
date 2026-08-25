@@ -14,7 +14,7 @@ No. DSH Desktop is an independent, community-maintained open-source project. It 
 
 ## Which operating systems are supported?
 
-Current release installers support Windows x64 and Apple Silicon macOS. There is currently no Linux installer, and Intel Macs are not supported. Cross-platform compatibility code in the source tree does not imply that an installer has been released for that platform.
+Current release installers support Windows x64 and universal macOS (Intel and Apple Silicon). There is currently no Linux installer. Cross-platform compatibility code in the source tree does not imply that an installer has been released for that platform.
 
 ## Do I need to install Node.js, pnpm, or DSH?
 
@@ -26,7 +26,7 @@ No separate Node.js or Harness core download is required. The installer is large
 
 ## Does DSH Desktop modify official Harness?
 
-No. The repository pins an unmodified official Harness checkout. Compatibility mode runs the upstream default Web client. Advanced mode adds Desktop-owned layout and native window presentation through plugins without editing upstream source.
+No. The repository pins an unmodified official Harness checkout. Compatibility mode runs the upstream default Web client below an independent overlay frame. Extended and enhanced modes each install their own Desktop-owned root registration through the plugin/profile composition boundary while retaining the official slot occupants. None of these modes edits upstream source.
 
 ## Is data stored locally?
 
@@ -42,7 +42,7 @@ No plugins are copied automatically. Each profile has its own bundle and depende
 
 ## How are updates installed?
 
-Packaged applications check for stable releases in the background but never install silently. A newer version requires confirmation. macOS downloads and opens a DMG; Windows downloads and starts an NSIS installer. Network and download failures leave the current installation intact.
+Packaged applications check for stable releases in the background but never install silently. A newer version requires confirmation. Before downloading, a native save dialog lets you choose the installer's directory and filename; cancelling it does not start a download. macOS downloads and opens a DMG; Windows downloads and starts an NSIS installer. After the upgrade and next launch, the app asks whether to delete or keep the installer. Network and download failures leave the current installation intact.
 
 ## Where can I download the app or report a problem?
 

@@ -11,6 +11,7 @@ import {
   openSync,
   readFileSync,
   readdirSync,
+  rmSync,
   renameSync,
   unlinkSync,
   writeFileSync,
@@ -18,8 +19,10 @@ import {
 import { basename, dirname, join } from 'node:path'
 import {
   PROFILE_TEMPLATES,
+  initProfile,
   readProfileManifest,
   resolveProfileDir,
+  writeProfileManifest,
 } from '@deepseek-ai/dsh-app-boot'
 
 const BIN_NAME = 'dsh-plugin-desktop'
@@ -29,10 +32,11 @@ const BASE_BUNDLE_NAME = '@deepseek-ai/dsh-base'
 const WEB_BUNDLE_NAME = '@deepseek-ai/dsh-web-app'
 const DESKTOP_BUNDLE_NAME = 'dsh-plugin-desktop'
 const PROFILE_MANIFEST_FILENAME = 'package.json'
-const STATE_VERSION = 1
+const STATE_VERSION = 2
 const MAX_STATE_BYTES = 4 * 1024
 const STATE_DIRECTORY_MODE = 0o700
 const STATE_FILE_MODE = 0o600
+const MAX_PROFILE_NAME_BYTES = 255
 
 /** One discovered or lazily available DSH profile. */
 export interface DesktopProfileSummary {
@@ -50,16 +54,21 @@ export interface DesktopProfileSummary {
   readonly problem?: string
 }
 
+/** Inputs for the narrow, restart-safe profile deletion boundary. */
+export interface DesktopProfileDeletionOptions {
+  readonly home: string
+  readonly selectionStatePath: string
+  readonly currentProfileName: string
+  readonly clearDisabledState?: () => void | Promise<void>
+  readonly clearCheckpoint?: () => void | Promise<void>
+}
+
 /** Private desktop selection state persisted outside `$DSH_HOME/profiles`. */
-export interface DesktopProfileStateV1 {
+export interface DesktopProfileStateV2 {
   /** Stored format discriminator. */
-  readonly version: 1
-  /** Profile selected for the current or next confirmed generation. */
+  readonly version: 2
+  /** Profile selected for the next and current Desktop generation. */
   readonly active: string
-  /** Profile requested for the next application restart. */
-  readonly pending?: string
-  /** Most recent profile whose native shell mounted successfully. */
-  readonly lastKnownGood: string
 }
 
 /** Startup decision derived from selection state and current profile discovery. */
@@ -67,15 +76,13 @@ export interface DesktopProfileStartup {
   /** Profile that this process must prepare and boot. */
   readonly profileName: string
   /** State persisted before profile preparation begins. */
-  readonly state: DesktopProfileStateV1
+  readonly state: DesktopProfileStateV2
   /** Whether malformed or unavailable state was replaced with a safe choice. */
   readonly recoveredState: boolean
-  /** Unconfirmed or unavailable profile replaced by the last known good choice. */
-  readonly rolledBackFrom?: string
 }
 
 interface LoadedDesktopProfileState {
-  state: DesktopProfileStateV1
+  state: DesktopProfileStateV2
   recovered: boolean
 }
 
@@ -83,20 +90,24 @@ interface LoadedDesktopProfileState {
 class InvalidDesktopProfileStateError extends Error {}
 
 /** Return a fresh default so callers cannot mutate shared state. */
-function defaultState(): DesktopProfileStateV1 {
+function defaultState(): DesktopProfileStateV2 {
   return {
     version: STATE_VERSION,
     active: DEFAULT_PROFILE_NAME,
-    lastKnownGood: DEFAULT_PROFILE_NAME,
   }
 }
 
 /** Reject profile names that cannot safely cross the persisted state boundary. */
 export function assertDesktopProfileName(name: string): void {
-  resolveProfileDir(name, '/')
-  if (name.length > 255 || /[\0-\x1f\x7f]/.test(name)) {
+  if (typeof name !== 'string' || name.length === 0
+    || name.includes('/') || name.includes('\\') || name === '.' || name === '..'
+    || name === 'node_modules' || Buffer.byteLength(name, 'utf8') > MAX_PROFILE_NAME_BYTES
+    || /[\0-\x1f\x7f-\x9f]/.test(name)
+    || /[<>:"|?*]/.test(name) || /[. ]$/.test(name)
+    || /^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\..*)?$/i.test(name)) {
     throw new Error(`${BIN_NAME}: invalid desktop profile name ${JSON.stringify(name)}`)
   }
+  resolveProfileDir(name, '/')
 }
 
 /** Validate a manifest bundle list without trusting arbitrary JSON values. */
@@ -156,6 +167,50 @@ function virtualProfile(name: typeof DEFAULT_PROFILE_NAME | typeof WEB_PROFILE_N
   }
 }
 
+/**
+ * Create a safe Web profile using only the shipped template.
+ *
+ * The profile is initialized in a sibling staging directory and published with
+ * one rename, so a failed initialization never leaves a partially initialized
+ * target visible to discovery.
+ */
+export function createDesktopWebProfile(home: string, name: string): DesktopProfileSummary {
+  assertDesktopProfileName(name)
+  const template = PROFILE_TEMPLATES.web
+  if (template === undefined) {
+    throw new Error(`${BIN_NAME}: installed dsh-app-boot has no web profile template`)
+  }
+  const target = resolveProfileDir(name, home)
+  const profilesDir = dirname(target)
+  mkdirSync(profilesDir, { recursive: true })
+  try {
+    lstatSync(target)
+    throw new Error(`${BIN_NAME}: profile ${JSON.stringify(name)} already exists`)
+  } catch (cause) {
+    if ((cause as NodeJS.ErrnoException).code !== 'ENOENT') throw cause
+  }
+
+  const staging = join(profilesDir, `.${basename(target)}.creating-${process.pid}-${randomUUID()}`)
+  try {
+    initProfile(staging, [...template])
+    const manifest = readProfileManifest(BIN_NAME, staging)
+    writeProfileManifest(staging, { ...manifest, name: `dsh-profile-${name}` })
+    // The target is checked again immediately before publication. `renameSync`
+    // is atomic on the same filesystem; an existing target is never replaced.
+    try {
+      lstatSync(target)
+      throw new Error(`${BIN_NAME}: profile ${JSON.stringify(name)} already exists`)
+    } catch (cause) {
+      if ((cause as NodeJS.ErrnoException).code !== 'ENOENT') throw cause
+    }
+    renameSync(staging, target)
+  } catch (cause) {
+    rmSync(staging, { recursive: true, force: true })
+    throw cause
+  }
+  return existingProfile(name, home)
+}
+
 /** Deterministic profile order with the product defaults first. */
 function compareProfiles(left: DesktopProfileSummary, right: DesktopProfileSummary): number {
   const priority = (name: string): number => name === DEFAULT_PROFILE_NAME ? 0 : name === WEB_PROFILE_NAME ? 1 : 2
@@ -211,8 +266,86 @@ function selectableProfile(home: string, name: string): DesktopProfileSummary {
   return summary
 }
 
+function deletionTarget(options: DesktopProfileDeletionOptions, name: string): string {
+  assertDesktopProfileName(name)
+  if (name === options.currentProfileName) {
+    throw new Error(`${BIN_NAME}: current profile ${JSON.stringify(name)} cannot be deleted`)
+  }
+  const target = resolveProfileDir(name, options.home)
+  let item
+  try {
+    item = lstatSync(target)
+  } catch (cause) {
+    if ((cause as NodeJS.ErrnoException).code === 'ENOENT') {
+      throw new Error(`${BIN_NAME}: profile ${JSON.stringify(name)} does not exist`)
+    }
+    throw cause
+  }
+  if (!item.isDirectory() || item.isSymbolicLink()) {
+    throw new Error(`${BIN_NAME}: profile ${JSON.stringify(name)} is not a real directory`)
+  }
+  let manifest
+  try {
+    manifest = lstatSync(join(target, PROFILE_MANIFEST_FILENAME))
+  } catch (cause) {
+    if ((cause as NodeJS.ErrnoException).code === 'ENOENT') {
+      throw new Error(`${BIN_NAME}: profile ${JSON.stringify(name)} does not exist`)
+    }
+    throw cause
+  }
+  if (!manifest.isFile() || manifest.isSymbolicLink()) {
+    throw new Error(`${BIN_NAME}: profile ${JSON.stringify(name)} has an unsafe manifest`)
+  }
+  return target
+}
+
+/** Return whether a profile is eligible for deletion using current selection state. */
+export function canDeleteDesktopProfile(options: DesktopProfileDeletionOptions, name: string): boolean {
+  try {
+    deletionTarget(options, name)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Remove one inactive user profile through a same-filesystem staging rename.
+ * Selection and filesystem checks are repeated immediately before the rename.
+ */
+export async function deleteDesktopProfile(
+  options: DesktopProfileDeletionOptions,
+  name: string,
+): Promise<void> {
+  const target = deletionTarget(options, name)
+  const confirmedTarget = deletionTarget(options, name)
+  if (confirmedTarget !== target) {
+    throw new Error(`${BIN_NAME}: profile deletion target changed during validation`)
+  }
+  const parent = dirname(target)
+  const parentInfo = lstatSync(parent)
+  if (!parentInfo.isDirectory() || parentInfo.isSymbolicLink()) {
+    throw new Error(`${BIN_NAME}: profile directory parent is not a real directory`)
+  }
+  const staging = join(parent, `.${basename(target)}.deleting-${process.pid}-${randomUUID()}`)
+  renameSync(target, staging)
+  try {
+    await options.clearDisabledState?.()
+    await options.clearCheckpoint?.()
+    const stagedInfo = lstatSync(staging)
+    if (!stagedInfo.isDirectory() || stagedInfo.isSymbolicLink()) {
+      throw new Error(`${BIN_NAME}: profile deletion staging entry is unsafe`)
+    }
+    rmSync(staging, { recursive: true, force: false })
+  } catch (cause) {
+    // A failed cleanup or final removal leaves the user's profile recoverable.
+    try { renameSync(staging, target) } catch { /* preserve the original failure */ }
+    throw cause
+  }
+}
+
 /** Parse the complete state document and reject unknown format versions. */
-function parseState(text: string): DesktopProfileStateV1 {
+function parseState(text: string): DesktopProfileStateV2 {
   const value: unknown = JSON.parse(text)
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error('selection state must be a JSON object')
@@ -220,21 +353,8 @@ function parseState(text: string): DesktopProfileStateV1 {
   const state = value as Record<string, unknown>
   if (state.version !== STATE_VERSION) throw new Error(`selection state version must be ${STATE_VERSION}`)
   if (typeof state.active !== 'string') throw new Error('selection state active profile must be a string')
-  if (typeof state.lastKnownGood !== 'string') {
-    throw new Error('selection state last-known-good profile must be a string')
-  }
-  if (state.pending !== undefined && typeof state.pending !== 'string') {
-    throw new Error('selection state pending profile must be a string')
-  }
   assertDesktopProfileName(state.active)
-  assertDesktopProfileName(state.lastKnownGood)
-  if (state.pending !== undefined) assertDesktopProfileName(state.pending)
-  return {
-    version: STATE_VERSION,
-    active: state.active,
-    ...(state.pending === undefined ? {} : { pending: state.pending }),
-    lastKnownGood: state.lastKnownGood,
-  }
+  return { version: STATE_VERSION, active: state.active }
 }
 
 /** Read at most the private state format's maximum encoded size. */
@@ -285,7 +405,7 @@ function unlinkTemporary(filename: string): void {
 }
 
 /** Atomically persist desktop-private state without following a target symlink. */
-function writeState(statePath: string, state: DesktopProfileStateV1): void {
+function writeState(statePath: string, state: DesktopProfileStateV2): void {
   const stateDir = dirname(statePath)
   mkdirSync(stateDir, { recursive: true, mode: STATE_DIRECTORY_MODE })
   const directoryStat = lstatSync(stateDir)
@@ -312,7 +432,7 @@ function writeState(statePath: string, state: DesktopProfileStateV1): void {
  * @param statePath - desktop-owned state file outside the Harness profile tree.
  * @returns validated selection state.
  */
-export function readDesktopProfileState(statePath: string): DesktopProfileStateV1 {
+export function readDesktopProfileState(statePath: string): DesktopProfileStateV2 {
   return loadState(statePath).state
 }
 
@@ -321,35 +441,18 @@ export function readDesktopProfileState(statePath: string): DesktopProfileStateV
  * @param statePath - desktop-owned state file outside the Harness profile tree.
  * @param home - Harness home used only for read-only profile discovery.
  * @param name - profile selected by the user.
- * @returns persisted state containing the pending selection.
+ * @returns persisted active selection.
  */
-export function selectDesktopProfile(statePath: string, home: string, name: string): DesktopProfileStateV1 {
+export function selectDesktopProfile(statePath: string, home: string, name: string): DesktopProfileStateV2 {
   selectableProfile(home, name)
-  const current = loadState(statePath).state
-  const next: DesktopProfileStateV1 = current.active === name && current.lastKnownGood === name
-    ? { version: STATE_VERSION, active: name, lastKnownGood: name }
-    : {
-        version: STATE_VERSION,
-        active: current.active,
-        pending: name,
-        lastKnownGood: current.lastKnownGood,
-      }
+  const next: DesktopProfileStateV2 = { version: STATE_VERSION, active: name }
   writeState(statePath, next)
   return next
 }
 
-/** Return whether one saved name still identifies a selectable profile. */
-function isSelectable(home: string, name: string): boolean {
-  try {
-    selectableProfile(home, name)
-    return true
-  } catch {
-    return false
-  }
-}
-
 /**
- * Consume a pending selection or roll back an unconfirmed prior startup.
+ * Resolve the exact selected Profile. Startup failures are handled only by
+ * the Recovery window; this boundary never substitutes another Profile.
  * @param statePath - desktop-owned state file outside the Harness profile tree.
  * @param home - Harness home used only for read-only profile discovery.
  * @returns profile decision persisted before profile preparation starts.
@@ -357,82 +460,12 @@ function isSelectable(home: string, name: string): boolean {
 export function beginDesktopProfileStartup(statePath: string, home: string): DesktopProfileStartup {
   const loaded = loadState(statePath)
   const current = loaded.state
-  let profileName = current.active
-  let rolledBackFrom: string | undefined
-  let recoveredState = loaded.recovered
-
-  if (current.pending !== undefined) {
-    if (isSelectable(home, current.pending)) {
-      profileName = current.pending
-    } else {
-      rolledBackFrom = current.pending
-      profileName = isSelectable(home, current.lastKnownGood) ? current.lastKnownGood : DEFAULT_PROFILE_NAME
-      recoveredState = true
-    }
-  } else if (current.active !== current.lastKnownGood) {
-    rolledBackFrom = current.active
-    profileName = isSelectable(home, current.lastKnownGood) ? current.lastKnownGood : DEFAULT_PROFILE_NAME
-    recoveredState = true
-  } else if (!isSelectable(home, current.active)) {
-    rolledBackFrom = current.active
-    profileName = DEFAULT_PROFILE_NAME
-    recoveredState = true
-  }
-
-  const next: DesktopProfileStateV1 = {
-    version: STATE_VERSION,
-    active: profileName,
-    lastKnownGood: isSelectable(home, current.lastKnownGood)
-      ? current.lastKnownGood
-      : DEFAULT_PROFILE_NAME,
-  }
+  selectableProfile(home, current.active)
+  const next: DesktopProfileStateV2 = { version: STATE_VERSION, active: current.active }
   writeState(statePath, next)
   return {
-    profileName,
+    profileName: current.active,
     state: next,
-    recoveredState,
-    ...(rolledBackFrom === undefined ? {} : { rolledBackFrom }),
+    recoveredState: loaded.recovered,
   }
-}
-
-/**
- * Confirm that one prepared profile mounted its native shell successfully.
- * @param statePath - desktop-owned state file outside the Harness profile tree.
- * @param name - profile mounted by the current generation.
- * @returns state with the active profile promoted to last-known-good.
- */
-export function markDesktopProfileHealthy(statePath: string, name: string): DesktopProfileStateV1 {
-  assertDesktopProfileName(name)
-  const current = loadState(statePath).state
-  if (current.active !== name || current.pending !== undefined) {
-    throw new Error(`${BIN_NAME}: cannot confirm inactive profile ${JSON.stringify(name)}`)
-  }
-  const next: DesktopProfileStateV1 = {
-    version: STATE_VERSION,
-    active: name,
-    lastKnownGood: name,
-  }
-  writeState(statePath, next)
-  return next
-}
-
-/**
- * Roll one failed startup back to the last confirmed profile.
- * @param statePath - desktop-owned state file outside the Harness profile tree.
- * @param name - profile whose startup failed.
- * @returns state prepared for a safe relaunch.
- */
-export function markDesktopProfileFailed(statePath: string, name: string): DesktopProfileStateV1 {
-  assertDesktopProfileName(name)
-  const current = loadState(statePath).state
-  if (current.active !== name) {
-    throw new Error(`${BIN_NAME}: cannot fail inactive profile ${JSON.stringify(name)}`)
-  }
-  const next: DesktopProfileStateV1 = {
-    version: STATE_VERSION,
-    active: current.lastKnownGood,
-    lastKnownGood: current.lastKnownGood,
-  }
-  writeState(statePath, next)
-  return next
 }

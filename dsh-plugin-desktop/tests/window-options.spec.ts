@@ -5,11 +5,20 @@ import {
   advancedWindowOptions,
   compatibilityWindowOptions,
   desktopWindowOptions,
+  extendedWindowOptions,
 } from '../src/window-options.ts'
-import { WINDOWS_TITLEBAR_HEIGHT } from '../src/window-chrome.ts'
+import {
+  ADVANCED_MACOS_TRAFFIC_LIGHT_TOP,
+  ADVANCED_WINDOWS_TITLEBAR_HEIGHT,
+  DESKTOP_FRAME_HEIGHT,
+  DESKTOP_FRAME_MACOS_TRAFFIC_LIGHT_TOP,
+} from '../src/window-chrome.ts'
 
 const spec: DesktopShellSpec = {
   mode: 'compatibility',
+  macosMaterial: 'transparent',
+  windowsMaterial: 'acrylic',
+  material: 'off',
   width: 1280,
   height: 840,
   minWidth: 900,
@@ -22,15 +31,18 @@ const spec: DesktopShellSpec = {
     templatePath: '/tmp/tray-iconTemplate.png',
     bluePath: '/tmp/tray-icon-blue.png',
   },
+  readLocalePreference: () => undefined,
   readThemeSource: () => 'system',
   requestQuit: () => {},
   requestModeChange: async () => {},
 }
 
+const preload = '/tmp/preload.cjs'
+
 describe('compatibility BrowserWindow options', () => {
-  it('preserves the native frame and enables renderer isolation', () => {
+  it('uses an independent 36px macOS frame and enables renderer isolation', () => {
     const icon = {} as NativeImage
-    const options = compatibilityWindowOptions(spec, icon, 'darwin')
+    const options = compatibilityWindowOptions(spec, icon, 'darwin', preload)
 
     expect(options).toEqual(expect.objectContaining({
       title: '',
@@ -40,34 +52,51 @@ describe('compatibility BrowserWindow options', () => {
       minHeight: 640,
       show: false,
       icon,
+      titleBarStyle: 'hiddenInset',
+      trafficLightPosition: { x: 16, y: DESKTOP_FRAME_MACOS_TRAFFIC_LIGHT_TOP },
       webPreferences: {
+        preload,
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: true,
         webSecurity: true,
       },
     }))
-    for (const option of [
-      'frame',
-      'titleBarStyle',
-      'titleBarOverlay',
-      'trafficLightPosition',
-      'transparent',
-      'vibrancy',
-      'visualEffectState',
-      'backgroundMaterial',
-      'roundedCorners',
-      'thickFrame',
-    ]) {
-      expect(options).not.toHaveProperty(option)
-    }
+    expect(options).not.toHaveProperty('titleBarOverlay')
+    expect(DESKTOP_FRAME_HEIGHT).toBe(36)
   })
 
-  it('uses the native Windows caption while hiding the application menu', () => {
-    const options = compatibilityWindowOptions(spec, {} as NativeImage, 'win32')
+  it('uses an independent Windows frame with native controls on the left-side action layout', () => {
+    const options = compatibilityWindowOptions(spec, {} as NativeImage, 'win32', preload)
 
     expect(options.title).toBe('DeepSeek Harness Desktop')
     expect(options.autoHideMenuBar).toBe(true)
+    expect(options.titleBarStyle).toBe('hidden')
+    expect(options.titleBarOverlay).toEqual(expect.objectContaining({ height: DESKTOP_FRAME_HEIGHT }))
+  })
+
+  it('keeps the ordinary native frame as the Linux compatibility fallback', () => {
+    const options = compatibilityWindowOptions(spec, {} as NativeImage, 'linux', preload)
+
+    expect(options).not.toHaveProperty('titleBarStyle')
+    expect(options).not.toHaveProperty('titleBarOverlay')
+    expect(options).not.toHaveProperty('trafficLightPosition')
+  })
+
+  it('reveals transparent material behind the macOS compatibility frame', () => {
+    const options = compatibilityWindowOptions(
+      { ...spec, material: 'transparent' },
+      {} as NativeImage,
+      'darwin',
+      preload,
+    )
+
+    expect(options).toEqual(expect.objectContaining({
+      transparent: true,
+      backgroundColor: '#00000000',
+      vibrancy: 'sidebar',
+      visualEffectState: 'followWindow',
+    }))
   })
 
   it('rejects an advanced spec before BrowserWindow construction', () => {
@@ -75,29 +104,31 @@ describe('compatibility BrowserWindow options', () => {
       { ...spec, mode: 'advanced' },
       {} as NativeImage,
       'darwin',
+      preload,
     )).toThrow('unsupported compatibility window mode advanced')
   })
 
-  it('uses hidden-inset transparent vibrancy on macOS advanced windows', () => {
-    const advanced = { ...spec, mode: 'advanced' as const }
-    const options = advancedWindowOptions(advanced, {} as NativeImage, 'darwin')
+  it('uses hidden-inset transparent vibrancy on macOS enhanced windows', () => {
+    const advanced = { ...spec, mode: 'advanced' as const, material: 'transparent' as const }
+    const options = advancedWindowOptions(advanced, {} as NativeImage, 'darwin', preload)
 
     expect(options).toEqual(expect.objectContaining({
       titleBarStyle: 'hiddenInset',
-      trafficLightPosition: { x: 16, y: 16 },
+      trafficLightPosition: { x: 16, y: ADVANCED_MACOS_TRAFFIC_LIGHT_TOP },
       transparent: true,
       backgroundColor: '#00000000',
       vibrancy: 'sidebar',
       visualEffectState: 'followWindow',
     }))
-    expect(desktopWindowOptions(advanced, {} as NativeImage, 'darwin')).toEqual(options)
+    expect(desktopWindowOptions(advanced, {} as NativeImage, 'darwin', preload)).toEqual(options)
   })
 
-  it('uses native Windows controls, Mica, shadow, and rounded corners in advanced mode', () => {
+  it('uses native Windows controls, Mica, shadow, and rounded corners in enhanced mode', () => {
     const options = advancedWindowOptions(
-      { ...spec, mode: 'advanced' },
+      { ...spec, mode: 'advanced', material: 'mica' },
       {} as NativeImage,
       'win32',
+      preload,
     )
 
     expect(options).toEqual(expect.objectContaining({
@@ -105,7 +136,7 @@ describe('compatibility BrowserWindow options', () => {
       titleBarOverlay: {
         color: '#00000000',
         symbolColor: '#7f858f',
-        height: WINDOWS_TITLEBAR_HEIGHT,
+        height: ADVANCED_WINDOWS_TITLEBAR_HEIGHT,
       },
       backgroundMaterial: 'mica',
       hasShadow: true,
@@ -114,11 +145,43 @@ describe('compatibility BrowserWindow options', () => {
     }))
   })
 
-  it('rejects advanced mode on Linux', () => {
+  it('uses the taller native caption and capability-gated material in extended mode', () => {
+    const extended = {
+      ...spec,
+      mode: 'extended' as const,
+      material: 'acrylic' as const,
+      windowsBuild: 19_045,
+    }
+    const options = extendedWindowOptions(extended, {} as NativeImage, 'win32', preload)
+
+    expect(options).toEqual(expect.objectContaining({
+      titleBarStyle: 'hidden',
+      titleBarOverlay: expect.objectContaining({ height: DESKTOP_FRAME_HEIGHT }),
+      transparent: true,
+    }))
+    expect(options).not.toHaveProperty('backgroundMaterial')
+    expect(DESKTOP_FRAME_HEIGHT).toBe(36)
+    expect(desktopWindowOptions(extended, {} as NativeImage, 'win32', preload)).toEqual(options)
+  })
+
+  it('centers macOS traffic lights in the 36px extended command bar', () => {
+    const options = extendedWindowOptions(
+      { ...spec, mode: 'extended', material: 'transparent' },
+      {} as NativeImage,
+      'darwin',
+      preload,
+    )
+
+    expect(options.trafficLightPosition).toEqual({ x: 16, y: DESKTOP_FRAME_MACOS_TRAFFIC_LIGHT_TOP })
+    expect(DESKTOP_FRAME_HEIGHT).toBe(36)
+  })
+
+  it('rejects enhanced mode on Linux', () => {
     expect(() => advancedWindowOptions(
       { ...spec, mode: 'advanced' },
       {} as NativeImage,
       'linux',
+      preload,
     )).toThrow('supported on macOS and Windows')
   })
 })

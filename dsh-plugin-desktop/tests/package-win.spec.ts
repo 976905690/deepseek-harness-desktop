@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  packageWindowsArtifact,
   packageWindowsInstaller,
   type WindowsPackageOptions,
 } from '../scripts/package-win.ts'
@@ -83,6 +84,64 @@ describe('Windows x64 installer packaging', () => {
     })
     expect(logs).toEqual([
       'Building an unsigned Windows x64 installer; Authenticode is a separate release step.',
+    ])
+  })
+
+  it('checks without credentials, builds an unsigned portable ZIP target, then verifies it', () => {
+    const calls: CommandCall[] = []
+    const logs: string[] = []
+    const value = {
+      ...options(calls, logs),
+      verifier: 'C:\\repo\\dsh-plugin-desktop\\scripts\\verify-win-portable.ts',
+    }
+
+    packageWindowsArtifact(value, 'zip', 'portable archive')
+
+    expect(calls[1]?.args).toEqual([
+      'C:\\repo\\node_modules\\electron-builder\\cli.js',
+      '--win',
+      'zip',
+      '--x64',
+      '--publish',
+      'never',
+      '--config.win.signExecutable=false',
+      '--config.npmRebuild=false',
+    ])
+    expect(calls[2]?.args).toEqual([
+      'C:\\repo\\dsh-plugin-desktop\\scripts\\verify-win-portable.ts',
+    ])
+    expect(logs).toEqual([
+      'Building an unsigned Windows x64 portable archive; Authenticode is a separate release step.',
+    ])
+  })
+
+  it('reuses a completed CI package gate when explicitly requested', () => {
+    const calls: CommandCall[] = []
+    const logs: string[] = []
+    const value = {
+      ...options(calls, logs),
+      env: {
+        ...options(calls).env,
+        DSH_PACKAGE_CHECK_ALREADY_RAN: '1',
+      },
+    }
+
+    packageWindowsInstaller(value)
+
+    expect(calls).toHaveLength(2)
+    expect(calls[0]?.args).toEqual([
+      'C:\\repo\\node_modules\\electron-builder\\cli.js',
+      '--win',
+      'nsis',
+      '--x64',
+      '--publish',
+      'never',
+      '--config.win.signExecutable=false',
+      '--config.npmRebuild=false',
+    ])
+    expect(logs).toEqual([
+      'Building an unsigned Windows x64 installer; Authenticode is a separate release step.',
+      'Skipping the Windows package preflight; the package gate already passed.',
     ])
   })
 
