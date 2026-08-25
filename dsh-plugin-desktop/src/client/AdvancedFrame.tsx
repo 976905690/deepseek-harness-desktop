@@ -13,6 +13,8 @@ export interface AdvancedFrameInjected {
   layout: DesktopLayoutState
   /** Host platform controlling native title-bar spacing. */
   platform: DesktopClientPlatform
+  /** Product title drawn in the native caption row. */
+  windowTitle: string
 }
 
 /** Full advanced root slot props. */
@@ -21,7 +23,7 @@ export type AdvancedFrameProps = PropsRuntime<'root'>
   & AdvancedFrameInjected
 
 /** Desktop-owned transparent frame around the unchanged product surfaces. */
-export function AdvancedFrame({ layout, platform, renderSlot, useSessions }: AdvancedFrameProps) {
+export function AdvancedFrame({ layout, platform, windowTitle, renderSlot, useSessions }: AdvancedFrameProps) {
   const subscribeLayout = useCallback((listener: () => void) => layout.subscribe(listener), [layout])
   const readLayout = useCallback(() => layout.getSnapshot(), [layout])
   const panels = useSyncExternalStore(subscribeLayout, readLayout)
@@ -70,9 +72,21 @@ export function AdvancedFrame({ layout, platform, renderSlot, useSessions }: Adv
       data-sidebar-collapsed={collapsed || undefined}
       style={{ gridTemplateColumns: `${columns.sidebar}px minmax(0, 1fr) ${columns.details}px` }}
     >
-      {platform === 'darwin' && <div className="dshDesktopMacCaptionRow" aria-hidden="true" />}
-      {platform === 'win32' && <div className="dshDesktopWindowsCaptionRow" aria-hidden="true" />}
+      {platform === 'darwin' && (
+        <div className="dshDesktopMacCaptionRow" aria-hidden="true">
+          <span className="dshDesktopCaptionTitle">{windowTitle}</span>
+        </div>
+      )}
+      {platform === 'win32' && (
+        <div className="dshDesktopWindowsCaptionRow" aria-hidden="true" />
+      )}
       <aside className="dshDesktopSidebarSurface">
+        {platform === 'win32' && (
+          <div className="dshDesktopSidebarCaption" aria-hidden="true">
+            <img src="/assets/tray-icon.svg" alt="" width={16} height={16} draggable={false} />
+            <span className="dshDesktopSidebarCaptionTitle">{windowTitle}</span>
+          </div>
+        )}
         <div className="dshDesktopUpstreamSidebar">
           {renderSlot('sidebar', { collapsed, width: columns.sidebar })}
         </div>

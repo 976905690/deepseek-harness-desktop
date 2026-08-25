@@ -16,17 +16,20 @@ import {
 
 describe('desktop client environment', () => {
   it('accepts the Electron-owned kebab query markers', () => {
-    expect(parseDesktopClientEnvironment('?dsh-desktop-mode=advanced&dsh-desktop-platform=darwin'))
-      .toEqual({ mode: 'advanced', platform: 'darwin' })
-    expect(parseDesktopClientEnvironment('?dsh-desktop-platform=win32&dsh-desktop-mode=compatibility'))
-      .toEqual({ mode: 'compatibility', platform: 'win32' })
+    expect(parseDesktopClientEnvironment('?dsh-desktop-mode=advanced&dsh-desktop-platform=darwin&dsh-desktop-version=2.0.1&dsh-desktop-title=Threerouter%20Harness'))
+      .toEqual({ mode: 'advanced', platform: 'darwin', version: '2.0.1', windowTitle: 'Threerouter Harness' })
+    expect(parseDesktopClientEnvironment('?dsh-desktop-platform=win32&dsh-desktop-mode=compatibility&dsh-desktop-version=2.0.0&dsh-desktop-title=Threerouter%20Harness'))
+      .toEqual({ mode: 'compatibility', platform: 'win32', version: '2.0.0', windowTitle: 'Threerouter Harness' })
   })
 
   it.each([
     ['', 'dsh-desktop-mode'],
-    ['?dsh-desktop-mode=glass&dsh-desktop-platform=darwin', 'dsh-desktop-mode'],
+    ['?dsh-desktop-mode=glass&dsh-desktop-platform=darwin&dsh-desktop-version=2.0.1&dsh-desktop-title=Threerouter%20Harness', 'dsh-desktop-mode'],
     ['?dsh-desktop-mode=advanced', 'dsh-desktop-platform'],
-    ['?dsh-desktop-mode=advanced&dsh-desktop-platform=android', 'dsh-desktop-platform'],
+    ['?dsh-desktop-mode=advanced&dsh-desktop-platform=android&dsh-desktop-version=2.0.1&dsh-desktop-title=Threerouter%20Harness', 'dsh-desktop-platform'],
+    ['?dsh-desktop-mode=advanced&dsh-desktop-platform=darwin&dsh-desktop-version=', 'dsh-desktop-version'],
+    ['?dsh-desktop-mode=advanced&dsh-desktop-platform=darwin&dsh-desktop-version=2.0.1', 'dsh-desktop-title'],
+    ['?dsh-desktop-mode=advanced&dsh-desktop-platform=darwin&dsh-desktop-version=2.0.1&dsh-desktop-title=', 'dsh-desktop-title'],
   ])('fails loud for malformed marker %s', (search, field) => {
     expect(() => parseDesktopClientEnvironment(search)).toThrow(field)
   })
@@ -73,6 +76,8 @@ describe('advanced desktop layout', () => {
       expect(css).toMatch(/\.dshDesktopFrame\[data-desktop-platform="win32"\] \.dshDesktopConversationSurface,\s*\.dshDesktopFrame\[data-desktop-platform="win32"\] \.dshDesktopDetailsSurface \{ grid-row: 2; \}/)
       expect(css).toMatch(/\.dshDesktopWindowsCaptionRow \{[^}]*grid-column: 2 \/ -1;[^}]*grid-row: 1;/)
       expect(css).toMatch(new RegExp(`\\.dshDesktopWindowsCaptionRow::before \\{[^}]*inset: 0 ${WINDOWS_CAPTION_CONTROLS_WIDTH}px 0 0;[^}]*-webkit-app-region: drag;`))
+      expect(css).toMatch(/\.dshDesktopCaptionTitle \{[^}]*pointer-events: none;/)
+      expect(css).toMatch(new RegExp(`\\.dshDesktopWindowsCaptionRow \\.dshDesktopCaptionTitle \\{[^}]*max-width: calc\\(100% - ${WINDOWS_CAPTION_CONTROLS_WIDTH}px - 12px\\);`))
       expect(css).not.toMatch(/data-desktop-platform="win32"[^{}]*header[^{}]*\{[^}]*padding-right/)
       expect(appendChild).toHaveBeenCalledWith(style)
       dispose()

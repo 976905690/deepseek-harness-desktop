@@ -36,22 +36,18 @@ describe('platform tray icons', () => {
     electron.blue.isEmpty.mockReturnValue(false)
   })
 
-  it('marks the macOS image as a native template', () => {
-    expect(prepareTrayIcon(assets, 'darwin')).toBe(electron.template)
-    expect(electron.createFromPath).toHaveBeenCalledOnce()
-    expect(electron.createFromPath).toHaveBeenCalledWith(assets.templatePath)
-    expect(electron.template.setTemplateImage).toHaveBeenCalledWith(true)
-  })
-
-  it.each(['win32', 'linux'] satisfies DesktopPlatform[])('%s uses the fixed brand-blue image', (platform) => {
-    expect(prepareTrayIcon(assets, platform)).toBe(electron.blue)
-    expect(electron.createFromPath).toHaveBeenCalledOnce()
-    expect(electron.createFromPath).toHaveBeenCalledWith(assets.bluePath)
-    expect(electron.template.setTemplateImage).not.toHaveBeenCalled()
-  })
+  it.each(['darwin', 'win32', 'linux'] satisfies DesktopPlatform[])(
+    '%s uses the fixed brand-color image',
+    (platform) => {
+      expect(prepareTrayIcon(assets, platform)).toBe(electron.blue)
+      expect(electron.createFromPath).toHaveBeenCalledOnce()
+      expect(electron.createFromPath).toHaveBeenCalledWith(assets.bluePath)
+      expect(electron.template.setTemplateImage).not.toHaveBeenCalled()
+    },
+  )
 
   it.each([
-    ['darwin', 'templatePath', electron.template],
+    ['darwin', 'bluePath', electron.blue],
     ['win32', 'bluePath', electron.blue],
   ] as const)('rejects an empty %s tray image', (platform, pathKey, image) => {
     image.isEmpty.mockReturnValueOnce(true)

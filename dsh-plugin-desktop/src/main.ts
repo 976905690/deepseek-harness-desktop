@@ -105,6 +105,19 @@ function notifyWindowsVolumeConcerns(
 
 /** Start one Electron process and leave lifetime to the mounted desktop plugin. */
 async function start(): Promise<void> {
+  // Debugging switches: disable GPU compositing to rule out
+  // GPU-driver-caused black screens on Windows. Remote debugging port
+  // is enabled only via explicit opt-in to avoid WSAEADDRINUSE (0x2740)
+  // errors when port 9222 is already occupied by a lingering process.
+  const debugPort = process.env.DSH_REMOTE_DEBUG_PORT
+  if (debugPort !== undefined && debugPort !== '') {
+    app.commandLine.appendSwitch('remote-debugging-port', debugPort)
+  }
+  if (process.env.DSH_DISABLE_GPU === '1') {
+    app.commandLine.appendSwitch('disable-gpu')
+    app.commandLine.appendSwitch('disable-gpu-compositing')
+  }
+
   app.setName(PRODUCT_NAME)
   if (!app.requestSingleInstanceLock()) {
     app.quit()

@@ -16,7 +16,7 @@ function loadTrayIcon(path: string): NativeImage {
 
 /**
  * Load the tray images required by one native platform.
- * @param assets - generated template and brand-color asset paths.
+ * @param assets - generated brand-color asset paths.
  * @param platform - current Electron platform.
  * @returns the image passed to the Tray constructor.
  */
@@ -24,10 +24,8 @@ export function prepareTrayIcon(
   assets: DesktopTrayIcons,
   platform: DesktopPlatform,
 ): NativeImage {
-  if (platform === 'darwin') {
-    const template = loadTrayIcon(assets.templatePath)
-    template.setTemplateImage(true)
-    return template
-  }
+  // The Threerouter brand mark is a full-color illustration; a monochrome
+  // template would wash it out. Use the brand-color asset on all platforms.
+  void platform
   return loadTrayIcon(assets.bluePath)
 }

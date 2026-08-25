@@ -329,7 +329,7 @@ function SourcesView({ state, error, onMutation, onAddStandard, t }: {
 function SourceRow({ source, onToggle, onRemove, t }: { source: MarketSourceView; onToggle: () => void; onRemove: () => void; t: MarketOverlayProps['t'] }) {
   return (
     <div className="dshMarketSource">
-      <div><h3>{source.name}{source.partnership && <span className="dshMarketPartner">{t('partner')}</span>}</h3><p>{source.description ?? source.endpoint}</p></div>
+      <div><h3>{source.name}{source.partnership && <span className="dshMarketPartner">{t('partner')}</span>}</h3><p>{source.partnership ? t('partnerCatalogDescription') : (source.description ?? source.endpoint)}</p></div>
       <div className="dshMarketSourceActions">
         <span className="dshMarketStatus" data-enabled={source.enabled}><span className="dshMarketStatusDot" />{source.enabled ? t('enabled') : t('disabled')}</span>
         <Button variant="outline" size="sm" icon={source.enabled ? <IconCheckOutline16 /> : undefined} onClick={onToggle}>{source.enabled ? t('disable') : t('enable')}</Button>
@@ -342,7 +342,7 @@ function SourceRow({ source, onToggle, onRemove, t }: { source: MarketSourceView
 function AvailableSource({ provider, onAdd, t }: { provider: MarketBuiltInProvider; onAdd: () => void; t: MarketOverlayProps['t'] }) {
   return (
     <div className="dshMarketSource">
-      <div><h3>{provider.name}{provider.partnership && <span className="dshMarketPartner">{t('partner')}</span>}</h3><p>{provider.description}</p></div>
+      <div><h3>{provider.name}{provider.partnership && <span className="dshMarketPartner">{t('partner')}</span>}</h3><p>{provider.partnership ? t('partnerCatalogDescription') : provider.description}</p></div>
       <Button variant="outline" size="sm" icon={<IconPlusOutline16 />} onClick={onAdd}>{t('add')}</Button>
     </div>
   )

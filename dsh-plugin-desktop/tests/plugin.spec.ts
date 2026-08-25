@@ -90,6 +90,7 @@ function createHarness(platform: DesktopRuntime['platform'] = 'darwin'): PluginH
       update,
       replace: vi.fn(async () => {}),
     })),
+    mutate: vi.fn(async () => {}),
   }
   const ctx = {
     desktopRuntime: runtime,
@@ -103,8 +104,13 @@ function createHarness(platform: DesktopRuntime['platform'] = 'darwin'): PluginH
     },
     settings,
     logger: { warn: vi.fn(), error: vi.fn() },
-    get: vi.fn((key: unknown) => String(key) === 'desktopRuntime' ? runtime : () => {}),
+    get: vi.fn((key: unknown) => String(key) === 'desktopRuntime'
+      ? runtime
+      : String(key) === 'connection'
+        ? undefined
+        : () => {}),
     effect: vi.fn((register: () => unknown) => register()),
+    inject: vi.fn((_deps: unknown[], register: (provided: Context) => unknown) => register(ctx)),
     on: vi.fn((event: string, listener: (namespace: unknown, next: unknown) => void) => {
       if (event === 'settings/updated') settingsUpdated = listener
       return () => { if (settingsUpdated === listener) settingsUpdated = undefined }
@@ -162,12 +168,14 @@ describe('desktop Host plugin', () => {
   })
 
   it('builds the loopback root with validated renderer mode and platform markers', () => {
-    const url = new URL(desktopRendererUrl(43120, 'advanced', 'darwin'))
+    const url = new URL(desktopRendererUrl(43120, 'advanced', 'darwin', 'Threerouter Harness'))
     expect(url.origin).toBe('http://127.0.0.1:43120')
     expect(url.pathname).toBe('/')
     expect(Object.fromEntries(url.searchParams)).toEqual({
       'dsh-desktop-mode': 'advanced',
       'dsh-desktop-platform': 'darwin',
+      'dsh-desktop-version': '2.0.1',
+      'dsh-desktop-title': 'Threerouter Harness',
     })
   })
 
@@ -186,9 +194,9 @@ describe('desktop Host plugin', () => {
     expect(loaderAwait).not.toHaveBeenCalled()
     expect(harness.shell()).toEqual(expect.objectContaining({
       mode: 'compatibility',
-      url: 'http://127.0.0.1:43120/?dsh-desktop-mode=compatibility&dsh-desktop-platform=darwin',
-      productName: 'DSH Desktop',
-      windowTitle: 'DeepSeek Harness Desktop',
+      url: 'http://127.0.0.1:43120/?dsh-desktop-mode=compatibility&dsh-desktop-platform=darwin&dsh-desktop-version=2.0.1&dsh-desktop-title=Threerouter+Harness',
+      productName: 'Threerouter Harness',
+      windowTitle: 'Threerouter Harness',
       readThemeSource: expect.any(Function),
     }))
     expect(harness.shell()?.iconPath.endsWith(join('build', 'app-icon-mac.png'))).toBe(true)

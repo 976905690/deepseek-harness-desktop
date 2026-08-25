@@ -45,6 +45,9 @@
       "built": false
     }
   },
+  "devDependencies": {
+    "unrun": "^0.3.0"
+  },
   "scripts": {
     "build": "yarn workspace dsh-community-market build && yarn workspace dsh-plugin-desktop build",
     "typecheck": "yarn workspace dsh-plugin-desktop typecheck",
