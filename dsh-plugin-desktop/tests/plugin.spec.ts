@@ -225,8 +225,14 @@ describe('desktop Host plugin', () => {
       'dsh-desktop-mode': 'extended',
       'dsh-desktop-platform': 'win32',
       'dsh-desktop-material': 'mica',
+      'dsh-desktop-titlebar-inset': '36',
       'dsh-desktop-mica': '1',
     })
+    expect(Object.fromEntries(new URL(desktopRendererUrl(
+      43120,
+      'compatibility',
+      'linux',
+    )).searchParams)).not.toHaveProperty('dsh-desktop-titlebar-inset')
   })
 
   it('registers settings and the active Web port without re-entering Loader settlement', async () => {
@@ -244,7 +250,7 @@ describe('desktop Host plugin', () => {
     expect(loaderAwait).not.toHaveBeenCalled()
     expect(harness.shell()).toEqual(expect.objectContaining({
       mode: 'compatibility',
-      url: 'http://127.0.0.1:43120/?dsh-desktop-mode=compatibility&dsh-desktop-platform=darwin&dsh-desktop-material=transparent',
+      url: 'http://127.0.0.1:43120/?dsh-desktop-mode=compatibility&dsh-desktop-platform=darwin&dsh-desktop-material=transparent&dsh-desktop-titlebar-inset=36',
       productName: 'DSH Desktop',
       windowTitle: 'DeepSeek Harness Desktop',
       readThemeSource: expect.any(Function),

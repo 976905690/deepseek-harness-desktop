@@ -11,8 +11,7 @@ const STYLE_ID = 'dsh-desktop-framed-styles'
 
 const CSS = `
 html:has(body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extended"])),
-body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extended"]),
-body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extended"]) #root {
+body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extended"]) {
   width: 100%;
   height: 100%;
 }
@@ -24,9 +23,16 @@ body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extende
 }
 body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extended"]) #root {
   box-sizing: border-box;
-  width: 100%;
-  height: 100%;
-  padding-top: ${DESKTOP_FRAME_HEIGHT}px;
+  position: fixed;
+  top: ${DESKTOP_FRAME_HEIGHT}px;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: auto;
+  height: auto;
+  padding-top: 0;
+  overflow: hidden;
+  transform: translateZ(0);
 }
 /* The custom frame owns the top band. A shell overlay is the containing block
    for fixed plugin surfaces, so they cannot escape into Desktop chrome. */

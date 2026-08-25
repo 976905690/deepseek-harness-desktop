@@ -59,6 +59,7 @@ import { desktopBootRecoveryInjections } from './desktop-boot-recovery.ts'
 import type { DesktopShellMode } from './runtime.ts'
 import type {} from './runtime.ts'
 import { DESKTOP_DEFAULT_WEB_PORT } from './desktop-port.ts'
+import { DESKTOP_FRAME_HEIGHT } from './window-chrome.ts'
 import {
   DEFAULT_MACOS_WINDOW_MATERIAL,
   DEFAULT_WINDOWS_WINDOW_MATERIAL,
@@ -155,6 +156,11 @@ export function desktopRendererUrl(
   url.searchParams.set('dsh-desktop-mode', mode)
   url.searchParams.set('dsh-desktop-platform', platform)
   url.searchParams.set('dsh-desktop-material', material)
+  if (mode === 'extended' || (mode === 'compatibility' && platform !== 'linux')) {
+    // Body-level plugin portals do not inherit the framed root's geometry.
+    // Publish the exact content boundary so they can yield Desktop chrome.
+    url.searchParams.set('dsh-desktop-titlebar-inset', String(DESKTOP_FRAME_HEIGHT))
+  }
   if (platform === 'win32') {
     url.searchParams.set('dsh-desktop-mica', windowsSupportsMica(windowsBuild) ? '1' : '0')
   }
