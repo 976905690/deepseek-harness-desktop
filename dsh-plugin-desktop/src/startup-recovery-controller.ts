@@ -52,6 +52,8 @@ export interface DesktopStartupRecoveryCheckpoint {
   readonly appVersion?: string
   readonly provider?: string
   readonly fileCount?: number
+  readonly pluginCount?: number
+  readonly totalBytes?: number
 }
 
 export interface DesktopStartupRecoverySnapshot {
@@ -146,6 +148,8 @@ function safeCheckpoint(slot: ProfileCheckpointSlot): DesktopStartupRecoveryChec
     appVersion: slot.manifest.appVersion,
     provider: slot.manifest.provider,
     fileCount: slot.manifest.files.filter(file => file.present).length,
+    ...(slot.pluginCount === undefined ? {} : { pluginCount: slot.pluginCount }),
+    ...(slot.totalBytes === undefined ? {} : { totalBytes: slot.totalBytes }),
   }
 }
 

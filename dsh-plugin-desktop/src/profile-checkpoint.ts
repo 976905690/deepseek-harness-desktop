@@ -100,6 +100,10 @@ export interface ProfileCheckpointSlot {
   readonly snapshotExists: boolean
   readonly snapshotDirectory: string
   readonly manifest?: ProfileCheckpointManifest
+  /** Count derived from the snapshotted dsh.profile.bundles list. */
+  readonly pluginCount?: number
+  /** Total bytes of the declarative files present in this checkpoint. */
+  readonly totalBytes?: number
 }
 
 export type CaptureHealthyResult =
@@ -236,6 +240,23 @@ function readJson(path: string): unknown {
   return JSON.parse(readFileSync(path, 'utf8')) as unknown
 }
 
+function checkpointPluginCount(directory: string): number | undefined {
+  try {
+    const value = readJson(filePath(directory, 'package.json'))
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) return undefined
+    const dsh = (value as Record<string, unknown>).dsh
+    if (dsh === null || typeof dsh !== 'object' || Array.isArray(dsh)) return undefined
+    const profile = (dsh as Record<string, unknown>).profile
+    if (profile === null || typeof profile !== 'object' || Array.isArray(profile)) return undefined
+    const bundles = (profile as Record<string, unknown>).bundles
+    if (!Array.isArray(bundles) || bundles.some(bundle => typeof bundle !== 'string')) return undefined
+    return bundles.length
+  } catch {
+    // Browseable checkpoint metadata must not make a restorable slot disappear.
+    return undefined
+  }
+}
+
 function fileEqual(left: FileImage, right: FileImage): boolean {
   return left.present === right.present && (!left.present
     || left.sha256 === right.sha256 && left.size === right.size && left.mode === right.mode)
@@ -301,7 +322,20 @@ export class DesktopProfileCheckpoint {
       const snapshot = this.readSnapshot(directory, false)
       return snapshot === undefined
         ? { slotId, snapshotExists: false, snapshotDirectory: directory }
-        : { slotId, snapshotExists: true, snapshotDirectory: directory, manifest: snapshot.manifest }
+        : (() => {
+            const pluginCount = checkpointPluginCount(snapshot.directory)
+            return {
+              slotId,
+              snapshotExists: true,
+              snapshotDirectory: directory,
+              manifest: snapshot.manifest,
+              ...(pluginCount === undefined ? {} : { pluginCount }),
+              totalBytes: snapshot.manifest.files.reduce(
+                (total, file) => total + (file.present ? (file.size ?? 0) : 0),
+                0,
+              ),
+            }
+          })()
     })
   }
 

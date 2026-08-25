@@ -54,6 +54,10 @@ afterEach(() => {
 describe('Desktop profile health checkpoints', () => {
   it('captures browseable metadata and keeps all three stable slots visible', () => {
     const target = fixture({ now: () => Date.parse('2026-08-25T01:02:03.000Z') })
+    writeFileSync(join(target.profile, 'package.json'), `${JSON.stringify({
+      name: 'healthy-0',
+      dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'example-plugin'] } },
+    })}\n`)
     const result = target.checkpoint.captureHealthy()
     expect(result).toMatchObject({
       status: 'captured',
@@ -75,6 +79,10 @@ describe('Desktop profile health checkpoints', () => {
       ['slot-3', false],
     ])
     expect(slots[0]!.snapshotDirectory).toBe((result as { snapshotDirectory: string }).snapshotDirectory)
+    expect(slots[0]).toMatchObject({ pluginCount: 3, totalBytes: expect.any(Number) })
+    expect(slots[0]!.totalBytes).toBe(
+      slots[0]!.manifest!.files.reduce((total, file) => total + (file.present ? (file.size ?? 0) : 0), 0),
+    )
     expect(existsSync(join(slots[0]!.snapshotDirectory, 'manifest.json'))).toBe(true)
     if (process.platform !== 'win32') {
       expect(lstatSync(join(slots[0]!.snapshotDirectory, 'manifest.json')).mode & 0o777).toBe(0o600)
