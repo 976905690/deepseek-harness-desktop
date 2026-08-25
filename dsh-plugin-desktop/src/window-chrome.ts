@@ -4,6 +4,9 @@ export const ADVANCED_MACOS_CONTENT_INSET = 20
 /** Native drag hit-region height retained by the macOS enhanced layout. */
 export const ADVANCED_MACOS_DRAG_REGION_HEIGHT = 32
 
+/** Keep the enhanced drag strip below renderer-owned body overlay hosts. */
+export const ADVANCED_MACOS_DRAG_LAYER_Z_INDEX = 20
+
 /** Native traffic-light position retained by the macOS enhanced window. */
 export const ADVANCED_MACOS_TRAFFIC_LIGHT_TOP = 16
 
