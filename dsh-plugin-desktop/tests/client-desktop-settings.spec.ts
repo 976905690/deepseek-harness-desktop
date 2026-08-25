@@ -7,7 +7,11 @@ import {
   DesktopNativeActions,
   DesktopRestartMenuItems,
 } from '../src/client/DesktopNativeActions.tsx'
-import { DesktopVersionControl } from '../src/client/ExtendedTitlebar.tsx'
+import {
+  DesktopModeControl,
+  DesktopVersionControl,
+  selectDesktopFrameMode,
+} from '../src/client/ExtendedTitlebar.tsx'
 import { DesktopSettingsSection } from '../src/client/DesktopSettingsSection.tsx'
 import { DesktopTerminalSettingsAction } from '../src/client/DesktopTerminalSettingsAction.tsx'
 import {
@@ -180,6 +184,29 @@ describe('Desktop native action presentation', () => {
     expect(markup).toContain('data-slot="hover-card-trigger"')
   })
 
+  it('renders the active presentation pill through a shadcn hover-card trigger', () => {
+    const markup = renderToStaticMarkup(createElement(DesktopModeControl, {
+      mode: 'extended',
+      setMode: vi.fn(async () => {}),
+      restart: vi.fn(async () => {}),
+      t,
+    }))
+
+    expect(markup).toContain('Extended window')
+    expect(markup).toContain('aria-label="Desktop appearance and behavior: Extended window"')
+    expect(markup).toContain('data-slot="hover-card-trigger"')
+  })
+
+  it('persists a presentation change before requesting the confirmed restart', async () => {
+    const order: string[] = []
+    const setMode = vi.fn(async (mode: string) => { order.push(`mode:${mode}`) })
+    const restart = vi.fn(async () => { order.push('restart') })
+
+    await selectDesktopFrameMode('advanced', setMode, restart)
+
+    expect(order).toEqual(['mode:advanced', 'restart'])
+  })
+
   it('keeps explicit text labels in settings', () => {
     const markup = renderToStaticMarkup(createElement(DesktopNativeActions, {
       api,
@@ -246,7 +273,7 @@ describe('Desktop native action presentation', () => {
 })
 
 describe('Desktop settings Slot registration', () => {
-  it('registers the official Desktop section, native actions, and both settings scopes', () => {
+  it('registers the official Desktop section, native actions, and both settings scopes', async () => {
     const scope = {
       getSnapshot: () => ({
         status: 'loading' as const,
@@ -275,7 +302,7 @@ describe('Desktop settings Slot registration', () => {
       slots: { inject, register },
     } as unknown as ClientContext
 
-    applyDesktopSettings(ctx, {
+    const control = applyDesktopSettings(ctx, {
       version: '2.0.3',
       mode: 'compatibility',
       platform: 'darwin',
@@ -317,5 +344,7 @@ describe('Desktop settings Slot registration', () => {
     })
     expect(actionOptions.inject()).toHaveProperty('api')
     expect(actionComponent).toBe(DesktopTerminalSettingsAction)
+    await control.setMode('extended')
+    expect(scope.set).toHaveBeenCalledWith('mode', 'extended')
   })
 })

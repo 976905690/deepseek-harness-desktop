@@ -464,6 +464,7 @@ describe('independent Desktop frame', () => {
       expect((registrations[1]?.inject as () => Record<string, unknown>)()).toMatchObject({
         environment: { mode: 'extended', platform: 'win32', material: 'acrylic' },
         api: expect.any(Object),
+        setMode: expect.any(Function),
       })
       expect(registrations).toHaveLength(2)
       expect(dataset).toMatchObject({
@@ -524,6 +525,9 @@ describe('independent Desktop frame', () => {
         id: 'desktop-frame-titlebar',
       })
       expect(registrations[0]).not.toHaveProperty('children')
+      expect((registrations[0]?.inject as () => Record<string, unknown>)()).toMatchObject({
+        setMode: expect.any(Function),
+      })
       expect(JSON.stringify(registrations)).not.toContain('desktop.titlebar.action')
       expect(dataset).toMatchObject({
         dshDesktopMode: 'compatibility',
