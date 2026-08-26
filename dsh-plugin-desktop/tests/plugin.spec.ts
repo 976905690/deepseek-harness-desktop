@@ -357,14 +357,17 @@ describe('desktop Host plugin', () => {
     expect(JSON.parse(body)).toEqual({ allowed: false })
   })
 
-  it.each(['win32', 'linux'] as const)(
+  it.each([
+    ['win32', 'tray-icon-blue.png'],
+    ['linux', 'app-icon.png'],
+  ] as const)(
     'keeps the full-size application icon on %s',
-    (platform) => {
+    (platform, expectedIcon) => {
       const harness = createHarness(platform)
 
       apply(harness.ctx, config)
 
-      expect(harness.shell()?.iconPath.endsWith(join('build', 'app-icon.png'))).toBe(true)
+      expect(harness.shell()?.iconPath.endsWith(join('build', expectedIcon))).toBe(true)
     },
   )
 

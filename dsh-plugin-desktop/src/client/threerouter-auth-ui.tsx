@@ -323,6 +323,9 @@ export function ThreerouterAuthUI({ connection, sessions, platform, version, t }
               <button type="button" className="trAuthRegister" onClick={handleRegister}>
                 {t('createAccount')}
               </button>
+              <button type="button" className="trAuthCloseBtn" onClick={() => setOpen(false)}>
+                {t('close')}
+              </button>
               <p className="trAuthHint">{t('apiKeyHint')}</p>
             </div>
           ) : (

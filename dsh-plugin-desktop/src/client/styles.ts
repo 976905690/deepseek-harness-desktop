@@ -65,22 +65,24 @@ html:has([aria-modal="true"]) .dshDesktopSidebarSurface::before { -webkit-app-re
 .trAuthBalance { font-size: 12px; font-weight: 600; color: var(--dsw-alias-label-primary); }
 .trAuthLabel { font-size: 12px; font-weight: 600; color: var(--dsw-alias-label-primary); }
 .trAuthDialog { position: absolute; top: 40px; right: 0; width: 300px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 12px; background: var(--dsw-alias-bg-layer-3); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18); color: var(--dsw-alias-label-primary); overflow: hidden; }
-.trAuthDialogHeader { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--dsw-alias-border-l1); color: #fff; font-size: 13px; font-weight: 600; }
-.trAuthClose { border: none; background: transparent; color: #fff; cursor: pointer; font-size: 13px; line-height: 1; padding: 4px; }
-.trAuthClose:hover { color: #fff; }
+.trAuthDialogHeader { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--dsw-alias-border-l1); color: var(--dsw-alias-label-primary); font-size: 13px; font-weight: 600; }
+.trAuthClose { border: none; background: transparent; color: var(--dsw-alias-label-secondary); cursor: pointer; font-size: 13px; line-height: 1; padding: 4px; }
+.trAuthClose:hover { color: var(--dsw-alias-label-primary); }
 .trAuthError { margin: 10px 14px 0; padding: 8px 10px; border-radius: 8px; background: var(--dsw-alias-state-error-secondary); color: #fff; font-size: 12px; }
-.trAuthNotice { margin: 10px 14px 0; padding: 8px 10px; border-radius: 8px; background: var(--dsw-alias-state-success-tertiary); color: #fff; font-size: 12px; }
+.trAuthNotice { margin: 10px 14px 0; padding: 8px 10px; border-radius: 8px; background: var(--dsw-alias-state-success-tertiary); color: var(--dsw-alias-label-primary); font-size: 12px; }
 .trAuthLogin, .trAuthProfile { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
-.trAuthLogin label { display: flex; flex-direction: column; gap: 4px; color: #fff; font-size: 12px; }
-.trAuthLogin input { height: 32px; padding: 0 10px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 8px; background: var(--dsw-specific-login-input); color: #fff; font-size: 13px; outline: none; }
-.trAuthLogin input::placeholder { color: #fff; opacity: 0.65; }
+.trAuthLogin label { display: flex; flex-direction: column; gap: 4px; color: var(--dsw-alias-label-primary); font-size: 12px; }
+.trAuthLogin input { height: 32px; padding: 0 10px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 8px; background: var(--dsw-specific-login-input, var(--dsw-alias-bg-layer-2, rgba(127, 133, 143, 0.08))); color: var(--dsw-alias-label-primary); font-size: 13px; outline: none; color-scheme: inherit; }
+.trAuthLogin input::placeholder { color: var(--dsw-alias-label-tertiary, #98a2b3); opacity: 1; }
 .trAuthLogin input:focus { border-color: var(--dsw-alias-state-business-primary); }
-.trAuthHint { margin: 0; color: #fff; font-size: 11px; line-height: 1.5; opacity: 0.85; }
+.trAuthHint { margin: 0; color: var(--dsw-alias-label-secondary); font-size: 11px; line-height: 1.5; }
 .trAuthPrimary { height: 34px; border: none; border-radius: 8px; background: var(--dsw-alias-button-primary-fill); color: var(--dsw-alias-label-primary-foreground); font-size: 13px; font-weight: 600; cursor: pointer; }
 .trAuthPrimary:hover { background: var(--dsw-alias-button-primary-hover); }
 .trAuthPrimary:disabled { background: var(--dsw-alias-button-primary-dimmed); cursor: default; }
-.trAuthRegister { height: 34px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 8px; background: transparent; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; }
+.trAuthRegister { height: 34px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 8px; background: transparent; color: var(--dsw-alias-label-primary); font-size: 13px; font-weight: 600; cursor: pointer; }
 .trAuthRegister:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.trAuthCloseBtn { height: 32px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 8px; background: transparent; color: var(--dsw-alias-label-secondary); font-size: 13px; font-weight: 500; cursor: pointer; }
+.trAuthCloseBtn:hover { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-primary); }
 .trAuthProfileRow { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .trAuthEmail { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .trAuthBalanceBig { font-size: 15px; font-weight: 700; color: var(--dsw-alias-label-primary); }
