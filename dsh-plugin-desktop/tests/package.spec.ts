@@ -566,7 +566,7 @@ describe('published package surface', () => {
   it('fixes the installed application identity', () => {
     expect(manifest.version).toBe(workspaceManifest.version)
     expect(manifest.build?.productName).toBe('DSH Desktop')
-    expect(manifest.build?.appId).toBe('ai.deepseek.dsh.desktop')
+    expect(manifest.build?.appId).toBe('com.threerouter.harness.desktop')
     expect(manifest.build?.asarUnpack).toEqual([
       'package.json',
       'cordis.patch.yml',
@@ -722,7 +722,7 @@ describe('published package surface', () => {
   it('keeps one fixed brand-blue tray source for generated native assets', () => {
     const source = readFileSync(new URL('build/tray-icon.svg', packageRoot), 'utf8')
 
-    expect(source.match(/#4D6BFE/gu)).toHaveLength(1)
+    expect(source.match(/#004FAB/gu)).toHaveLength(1)
     expect(source).not.toMatch(/<style\b|prefers-color-scheme/iu)
     for (const filename of [
       'tray-iconTemplate.png',
@@ -741,7 +741,7 @@ describe('published package surface', () => {
       .update(readFileSync(new URL('build/app-icon.png', packageRoot)))
       .digest('hex')
 
-    expect(digest).toBe('315fbc6e57ff1f34894f21f66fb7f9f26deccf78333c71fad21a6cec64e7de80')
+    expect(digest).toBe('df3065c5e51cfde36b2c17cc65f577e29476bd42b719897f48ef57ce5ee56071')
   })
 
   it('generates a centered macOS icon with a 100-pixel visual inset', async () => {
