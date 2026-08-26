@@ -116,20 +116,12 @@ export const zh = {
   done: '完成',
   builtIn: '内置适配器',
   partner: '合作提供方',
-<<<<<<< HEAD
-  partnerCatalogDescription: '合作提供方目录。需要用户明确添加并启用。目录收录不代表插件经过审核或推荐。',
-  enabled: '已启用',
-  disabled: '已停用',
-  enable: '启用来源',
-  disable: '停用来源',
-=======
   sourcePartnershipBefore: '除了添加符合接入格式的自定义来源，也可以',
   sourcePartnershipContact: '联系我们',
   sourcePartnershipAfter: '，申请将你的插件市场加入内置合作来源。',
   sourcePartnershipGuide: '查看来源接入指南',
   selectSource: '选择此来源',
   selectedSource: '当前来源',
->>>>>>> upstream/master
   add: '添加',
   remove: '移除来源',
   moveUp: '上移来源',
@@ -274,20 +266,12 @@ export const en: Record<MarketLocaleKey, string> = {
   done: 'Done',
   builtIn: 'Built-in adapter',
   partner: 'Partner provider',
-<<<<<<< HEAD
-  partnerCatalogDescription: 'Partner provider catalog. Requires explicit user addition and enablement. Catalog inclusion does not imply plugin review or endorsement.',
-  enabled: 'Enabled',
-  disabled: 'Disabled',
-  enable: 'Enable source',
-  disable: 'Disable source',
-=======
   sourcePartnershipBefore: 'Besides adding a compatible custom source, you can ',
   sourcePartnershipContact: 'contact us',
   sourcePartnershipAfter: ' to apply for inclusion as a built-in partner source.',
   sourcePartnershipGuide: 'Read the source integration guide',
   selectSource: 'Select this source',
   selectedSource: 'Current source',
->>>>>>> upstream/master
   add: 'Add',
   remove: 'Remove source',
   moveUp: 'Move source up',

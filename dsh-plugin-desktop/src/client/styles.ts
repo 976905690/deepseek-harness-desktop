@@ -27,7 +27,7 @@ body:is([data-dsh-desktop-mode="extended"], [data-dsh-desktop-mode="advanced"]) 
 .dshDesktopFrame[data-desktop-mode="advanced"][data-desktop-platform="darwin"] .dshDesktopDetailsSurface { grid-row: 2; }
 .dshDesktopFrame[data-desktop-mode="advanced"][data-desktop-platform="darwin"] .dshDesktopSidebarSurface::before { content: ""; position: absolute; z-index: ${ADVANCED_MACOS_DRAG_LAYER_Z_INDEX}; top: 0; right: 0; left: ${MACOS_TRAFFIC_LIGHT_SAFE_WIDTH}px; height: ${ADVANCED_MACOS_DRAG_REGION_HEIGHT}px; user-select: none; -webkit-app-region: drag; }
 .dshDesktopMacCaptionRow { position: absolute; z-index: ${ADVANCED_MACOS_DRAG_LAYER_Z_INDEX}; grid-column: 2 / -1; grid-row: 1; top: 0; right: 0; left: 0; height: ${ADVANCED_MACOS_DRAG_REGION_HEIGHT}px; background: var(--dsw-alias-bg-base); user-select: none; -webkit-app-region: drag; }
-.dshDesktopSidebarCaption { position: absolute; top: 0; left: 0; right: 0; height: ${WINDOWS_TITLEBAR_HEIGHT}px; display: flex; align-items: center; gap: 6px; padding: 0 12px; z-index: 10; pointer-events: none; user-select: none; color: var(--dsw-alias-label-secondary); -webkit-app-region: drag; }
+.dshDesktopSidebarCaption { position: absolute; top: 0; left: 0; right: 0; height: ${ADVANCED_WINDOWS_TITLEBAR_HEIGHT}px; display: flex; align-items: center; gap: 6px; padding: 0 12px; z-index: 10; pointer-events: none; user-select: none; color: var(--dsw-alias-label-secondary); -webkit-app-region: drag; }
 .dshDesktopSidebarCaption > svg,
 .dshDesktopSidebarCaption > span { pointer-events: auto; -webkit-app-region: no-drag; }
 .dshDesktopSidebarCaptionTitle { font-size: 12px; line-height: 1; font-weight: 500; color: var(--dsw-alias-label-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -109,7 +109,11 @@ export function applyAdvancedShell(ctx: ClientContext, environment: DesktopClien
       'details': { kind: 'single', scope: 'session' },
       'shell.overlay': { kind: 'list', scope: 'root' },
     },
-    inject: () => ({ layout: desktopLayout, platform: environment.platform, windowTitle: environment.windowTitle }),
+    inject: () => ({
+      layout: desktopLayout,
+      platform: environment.platform,
+      ...(environment.windowTitle === undefined ? {} : { windowTitle: environment.windowTitle }),
+    }),
   }, AdvancedFrame), 'desktop: advanced root slot')
 
   // Threerouter-branded sidebar (replaces upstream SidebarRoot).

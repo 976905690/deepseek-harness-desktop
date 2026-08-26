@@ -7,6 +7,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionRpcHandler } from '@deepseek-ai/dsh-client-connection'
+import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { settingsNamespace, type SettingsNamespace } from '@deepseek-ai/dsh-settings'
 
 // Threerouter API base URL from official site
@@ -16,6 +17,9 @@ export const THREEROUTER_OPENAI_BASE = `${THREEROUTER_BASE_URL}/v1`
 // The environment variable name used to inject the Threerouter API key into
 // the llm-pi-ai OpenAI-compatible provider.
 export const THREEROUTER_API_KEY_ENV = 'THREEROUTER_API_KEY'
+
+// Credential seam reference for the Threerouter API key env name.
+const THREEROUTER_API_KEY_REF = credentialRef(THREEROUTER_API_KEY_ENV)
 
 // Provider route registered into the llm-pi-ai catalog when the user signs in.
 export const THREEROUTER_PROVIDER = 'threerouter'
@@ -309,7 +313,7 @@ export function createThreerouterAuthHandler(ctx: Context) {
   async function injectApiKeyToCredentials(apiKey: string): Promise<void> {
     const credentials = ctx.get('credentials')
     if (credentials !== undefined) {
-      await credentials.set(THREEROUTER_API_KEY_ENV, apiKey)
+      await credentials.set(THREEROUTER_API_KEY_REF, apiKey)
     }
     ctx.logger.info('threerouter-auth: injected API key into credentials', {
       env: THREEROUTER_API_KEY_ENV,
@@ -537,7 +541,7 @@ export function createThreerouterAuthHandler(ctx: Context) {
           storedState = null
           const credentials = ctx.get('credentials')
           if (credentials !== undefined) {
-            await credentials.set(THREEROUTER_API_KEY_ENV, '')
+            await credentials.set(THREEROUTER_API_KEY_REF, '')
           }
           await clearModelConfiguration()
           return { ok: true, value: { success: true } satisfies ThreerouterLogoutResponse }

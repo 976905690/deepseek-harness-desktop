@@ -10,7 +10,6 @@ import {
   type LocaleSettings,
 } from '@deepseek-ai/dsh-client-locale'
 import type {} from '@deepseek-ai/dsh-host-webserver'
-import pkg from '../package.json' with { type: 'json' }
 import {
   THEME_SETTINGS_NAMESPACE,
   type ThemeSettings,
@@ -153,10 +152,6 @@ export const Config: z<Config> = z.object({
  * @param windowTitle - product title surfaced by the advanced caption row.
  * @returns the URL loaded by the BrowserWindow.
  */
-export function desktopRendererUrl(
-  port: number,
-  mode: DesktopShellMode,
-  platform: Context['desktopRuntime']['platform'],
 export function desktopRendererUrl(
   port: number,
   mode: DesktopShellMode,

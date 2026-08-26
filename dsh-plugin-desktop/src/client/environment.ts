@@ -15,20 +15,12 @@ export interface DesktopClientEnvironment {
   mode: DesktopClientMode
   /** Electron Host platform used for native spacing and drag regions. */
   platform: DesktopClientPlatform
-export interface DesktopClientEnvironment {
-  /** Installed Desktop product version supplied by the Electron Host. */
-  version: string
-  /** Active shell mode for this BrowserWindow lifetime. */
-  mode: DesktopClientMode
-  /** Electron Host platform used for native spacing and drag regions. */
-  platform: DesktopClientPlatform
   /** Capability-gated native material active behind this renderer. */
   material: DesktopClientMaterial
   /** Whether Windows exposes its supported Mica system backdrop. */
   micaSupported: boolean
   /** Product title surfaced by the advanced shell's desktop caption row (Threerouter extension). */
   windowTitle?: string
-}
 }
 
 const MODES = new Set<DesktopClientMode>(['compatibility', 'extended', 'advanced'])
