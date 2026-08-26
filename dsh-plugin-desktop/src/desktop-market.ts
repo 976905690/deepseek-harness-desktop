@@ -53,8 +53,8 @@ export interface DesktopMarketSnapshot {
 }
 
 const DEFAULT_SNAPSHOT: DesktopMarketSnapshot = Object.freeze({
-  requested: 'disabled',
-  effective: 'disabled',
+  requested: 'community-market',
+  effective: 'community-market',
   legacyDefaulted: true,
 })
 

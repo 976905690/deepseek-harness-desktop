@@ -56,6 +56,7 @@ import {
 } from './profile-manager.ts'
 import { DesktopProfileService } from './profile-service.ts'
 import { DesktopActionsService } from './desktop-actions.ts'
+import { clearStaleSettingsLock } from './settings-lock.ts'
 import { clearDesktopProfilePluginState, DesktopPluginsService } from './desktop-plugins.ts'
 import {
   desktopMarketSnapshotWithEffective,
@@ -379,6 +380,10 @@ async function start(): Promise<void> {
     })
     for (const [name, value] of Object.entries(shellEnvironmentResolution.updates)) process.env[name] = value
     const homeDir = resolveDshHome()
+    // Clear an orphaned settings writer lock before any persist can try to
+    // acquire it, otherwise a stale `.lock` turns the next settings write into
+    // a fatal `timed out waiting for the writer lock` exit.
+    clearStaleSettingsLock(join(homeDir, 'settings.yaml'), electronLogger)
     const windowsVolumeConcerns = diagnoseWindowsVolumes(process.platform, [
       { label: 'application install', path: process.execPath },
       { label: 'desktop user data', path: app.getPath('userData') },
