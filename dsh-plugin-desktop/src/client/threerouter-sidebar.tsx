@@ -112,7 +112,7 @@ export function ThreerouterSidebar(props: any) {
         <div className="trSidebarSettingsArea">
           {renderSlot('sidebar.settings', { wide })}
         </div>
-        {wide && <div className="trSidebarVersionLabel">Threerouter Harness v{version}</div>}
+        {wide && <div className="trSidebarVersionLabel">Deepseek Harness for Threerouter  v{version}</div>}
       </div>
     </div>
   )

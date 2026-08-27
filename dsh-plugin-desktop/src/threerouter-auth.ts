@@ -1,5 +1,5 @@
 /**
- * Threerouter Harness: Threerouter user authentication, API key auto-provisioning,
+ * Deepseek Harness for Threerouter : Threerouter user authentication, API key auto-provisioning,
  * balance display, and invite link sharing.
  *
  * Host-side implementation (RPC server for client → host calls).
@@ -281,7 +281,7 @@ export function createThreerouterAuthHandler(ctx: Context) {
     ctx.logger.info('threerouter-auth: no active API key found, creating new...')
     const groupId = storedState?.profile.allowedGroups[0]
     const newKey = await threerouterRequest<RawApiKey>('/keys', 'POST', {
-      name: 'Threerouter Harness Desktop',
+      name: 'Deepseek Harness for Threerouter  Desktop',
       ...(groupId === undefined ? {} : { group_id: groupId }),
     })
     ctx.logger.info(`threerouter-auth: created new API key "${newKey.name}" (id=${newKey.id})`)
