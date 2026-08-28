@@ -5,7 +5,7 @@
  * register its own translations without depending on `dsh-plugin-desktop`.
  */
 declare const threerouterZh: {
-    readonly account: "Threerouter 账户";
+    readonly account: "Threerouter 1$ ≈ 30M token";
     readonly close: "关闭";
     readonly signInTitle: "登录 Threerouter 账号";
     readonly signIn: "登录";
@@ -29,7 +29,7 @@ export type ThreerouterKey = keyof typeof threerouterZh;
 /** Combined zh/en bundle passed to `ctx.locale.register('threerouter', …)`. */
 export declare const threerouterLocale: {
     zh: {
-        readonly account: "Threerouter 账户";
+        readonly account: "Threerouter 1$ ≈ 30M token";
         readonly close: "关闭";
         readonly signInTitle: "登录 Threerouter 账号";
         readonly signIn: "登录";

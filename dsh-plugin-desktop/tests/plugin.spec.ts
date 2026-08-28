@@ -213,7 +213,7 @@ describe('desktop Host plugin', () => {
   })
 
   it('builds the loopback root with validated renderer mode and platform markers', () => {
-    const url = new URL(desktopRendererUrl(43120, 'advanced', 'darwin', '2.0.3', 'transparent', undefined, 'Deepseek Harness for Threerouter '))
+    const url = new URL(desktopRendererUrl(43120, 'advanced', 'darwin', '2.0.3', 'transparent', undefined, 'Deepseek Harness for Threerouter image/video '))
     expect(url.origin).toBe('http://127.0.0.1:43120')
     expect(url.pathname).toBe('/')
     expect(Object.fromEntries(url.searchParams)).toEqual({
@@ -221,7 +221,7 @@ describe('desktop Host plugin', () => {
       'dsh-desktop-platform': 'darwin',
       'dsh-desktop-version': '2.0.3',
       'dsh-desktop-material': 'transparent',
-      'dsh-desktop-title': 'Deepseek Harness for Threerouter ',
+      'dsh-desktop-title': 'Deepseek Harness for Threerouter image/video ',
       'dsh-desktop-titlebar-inset': '36',
     })
     expect(Object.fromEntries(new URL(desktopRendererUrl(
@@ -263,8 +263,8 @@ describe('desktop Host plugin', () => {
     expect(harness.shell()).toEqual(expect.objectContaining({
       mode: 'compatibility',
       url: 'http://127.0.0.1:43120/?dsh-desktop-mode=compatibility&dsh-desktop-platform=darwin&dsh-desktop-version=2.0.0&dsh-desktop-material=transparent&dsh-desktop-titlebar-inset=36&dsh-desktop-title=Threerouter+Harness',
-      productName: 'Deepseek Harness for Threerouter ',
-      windowTitle: 'Deepseek Harness for Threerouter ',
+      productName: 'Deepseek Harness for Threerouter image/video ',
+      windowTitle: 'Deepseek Harness for Threerouter image/video ',
       readThemeSource: expect.any(Function),
     }))
     expect(harness.shell()?.iconPath.endsWith(join('build', 'app-icon-mac.png'))).toBe(true)

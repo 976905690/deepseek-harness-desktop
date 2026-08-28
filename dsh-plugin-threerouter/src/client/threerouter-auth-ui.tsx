@@ -1,5 +1,5 @@
 /**
- * Deepseek Harness for Threerouter : top-right account/balance/invite/model quick-switch UI.
+ * Deepseek Harness for Threerouter image/video : top-right account/balance/invite/model quick-switch UI.
  *
  * Renders inside the `shell.overlay` frame layer. All Threerouter backend work
  * happens on the host through the `/threerouter-auth` RPC channel; this surface
@@ -51,7 +51,6 @@ export interface ThreerouterAuthUIProps {
   sessions: ISessions
   /** Native platform controlling the caption-row offset. */
   platform: ThreerouterClientPlatform
-  version: string
   t: TranslateNS<'threerouter'>
 }
 
@@ -95,7 +94,7 @@ function formatBalance(value: number): string {
  * Open, it expands into a popover with login / profile / model-switch /
  * invite-share / logout actions.
  */
-export function ThreerouterAuthUI({ connection, sessions, platform, version, t }: ThreerouterAuthUIProps) {
+export function ThreerouterAuthUI({ connection, sessions, platform, t }: ThreerouterAuthUIProps) {
   const [open, setOpen] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -282,7 +281,6 @@ export function ThreerouterAuthUI({ connection, sessions, platform, version, t }
         {signedIn && <span className="trAuthBalance">{formatBalance(session.balance)}</span>}
         {!signedIn && <span className="trAuthLabel">{t('signIn')}</span>}
       </button>
-      <div className="trAuthVersionBadge">Deepseek Harness for Threerouter  v{version}</div>
 
       {open && (
         <div className="trAuthDialog" role="dialog" aria-label={t('account')}>
@@ -363,7 +361,6 @@ export function ThreerouterAuthUI({ connection, sessions, platform, version, t }
               </div>
             </div>
           )}
-          <div className="trAuthVersion">Deepseek Harness for Threerouter  v{version}</div>
         </div>
       )}
     </div>

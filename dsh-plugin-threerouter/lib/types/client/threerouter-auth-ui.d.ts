@@ -10,7 +10,6 @@ export interface ThreerouterAuthUIProps {
     sessions: ISessions;
     /** Native platform controlling the caption-row offset. */
     platform: ThreerouterClientPlatform;
-    version: string;
     t: TranslateNS<'threerouter'>;
 }
 /**
@@ -19,4 +18,4 @@ export interface ThreerouterAuthUIProps {
  * Open, it expands into a popover with login / profile / model-switch /
  * invite-share / logout actions.
  */
-export declare function ThreerouterAuthUI({ connection, sessions, platform, version, t }: ThreerouterAuthUIProps): import("react").JSX.Element;
+export declare function ThreerouterAuthUI({ connection, sessions, platform, t }: ThreerouterAuthUIProps): import("react").JSX.Element;

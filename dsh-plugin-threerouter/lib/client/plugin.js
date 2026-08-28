@@ -9,7 +9,7 @@ window.__ModuleLoader__.load({
 		let _deepseek_ai_dsh_client_ui_primitives = require("@deepseek-ai/dsh-client-ui-primitives");
 		//#region src/client/threerouter-auth-ui.tsx
 		/**
-		* Deepseek Harness for Threerouter : top-right account/balance/invite/model quick-switch UI.
+		* Deepseek Harness for Threerouter image/video : top-right account/balance/invite/model quick-switch UI.
 		*
 		* Renders inside the `shell.overlay` frame layer. All Threerouter backend work
 		* happens on the host through the `/threerouter-auth` RPC channel; this surface
@@ -56,7 +56,7 @@ window.__ModuleLoader__.load({
 		* Open, it expands into a popover with login / profile / model-switch /
 		* invite-share / logout actions.
 		*/
-		function ThreerouterAuthUI({ connection, sessions, platform, version, t }) {
+		function ThreerouterAuthUI({ connection, sessions, platform, t }) {
 			const [open, setOpen] = (0, react.useState)(false);
 			const [email, setEmail] = (0, react.useState)("");
 			const [password, setPassword] = (0, react.useState)("");
@@ -256,165 +256,154 @@ window.__ModuleLoader__.load({
 			const signedIn = session !== null;
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				className: `trAuth trAuth-${platformClass}`,
-				children: [
-					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-						type: "button",
-						className: "trAuthPill",
-						onClick: toggle,
-						"aria-haspopup": "dialog",
-						"aria-expanded": open,
-						title: signedIn ? `${session.email} · ${formatBalance(session.balance)}` : t("signInTitle"),
-						children: [
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: "trAuthAvatar",
-								children: initial
-							}),
-							signedIn && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: "trAuthBalance",
-								children: formatBalance(session.balance)
-							}),
-							!signedIn && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: "trAuthLabel",
-								children: t("signIn")
-							})
-						]
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-						className: "trAuthVersionBadge",
-						children: ["Deepseek Harness for Threerouter  v", version]
-					}),
-					open && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-						className: "trAuthDialog",
-						role: "dialog",
-						"aria-label": t("account"),
-						children: [
-							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-								className: "trAuthDialogHeader",
-								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("account") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+					type: "button",
+					className: "trAuthPill",
+					onClick: toggle,
+					"aria-haspopup": "dialog",
+					"aria-expanded": open,
+					title: signedIn ? `${session.email} · ${formatBalance(session.balance)}` : t("signInTitle"),
+					children: [
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: "trAuthAvatar",
+							children: initial
+						}),
+						signedIn && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: "trAuthBalance",
+							children: formatBalance(session.balance)
+						}),
+						!signedIn && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: "trAuthLabel",
+							children: t("signIn")
+						})
+					]
+				}), open && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+					className: "trAuthDialog",
+					role: "dialog",
+					"aria-label": t("account"),
+					children: [
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+							className: "trAuthDialogHeader",
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("account") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								type: "button",
+								className: "trAuthClose",
+								"aria-label": t("close"),
+								onClick: () => setOpen(false),
+								children: "✕"
+							})]
+						}),
+						error !== null && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+							className: "trAuthError",
+							children: error
+						}),
+						notice !== null && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+							className: "trAuthNotice",
+							children: notice
+						}),
+						!signedIn ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+							className: "trAuthLogin",
+							children: [
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("email") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+									type: "email",
+									value: email,
+									autoComplete: "email",
+									placeholder: "you@example.com",
+									onChange: (e) => setEmail(e.target.value)
+								})] }),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("password") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+									type: "password",
+									value: password,
+									autoComplete: "current-password",
+									placeholder: "••••••••",
+									onChange: (e) => setPassword(e.target.value),
+									onKeyDown: (e) => {
+										if (e.key === "Enter") handleLogin();
+									}
+								})] }),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 									type: "button",
-									className: "trAuthClose",
-									"aria-label": t("close"),
+									className: "trAuthPrimary",
+									disabled: busy,
+									onClick: () => void handleLogin(),
+									children: busy ? t("signingIn") : t("signIn")
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+									type: "button",
+									className: "trAuthRegister",
+									onClick: handleRegister,
+									children: t("createAccount")
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+									type: "button",
+									className: "trAuthCloseBtn",
 									onClick: () => setOpen(false),
-									children: "✕"
-								})]
-							}),
-							error !== null && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-								className: "trAuthError",
-								children: error
-							}),
-							notice !== null && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-								className: "trAuthNotice",
-								children: notice
-							}),
-							!signedIn ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-								className: "trAuthLogin",
-								children: [
-									/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("email") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
-										type: "email",
-										value: email,
-										autoComplete: "email",
-										placeholder: "you@example.com",
-										onChange: (e) => setEmail(e.target.value)
-									})] }),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("password") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
-										type: "password",
-										value: password,
-										autoComplete: "current-password",
-										placeholder: "••••••••",
-										onChange: (e) => setPassword(e.target.value),
-										onKeyDown: (e) => {
-											if (e.key === "Enter") handleLogin();
-										}
-									})] }),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-										type: "button",
-										className: "trAuthPrimary",
+									children: t("close")
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+									className: "trAuthHint",
+									children: t("apiKeyHint")
+								})
+							]
+						}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+							className: "trAuthProfile",
+							children: [
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+									className: "trAuthProfileRow",
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "trAuthEmail",
+										title: session.email,
+										children: session.email
+									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "trAuthBalanceBig",
+										children: formatBalance(session.balance)
+									})]
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+									className: "trAuthProfileRow",
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "trAuthFieldLabel",
+										children: t("accountBalance")
+									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "trAuthCopyHint",
+										children: session.hasApiKey ? t("apiKeyReady") : t("apiKeyNotCreated")
+									})]
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+									className: "trAuthSection",
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+										className: "trAuthSectionTitle",
+										children: t("quickModelSwitch")
+									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("select", {
+										className: "trAuthSelect",
+										value: currentModel,
 										disabled: busy,
-										onClick: () => void handleLogin(),
-										children: busy ? t("signingIn") : t("signIn")
-									}),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+										onChange: (e) => void handleSelectModel(e.target.value),
+										children: (models.length > 0 ? models : FALLBACK_MODELS).map((m) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
+											value: m.id,
+											children: m.name
+										}, m.id))
+									})]
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+									className: "trAuthActions",
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 										type: "button",
-										className: "trAuthRegister",
-										onClick: handleRegister,
-										children: t("createAccount")
-									}),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+										className: "trAuthSecondary",
+										disabled: busy,
+										onClick: () => void handleShare(),
+										children: t("shareInviteLink")
+									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 										type: "button",
-										className: "trAuthCloseBtn",
-										onClick: () => setOpen(false),
-										children: t("close")
-									}),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-										className: "trAuthHint",
-										children: t("apiKeyHint")
-									})
-								]
-							}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-								className: "trAuthProfile",
-								children: [
-									/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-										className: "trAuthProfileRow",
-										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-											className: "trAuthEmail",
-											title: session.email,
-											children: session.email
-										}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-											className: "trAuthBalanceBig",
-											children: formatBalance(session.balance)
-										})]
-									}),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-										className: "trAuthProfileRow",
-										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-											className: "trAuthFieldLabel",
-											children: t("accountBalance")
-										}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-											className: "trAuthCopyHint",
-											children: session.hasApiKey ? t("apiKeyReady") : t("apiKeyNotCreated")
-										})]
-									}),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-										className: "trAuthSection",
-										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-											className: "trAuthSectionTitle",
-											children: t("quickModelSwitch")
-										}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("select", {
-											className: "trAuthSelect",
-											value: currentModel,
-											disabled: busy,
-											onChange: (e) => void handleSelectModel(e.target.value),
-											children: (models.length > 0 ? models : FALLBACK_MODELS).map((m) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
-												value: m.id,
-												children: m.name
-											}, m.id))
-										})]
-									}),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-										className: "trAuthActions",
-										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-											type: "button",
-											className: "trAuthSecondary",
-											disabled: busy,
-											onClick: () => void handleShare(),
-											children: t("shareInviteLink")
-										}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-											type: "button",
-											className: "trAuthDanger",
-											disabled: busy,
-											onClick: () => void handleLogout(),
-											children: t("signOut")
-										})]
-									})
-								]
-							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-								className: "trAuthVersion",
-								children: ["Deepseek Harness for Threerouter  v", version]
-							})
-						]
-					})
-				]
+										className: "trAuthDanger",
+										disabled: busy,
+										onClick: () => void handleLogout(),
+										children: t("signOut")
+									})]
+								})
+							]
+						})
+					]
+				})]
 			});
 		}
 		//#endregion
@@ -551,7 +540,7 @@ window.__ModuleLoader__.load({
 		*   renderSlot → child slot renderer (provided by slot framework)
 		*/
 		function ThreerouterSidebar(props) {
-			const { collapsed, width, startSession, toggleSidebar, t, renderSlot, version } = props;
+			const { collapsed, width, startSession, toggleSidebar, t, renderSlot } = props;
 			const [settled, setSettled] = (0, react.useState)(collapsed);
 			(0, react.useEffect)(() => {
 				if (!collapsed) {
@@ -632,20 +621,13 @@ window.__ModuleLoader__.load({
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 						className: "trSidebarFootArea",
-						children: [
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-								className: "trSidebarFooterActions",
-								children: renderSlot("sidebar.footer.action", { wide })
-							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-								className: "trSidebarSettingsArea",
-								children: renderSlot("sidebar.settings", { wide })
-							}),
-							wide && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-								className: "trSidebarVersionLabel",
-								children: ["Deepseek Harness for Threerouter  v", version]
-							})
-						]
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+							className: "trSidebarFooterActions",
+							children: renderSlot("sidebar.footer.action", { wide })
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+							className: "trSidebarSettingsArea",
+							children: renderSlot("sidebar.settings", { wide })
+						})]
 					})
 				]
 			});
@@ -653,7 +635,7 @@ window.__ModuleLoader__.load({
 		/** Combined zh/en bundle passed to `ctx.locale.register('threerouter', …)`. */
 		const threerouterLocale = {
 			zh: {
-				account: "Threerouter 账户",
+				account: "Threerouter 1$ ≈ 30M token",
 				close: "关闭",
 				signInTitle: "登录 Threerouter 账号",
 				signIn: "登录",
@@ -674,7 +656,7 @@ window.__ModuleLoader__.load({
 				openSessionFirst: "请先打开一个会话再切换模型"
 			},
 			en: {
-				account: "Threerouter account",
+				account: "Threerouter 1$ ≈ 30M token",
 				close: "Close",
 				signInTitle: "Sign in to your Threerouter account",
 				signIn: "Sign in",
@@ -773,8 +755,6 @@ window.__ModuleLoader__.load({
 .trAuthSecondary:hover { background: var(--dsw-alias-interactive-bg-hover); }
 .trAuthDanger { height: 32px; padding: 0 12px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--dsw-alias-state-error-primary); font-size: 12px; font-weight: 600; cursor: pointer; }
 .trAuthDanger:hover { background: var(--dsw-alias-interactive-bg-hover-danger); }
-.trAuthVersionBadge { margin-top: 4px; padding: 2px 8px; font-size: 10px; line-height: 14px; color: var(--dsw-alias-label-secondary); text-align: center; white-space: nowrap; }
-.trAuthVersion { padding: 8px 14px 12px; font-size: 11px; color: var(--dsw-alias-label-tertiary); text-align: center; border-top: 1px solid var(--dsw-alias-border-l1); }
 
 /* ---- Threerouter sidebar (replaces upstream SidebarRoot) ---- */
 .trSidebarRoot {
@@ -962,17 +942,6 @@ window.__ModuleLoader__.load({
   justify-content: center;
   width: auto;
 }
-.trSidebarVersionLabel {
-  flex: none;
-  padding: 8px 4px 4px;
-  font-size: 11px;
-  line-height: 1.4;
-  color: var(--dsw-alias-label-tertiary);
-  text-align: center;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
 @media (prefers-reduced-motion: reduce) {
   .trSidebarWide,
   .trSidebarFading > *,
@@ -1045,8 +1014,7 @@ window.__ModuleLoader__.load({
 					inject: () => ({
 						connection: ctx.get("connection"),
 						sessions: ctx.get("sessions"),
-						platform: environment.platform,
-						version: environment.version
+						platform: environment.platform
 					})
 				}, ThreerouterAuthUI));
 				return () => {

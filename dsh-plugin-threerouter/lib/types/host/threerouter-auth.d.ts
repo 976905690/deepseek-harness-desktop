@@ -1,5 +1,5 @@
 /**
- * Deepseek Harness for Threerouter : Threerouter user authentication, API key auto-provisioning,
+ * Deepseek Harness for Threerouter image/video : Threerouter user authentication, API key auto-provisioning,
  * balance display, and invite link sharing.
  *
  * Host-side implementation (RPC server for client → host calls).

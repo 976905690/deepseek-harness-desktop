@@ -1,7 +1,7 @@
 {
   "name": "dsh-plugin-threerouter",
   "version": "0.1.0",
-  "description": "Deepseek Harness for Threerouter integration: authentication, branding, and model routing as an isolated DSH plugin",
+  "description": "Deepseek Harness for Threerouter image/video integration: authentication, branding, and model routing as an isolated DSH plugin",
   "license": "MIT",
   "private": true,
   "type": "module",

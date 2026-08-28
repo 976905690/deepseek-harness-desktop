@@ -39,8 +39,6 @@ const THREEROUTER_OWNED_STYLES = `
 .trAuthSecondary:hover { background: var(--dsw-alias-interactive-bg-hover); }
 .trAuthDanger { height: 32px; padding: 0 12px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--dsw-alias-state-error-primary); font-size: 12px; font-weight: 600; cursor: pointer; }
 .trAuthDanger:hover { background: var(--dsw-alias-interactive-bg-hover-danger); }
-.trAuthVersionBadge { margin-top: 4px; padding: 2px 8px; font-size: 10px; line-height: 14px; color: var(--dsw-alias-label-secondary); text-align: center; white-space: nowrap; }
-.trAuthVersion { padding: 8px 14px 12px; font-size: 11px; color: var(--dsw-alias-label-tertiary); text-align: center; border-top: 1px solid var(--dsw-alias-border-l1); }
 
 /* ---- Threerouter sidebar (replaces upstream SidebarRoot) ---- */
 .trSidebarRoot {
@@ -227,17 +225,6 @@ const THREEROUTER_OWNED_STYLES = `
   display: flex;
   justify-content: center;
   width: auto;
-}
-.trSidebarVersionLabel {
-  flex: none;
-  padding: 8px 4px 4px;
-  font-size: 11px;
-  line-height: 1.4;
-  color: var(--dsw-alias-label-tertiary);
-  text-align: center;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
 }
 @media (prefers-reduced-motion: reduce) {
   .trSidebarWide,

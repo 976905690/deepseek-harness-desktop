@@ -1,5 +1,5 @@
 /**
- * Deepseek Harness for Threerouter : isolated Host plugin.
+ * Deepseek Harness for Threerouter image/video : isolated Host plugin.
  *
  * Owns the `/threerouter-auth` RPC channel (login, profile, API key
  * provisioning, model routing, invite link, logout). Designed to compose

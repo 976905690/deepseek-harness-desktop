@@ -6,7 +6,7 @@
  */
 
 const threerouterZh = {
-  account: 'Threerouter 账户',
+  account: 'Threerouter 1$ ≈ 30M token',
   close: '关闭',
   signInTitle: '登录 Threerouter 账号',
   signIn: '登录',
@@ -30,7 +30,7 @@ const threerouterZh = {
 export type ThreerouterKey = keyof typeof threerouterZh
 
 const threerouterEn = {
-  account: 'Threerouter account',
+  account: 'Threerouter 1$ ≈ 30M token',
   close: 'Close',
   signInTitle: 'Sign in to your Threerouter account',
   signIn: 'Sign in',

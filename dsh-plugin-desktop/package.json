@@ -1,7 +1,7 @@
 {
   "name": "dsh-plugin-desktop",
   "version": "2.0.3",
-  "description": "Deepseek Harness for Threerouter : a desktop client built on the DeepSeek Harness platform",
+  "description": "Deepseek Harness for Threerouter image/video : a desktop client built on the DeepSeek Harness platform",
   "license": "MIT",
   "publishConfig": {
     "registry": "https://registry.npmjs.org"

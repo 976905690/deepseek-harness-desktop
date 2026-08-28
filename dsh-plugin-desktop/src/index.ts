@@ -76,7 +76,7 @@ import {
 export const name = 'desktop-shell'
 
 /** Product brand shown in the native window, tray, and desktop caption row. */
-export const PRODUCT_NAME = 'Deepseek Harness for Threerouter '
+export const PRODUCT_NAME = 'Deepseek Harness for Threerouter image/video '
 
 /** Services required before the shell can register its renderer generation. */
 /** Services required by the desktop shell; `desktopRuntime` is probed, not required. */

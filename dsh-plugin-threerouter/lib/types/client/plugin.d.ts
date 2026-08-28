@@ -1,5 +1,5 @@
 /**
- * Deepseek Harness for Threerouter : isolated Client plugin.
+ * Deepseek Harness for Threerouter image/video : isolated Client plugin.
  *
  * Registers the Threerouter-branded sidebar (replacing the upstream
  * SidebarRoot with priority -1) and the top-right account/balance/invite

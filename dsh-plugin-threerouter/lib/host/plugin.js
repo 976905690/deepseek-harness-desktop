@@ -95,7 +95,7 @@ function createThreerouterAuthHandler(ctx) {
 		ctx.logger.info("threerouter-auth: no active API key found, creating new...");
 		const groupId = storedState?.profile.allowedGroups[0];
 		const newKey = await threerouterRequest("/keys", "POST", {
-			name: "Deepseek Harness for Threerouter  Desktop",
+			name: "Deepseek Harness for Threerouter image/video  Desktop",
 			...groupId === void 0 ? {} : { group_id: groupId }
 		});
 		ctx.logger.info(`threerouter-auth: created new API key "${newKey.name}" (id=${newKey.id})`);

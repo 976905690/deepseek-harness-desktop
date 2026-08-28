@@ -29,7 +29,7 @@ const COLLAPSE_SETTLE_MS = 150
  *   renderSlot → child slot renderer (provided by slot framework)
  */
 export function ThreerouterSidebar(props: any) {
-  const { collapsed, width, startSession, toggleSidebar, t, renderSlot, version } = props
+  const { collapsed, width, startSession, toggleSidebar, t, renderSlot } = props
   // Wide content stays mounted while the collapse animates (fading via
   // .collapsed .wide), unmounts at settle, and remounts right away on expand.
   const [settled, setSettled] = useState(collapsed)
@@ -104,7 +104,7 @@ export function ThreerouterSidebar(props: any) {
         })}
       </div>
 
-      {/* Footer: footer actions + Settings + version */}
+      {/* Footer: footer actions + Settings */}
       <div className="trSidebarFootArea">
         <div className="trSidebarFooterActions">
           {renderSlot('sidebar.footer.action', { wide })}
@@ -112,7 +112,6 @@ export function ThreerouterSidebar(props: any) {
         <div className="trSidebarSettingsArea">
           {renderSlot('sidebar.settings', { wide })}
         </div>
-        {wide && <div className="trSidebarVersionLabel">Deepseek Harness for Threerouter  v{version}</div>}
       </div>
     </div>
   )
