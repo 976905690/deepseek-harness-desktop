@@ -27,6 +27,29 @@
     provider: threerouter
     model: deepseek-v4-pro
 
+# Image/Video plugin: users fill in their own provider API Key here.
+# The entry itself is registered by dsh-image-video's bundle patch; this row
+# only overrides config so updating the plugin via `git pull` won't conflict.
+- id: image-video
+  config:
+    provider: bxinle
+    bxinle:
+      apiKey: ''
+      baseURL: ''
+    wanx:
+      apiKey: ''
+      baseURL: ''
+    seedance:
+      apiKey: ''
+      baseURL: ''
+    defaultImageSize: '1024*1024'
+    defaultVideoDuration: 5
+    timeoutMs: 60000
+    pollIntervalMs: 5000
+    pollTimeoutMs: 300000
+    retryTimes: 3
+    outputsDir: './outputs'
+
 # A desktop launch has no terminal operator waiting for the Web readiness line.
 - id: web-runtime
   config:
