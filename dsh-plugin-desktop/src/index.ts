@@ -19,7 +19,6 @@ import {
   handleRendererBootRequest,
   RENDERER_BOOT_REPORT_PATH,
 } from './renderer-boot.ts'
-import { createThreerouterAuthHandler } from './threerouter-auth.ts'
 import {
   DESKTOP_DIRECTORY_PICKER_PATH,
   DESKTOP_DIRECTORY_VALIDATOR_PATH,
@@ -370,24 +369,6 @@ export function apply(ctx: Context, config: Config): void {
     if (namespace !== UI_LOCALE_SETTINGS_NAMESPACE) return
     runtime.setLocalePreference((next as LocaleSettings).preference)
   })
-  ctx.effect(() => {
-    const authHandler = createThreerouterAuthHandler(ctx)
-    let removeRpc: (() => Promise<void>) | undefined
-    const register = () => {
-      removeRpc?.()
-      const connection = ctx.get('connection')
-      if (connection === undefined) return
-      removeRpc = connection.rpc.handle('/threerouter-auth', authHandler.handler, {
-        authority: 'loopback',
-      })
-    }
-    register()
-    return () => {
-      void removeRpc?.()
-      removeRpc = undefined
-    }
-  }, 'threerouter-auth: register RPC handler')
-
   ctx.effect(
     () => {
       const material = effectiveDesktopWindowMaterial(

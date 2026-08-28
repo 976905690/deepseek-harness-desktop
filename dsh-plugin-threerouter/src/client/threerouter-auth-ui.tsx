@@ -9,14 +9,14 @@ import { useCallback, useEffect, useState } from 'react'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type { ISessions } from '@deepseek-ai/dsh-client-runtime/client'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
-import type { DesktopClientPlatform } from './environment.ts'
+import type { ThreerouterClientPlatform } from './environment.ts'
 
-/** The host-registered RPC channel (see src/index.ts). */
+/** The host-registered RPC channel (see src/host/plugin.ts). */
 const CHANNEL = '/threerouter-auth'
 /** Provider id the host registers into llm-pi-ai after sign-in. */
 const PROVIDER = 'threerouter'
 
-// --- Host response shapes (mirrors src/threerouter-auth.ts) ---
+// --- Host response shapes (mirrors src/host/threerouter-auth.ts) ---
 
 interface ProfileInfo {
   id: number
@@ -43,14 +43,14 @@ interface ModelsResponse {
   defaultModel: string
 }
 
-/** Component props injected by the advanced-shell registration. */
+/** Component props injected by the threerouter client slot registration. */
 export interface ThreerouterAuthUIProps {
   /** Shared wire client used to reach the host `/threerouter-auth` channel. */
   connection: ConnectionHandle
   /** Session list face used to resolve the current session for model switching. */
   sessions: ISessions
   /** Native platform controlling the caption-row offset. */
-  platform: DesktopClientPlatform
+  platform: ThreerouterClientPlatform
   version: string
   t: TranslateNS<'threerouter'>
 }

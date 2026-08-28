@@ -5,6 +5,8 @@
       name: dsh-plugin-desktop
       config:
         mode: advanced
+    - id: threerouter-integration
+      name: dsh-plugin-threerouter
     - id: desktop-terminal
       name: dsh-plugin-desktop/terminal
       disabled: !!js process.platform === 'linux'

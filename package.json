@@ -10,6 +10,7 @@
   },
   "workspaces": [
     "dsh-plugin-desktop",
+    "dsh-plugin-threerouter",
     "dsh-community-fabric",
     "dsh-community-market"
   ],
