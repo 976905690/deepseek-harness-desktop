@@ -32,8 +32,8 @@
 # only overrides config so updating the plugin via `git pull` won't conflict.
 - id: image-video
   config:
-    provider: bxinle
-    bxinle:
+    provider: threerouter
+    threerouter:
       apiKey: ''
       baseURL: ''
     wanx:
