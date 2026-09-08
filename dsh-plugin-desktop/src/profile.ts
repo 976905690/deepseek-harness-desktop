@@ -63,6 +63,7 @@ const BIN_NAME = DESKTOP_PACKAGE_NAME
 const REQUIRED_BUNDLES = requiredWebBundles()
 const REQUIRED_BUNDLE_SET = new Set(REQUIRED_BUNDLES)
 const OBSOLETE_DESKTOP_BUNDLE_SET = new Set(['@deepseek-ai/dsh-desktop-app'])
+const DESKTOP_IMAGE_VIDEO_BUNDLE = 'dsh-image-video'
 const INSTALL_ANCHOR = unpackedAsarPath(fileURLToPath(new URL('../package.json', import.meta.url)))
 const DESKTOP_PATCH_PATH = fileURLToPath(new URL('../cordis.patch.yml', import.meta.url))
 const DIRECTORY_PICKER_ROW_ID = 'directory-picker'
@@ -444,6 +445,13 @@ function loadRecoveryFilteredProfile(
     && !selectedBundles.includes(DESKTOP_MARKET_IDENTITIES.dshMarket.packageName)) {
     selectedBundles.push(DESKTOP_MARKET_IDENTITIES.dshMarket.packageName)
   }
+  // The desktop image/video bundle ships as a launcher-owned layer so a fresh
+  // clone loads `generate_image` / `generate_video` without editing profiles.
+  // It stays a separate package: the profile loader consumes the bundle's own
+  // `dsh.bundle.patch`, never a desktop-owned copy of that file.
+  if (!selectedBundles.includes(DESKTOP_IMAGE_VIDEO_BUNDLE)) {
+    selectedBundles.push(DESKTOP_IMAGE_VIDEO_BUNDLE)
+  }
   const layers: Profile['layers'] = []
   let dshMarketFailure: string | undefined
   const installPackageUrl = pathToFileURL(INSTALL_ANCHOR).href
@@ -742,6 +750,7 @@ export function prepareDesktopProfile(
 
   const desktopPatches = loadOverlayPatches(BIN_NAME, DESKTOP_PATCH_PATH)
   const bundlePatches: PatchOptions[] = []
+  const imageVideoPatches: PatchOptions[] = []
   let dshMarketPatches: PatchOptions[] | undefined
   let desktopLayerInserted = false
   const providerAwareDisabledBundles = new Set(disabledBundles)
@@ -751,6 +760,13 @@ export function prepareDesktopProfile(
   for (const layer of activeDesktopProfileLayers(profile, providerAwareDisabledBundles)) {
     if (layer.packageName === DESKTOP_MARKET_IDENTITIES.dshMarket.packageName) {
       dshMarketPatches = layer.patches
+      continue
+    }
+    // The launcher-owned image/video bundle registers its own `image-video`
+    // row. Its insert must land before the desktop override for that row, so
+    // collect it separately and merge it in front of the desktop layer.
+    if (layer.packageName === DESKTOP_IMAGE_VIDEO_BUNDLE) {
+      imageVideoPatches.push(...layer.patches)
       continue
     }
     bundlePatches.push(...layer.patches)
@@ -808,6 +824,7 @@ export function prepareDesktopProfile(
     }
   }
   const patches: PatchOptions[] = [
+    ...imageVideoPatches,
     ...filteredBundles.patches,
     ...providerPatches,
     ...filteredProfile.patches,
