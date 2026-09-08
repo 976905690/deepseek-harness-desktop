@@ -42,6 +42,8 @@
     seedance:
       apiKey: ''
       baseURL: ''
+    defaultImageModel: ''
+    defaultVideoModel: ''
     defaultImageSize: '1024*1024'
     defaultVideoDuration: 5
     timeoutMs: 60000
