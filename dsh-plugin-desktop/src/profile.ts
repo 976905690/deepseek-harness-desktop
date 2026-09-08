@@ -1,7 +1,7 @@
 /** Compatibility profile composition over the official Web bundle and user plugins. */
 
 import { createRequire } from 'node:module'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { evaluate, isJsExpr, type EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
@@ -286,18 +286,34 @@ export function ensureDesktopProfile(home: string = resolveDshHome()): string {
   }
   const current = rawBundles === undefined ? [] : rawBundles as string[]
   const bundles = desktopBundleList(current)
-  if (!sameList(current, bundles)) {
-    writeProfileManifest(dir, {
-      ...manifest,
-      dsh: {
-        ...manifest.dsh,
-        profile: {
-          ...manifest.dsh?.profile,
-          bundles,
-        },
-      },
-    })
+  // 自动注入 dsh-image-video 依赖：launcher 从 install 端解析插件包路径，
+  // 写入 profile 的 dependencies（link: 协议），同事 clone 后首次启动自动生效。
+  const installPackageUrl = pathToFileURL(INSTALL_ANCHOR).href
+  const profilePackageUrl = pathToFileURL(join(dir, 'package.json')).href
+  const overlay = findOverlayPackage(DESKTOP_IMAGE_VIDEO_BUNDLE, { installPackageUrl, profilePackageUrl })
+  const deps = (manifest.dependencies ?? {}) as Record<string, string>
+  const updated = { ...manifest }
+  let manifestChanged = false
+  if (overlay !== undefined) {
+    const videoDir = realpathSync(overlay.selected.packageDir)
+    const linkSpec = `link:${videoDir}`
+    if (deps[DESKTOP_IMAGE_VIDEO_BUNDLE] !== linkSpec) {
+      deps[DESKTOP_IMAGE_VIDEO_BUNDLE] = linkSpec
+      updated.dependencies = deps
+      manifestChanged = true
+    }
   }
+  if (!sameList(current, bundles)) {
+    updated.dsh = {
+      ...manifest.dsh,
+      profile: {
+        ...manifest.dsh?.profile,
+        bundles,
+      },
+    }
+    manifestChanged = true
+  }
+  if (manifestChanged) writeProfileManifest(dir, updated)
   return dir
 }
 
