@@ -41,6 +41,12 @@ export const DESKTOP_DIAGNOSTICS_EXPORT_PATH = '/api/desktop/diagnostics/export'
 /** Open the isolated native Profile creator without accepting a path. */
 export const DESKTOP_PROFILE_CREATE_WINDOW_PATH = '/api/desktop/profiles/create-window'
 
+/** Read the persisted dsh-image-video configuration for the active profile. */
+export const DESKTOP_IMAGE_VIDEO_CONFIG_PATH = '/api/desktop/image-video/config'
+
+/** Persist the dsh-image-video configuration for the active profile. */
+export const DESKTOP_IMAGE_VIDEO_CONFIG_SELECT_PATH = '/api/desktop/image-video/config/select'
+
 /** Renderer-safe projection of one discovered profile. */
 export interface DesktopSettingsProfileView {
   /** Profile name accepted by the launcher. */
@@ -174,6 +180,40 @@ export type DesktopProfileCreateWindowRequest = Readonly<Record<string, never>>
 export interface DesktopProfileCreateWindowResponse {
   readonly accepted: true
 }
+
+/** Generation-scoped providers for dsh-image-video. */
+export type DesktopImageVideoProvider = 'bxinle' | 'wanx' | 'seedance'
+
+/** Credentials for one dsh-image-video provider. */
+export interface DesktopImageVideoCredentials {
+  readonly apiKey: string
+  readonly baseURL: string
+}
+
+/** Browser view of one persisted dsh-image-video configuration. */
+export interface DesktopImageVideoConfigView {
+  readonly provider: DesktopImageVideoProvider
+  readonly bxinle: DesktopImageVideoCredentials
+  readonly wanx: DesktopImageVideoCredentials
+  readonly seedance: DesktopImageVideoCredentials
+  readonly defaultImageSize: string
+  readonly defaultVideoDuration: number
+  readonly timeoutMs: number
+  readonly pollIntervalMs: number
+  readonly pollTimeoutMs: number
+  readonly retryTimes: number
+  readonly outputsDir: string
+}
+
+/** Exact body accepted by the image-video configuration endpoint. */
+export interface DesktopImageVideoConfigSelectRequest extends DesktopImageVideoConfigView {
+  /** Provider this request is targeting; identical to `provider`. */
+  readonly provider: DesktopImageVideoProvider
+}
+
+/** Successful persisted image-video configuration returned before the Host restarts. */
+export type DesktopImageVideoConfigSelectResponse = DesktopImageVideoConfigView
+  & DesktopRestartAcceptance
 
 /** Stable API failure shape that never contains native paths or raw causes. */
 export interface DesktopSettingsErrorResponse {

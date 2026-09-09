@@ -62,6 +62,13 @@ export const DESKTOP_PROFILE_ROOT = 'cordis.yml'
 const BIN_NAME = DESKTOP_PACKAGE_NAME
 const REQUIRED_BUNDLES = requiredWebBundles()
 const REQUIRED_BUNDLE_SET = new Set(REQUIRED_BUNDLES)
+/**
+ * Bundles shipped with the desktop installer that should appear in the default
+ * profile's `Installed` list out of the box. These are layered after the Web
+ * carrier and reconciled on every boot so upgrading users also see them.
+ */
+const DESKTOP_BUNDLED_BUNDLES: readonly string[] = ['dsh-image-video']
+const DESKTOP_BUNDLED_BUNDLE_SET = new Set(DESKTOP_BUNDLED_BUNDLES)
 const OBSOLETE_DESKTOP_BUNDLE_SET = new Set(['@deepseek-ai/dsh-desktop-app'])
 const INSTALL_ANCHOR = unpackedAsarPath(fileURLToPath(new URL('../package.json', import.meta.url)))
 const DESKTOP_PATCH_PATH = fileURLToPath(new URL('../cordis.patch.yml', import.meta.url))
@@ -73,6 +80,16 @@ const PWSH_SANDBOX_ROW_ID = 'pwsh-sandbox'
 const UPSTREAM_PWSH_SANDBOX_PACKAGE = '@deepseek-ai/dsh-pwsh-sandbox'
 const DESKTOP_WINDOWS_PWSH_SANDBOX_ROW_ID = 'desktop-windows-pwsh-sandbox'
 const DESKTOP_WINDOWS_PWSH_SANDBOX_PACKAGE = 'dsh-plugin-desktop/windows-pwsh-sandbox'
+/**
+ * Loader id registered by `dsh-image-video`'s bundle patch. The desktop host
+ * must never let any user-authored or machine-wide patch recreate this entry:
+ * `dsh-image-video` is shipped with the installer, and any `insert: [{ id:
+ * 'image-video', … }]` block in a user/harness patch duplicates the entry the
+ * bundle already declares and crashes the Loader with `duplicate loader entry
+ * id: image-video`. Strip such inserts from every patch list before compose
+ * and let the bundle layer be the single source of truth for the entry row.
+ */
+const IMAGE_VIDEO_ROW_ID = 'image-video'
 const AGENT_PRESETS_ROW_ID = 'agent-presets'
 const UPSTREAM_AGENT_PRESETS_PACKAGE = '@deepseek-ai/dsh-agent-presets'
 const DESKTOP_WINDOWS_AGENT_PRESETS_ROW_ID = 'desktop-windows-agent-presets'
@@ -254,14 +271,23 @@ export interface SkippedOptionalEntry {
 
 /**
  * Normalize the installation-owned prefix while preserving third-party order.
+ *
+ * The prefix is `[Web, ...bundled, ...third-party]`. `bundled` bundles (e.g.
+ * `dsh-image-video`) are shipped with the desktop installer and reconciled on
+ * every boot so they appear in the default profile's `Installed` list without
+ * the user having to install them manually. Third-party bundles keep their
+ * historical relative order.
  * @param current - current persistent bundle list.
- * @returns base, Web carrier, then every third-party bundle in prior order.
+ * @returns Web carrier, bundled bundles, then every third-party bundle in prior order.
  */
 export function desktopBundleList(current: readonly string[]): string[] {
+  const bundledInHistory = current.filter(name => DESKTOP_BUNDLED_BUNDLE_SET.has(name))
+  const missingBundled = DESKTOP_BUNDLED_BUNDLES.filter(name => !bundledInHistory.includes(name))
   const thirdParty = current.filter(name => !REQUIRED_BUNDLE_SET.has(name)
+    && !DESKTOP_BUNDLED_BUNDLE_SET.has(name)
     && name !== DESKTOP_PACKAGE_NAME
     && !OBSOLETE_DESKTOP_BUNDLE_SET.has(name))
-  return [...REQUIRED_BUNDLES, ...thirdParty]
+  return [...REQUIRED_BUNDLES, ...bundledInHistory, ...missingBundled, ...thirdParty]
 }
 
 /** Return whether two ordered string lists are identical. */
@@ -276,7 +302,9 @@ function sameList(left: readonly string[], right: readonly string[]): boolean {
  */
 export function ensureDesktopProfile(home: string = resolveDshHome()): string {
   const dir = resolveProfileDir(DESKTOP_PROFILE_NAME, home)
-  if (!existsSync(join(dir, 'package.json'))) initProfile(dir, REQUIRED_BUNDLES)
+  if (!existsSync(join(dir, 'package.json'))) {
+    initProfile(dir, [...REQUIRED_BUNDLES, ...DESKTOP_BUNDLED_BUNDLES])
+  }
   const manifest = readProfileManifest(BIN_NAME, dir)
   const rawBundles = (manifest.dsh?.profile as { bundles?: unknown } | undefined)?.bundles
   if (rawBundles !== undefined
@@ -538,6 +566,68 @@ function assertUniqueEntryIds(rows: readonly EntryOptions[]): void {
   }
 }
 
+/** Return whether one Loader row declares the reserved image-video entry identity. */
+function isImageVideoRow(row: { readonly id?: unknown, readonly name?: unknown }): boolean {
+  return row.id === IMAGE_VIDEO_ROW_ID
+}
+
+/**
+ * Drop every entry that re-declares `image-video` from a patch list's `insert`
+ * payload. The bundle layer is the only legitimate source for that entry, so
+ * any `insert: [{ id: 'image-video', … }]` (top-level or inside a group) in
+ * the profile user layer or the machine-wide home patch is a stale copy of an
+ * older bundle patch that would otherwise collide with the bundle at compose
+ * time. Whole patches whose only contribution was such an insert are removed
+ * entirely; patches that still contain non-image-video inserts are kept with
+ * the offending child filtered out. `- id: image-video + config` overrides are
+ * left untouched because they only patch an existing entry instead of
+ * recreating it.
+ * @param patches - patch list parsed from a profile or harness-wide overlay.
+ * @returns a copy of the patches with every image-video `insert` removed.
+ */
+export function reconcileImageVideoInserts(patches: readonly PatchOptions[]): PatchOptions[] {
+  const stripInsertRows = (rows: EntryOptions[]): { rows: EntryOptions[]; removed: boolean } => {
+    const filtered: EntryOptions[] = []
+    let removed = false
+    for (const row of rows) {
+      if (isImageVideoRow(row)) {
+        removed = true
+        continue
+      }
+      if (row.group === true && Array.isArray(row.config)) {
+        const nested = stripInsertRows(row.config)
+        removed ||= nested.removed
+        if (nested.removed) {
+          filtered.push(nested.rows.length === row.config.length
+            ? row
+            : { ...row, config: nested.rows })
+        } else {
+          filtered.push(row)
+        }
+      } else {
+        filtered.push(row)
+      }
+    }
+    return { rows: filtered, removed }
+  }
+
+  const result: PatchOptions[] = []
+  for (const patch of patches) {
+    if (!Array.isArray(patch.insert)) {
+      result.push(patch)
+      continue
+    }
+    const { rows, removed } = stripInsertRows(patch.insert)
+    if (rows.length === 0) continue
+    if (!removed) {
+      result.push(patch)
+      continue
+    }
+    result.push({ ...patch, insert: rows })
+  }
+  return result
+}
+
 /** Return whether a Loader specifier names an npm package. */
 function isBarePackageSpecifier(name: string): boolean {
   return !name.startsWith('.')
@@ -743,7 +833,7 @@ export function prepareDesktopProfile(
   const desktopPatches = loadOverlayPatches(BIN_NAME, DESKTOP_PATCH_PATH)
   const bundlePatches: PatchOptions[] = []
   let dshMarketPatches: PatchOptions[] | undefined
-  let desktopLayerInserted = false
+  let webAppLayerInserted = false
   const providerAwareDisabledBundles = new Set(disabledBundles)
   if (marketSelection.requested === DESKTOP_MARKET_IDENTITIES.dshMarket.provider) {
     providerAwareDisabledBundles.delete(DESKTOP_MARKET_IDENTITIES.dshMarket.packageName)
@@ -754,22 +844,38 @@ export function prepareDesktopProfile(
       continue
     }
     bundlePatches.push(...layer.patches)
-    if (layer.packageName !== '@deepseek-ai/dsh-web-app') continue
-    bundlePatches.push(...desktopPatches)
-    desktopLayerInserted = true
+    if (layer.packageName === '@deepseek-ai/dsh-web-app') {
+      webAppLayerInserted = true
+    }
   }
-  if (!desktopLayerInserted) {
+  if (!webAppLayerInserted) {
     throw new Error(`${BIN_NAME}: desktop profile is missing @deepseek-ai/dsh-web-app`)
   }
+  // Append desktop-owned patches last among the bundle layers so that
+  // `- id: image-video` overrides actually find the entry that the
+  // `dsh-image-video` bundle just inserted. Inserting desktop patches right
+  // after the Web carrier used to run them before the image-video bundle, so
+  // every override was a silent no-op and the bundle's defaults leaked through.
+  bundlePatches.push(...desktopPatches)
 
   const loadedHomePatches = loadOptionalPatches(BIN_NAME, join(home, PROFILE_PATCH_FILENAME)) ?? []
   const { patches: homePatches, skipped: skippedOptionalEntries } = omitUnresolvedOptionalEntries(
     loadedHomePatches,
     bareModuleBaseUrl,
   )
+  // `dsh-image-video` ships with the installer, so the bundle layer is the
+  // single source of truth for the entry. Strip any `insert: [{ id:
+  // 'image-video', … }]` rows that the profile user layer or the
+  // machine-wide home patch may have copied from older bundle patches —
+  // without this the Loader would throw `duplicate loader entry id:
+  // image-video` on every boot. Overrides of the form `- id: image-video +
+  // config` survive because they only patch an existing entry instead of
+  // re-declaring it; settings UI writes use exactly that form.
+  const reconciledProfilePatches = reconcileImageVideoInserts(profile.patches)
+  const reconciledHomePatches = reconcileImageVideoInserts(homePatches)
   const filteredBundles = filterMarketProviderPatches(bundlePatches)
-  const filteredProfile = filterMarketProviderPatches(profile.patches)
-  const filteredHome = filterMarketProviderPatches(homePatches)
+  const filteredProfile = filterMarketProviderPatches(reconciledProfilePatches)
+  const filteredHome = filterMarketProviderPatches(reconciledHomePatches)
   const hasProviderConflict = filteredBundles.removedProviderReference
     || filteredProfile.removedProviderReference
     || filteredHome.removedProviderReference

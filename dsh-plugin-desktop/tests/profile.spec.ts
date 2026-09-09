@@ -117,6 +117,23 @@ describe('desktop profile composition', {
     ])).toEqual([
       '@deepseek-ai/dsh-base',
       '@deepseek-ai/dsh-web-app',
+      'dsh-image-video',
+      'third-party-one',
+      'third-party-two',
+    ])
+  })
+
+  it('preserves a historical position of the bundled image-video bundle before reordering', () => {
+    expect(desktopBundleList([
+      '@deepseek-ai/dsh-base',
+      'third-party-one',
+      'dsh-image-video',
+      DESKTOP_PACKAGE_NAME,
+      'third-party-two',
+    ])).toEqual([
+      '@deepseek-ai/dsh-base',
+      '@deepseek-ai/dsh-web-app',
+      'dsh-image-video',
       'third-party-one',
       'third-party-two',
     ])
@@ -143,6 +160,7 @@ describe('desktop profile composition', {
     expect(repaired.dsh.profile.bundles).toEqual([
       '@deepseek-ai/dsh-base',
       '@deepseek-ai/dsh-web-app',
+      'dsh-image-video',
       'third-party-plugin',
     ])
     expect(repaired.dependencies).toEqual({ 'third-party-plugin': '^1.2.3' })
@@ -174,7 +192,23 @@ describe('desktop profile composition', {
     expect(repaired.dsh.profile.bundles).toEqual([
       '@deepseek-ai/dsh-base',
       '@deepseek-ai/dsh-web-app',
+      'dsh-image-video',
     ])
+  })
+
+  it('strips a duplicated image-video insert from a profile user layer', () => {
+    const home = temporaryHome()
+    const dir = ensureDesktopProfile(home)
+    const patchPath = join(dir, 'cordis.patch.yml')
+    writeFileSync(patchPath, [
+      '- insert:',
+      '    - id: image-video',
+      '      name: dsh-image-video',
+      '      config:',
+      '        provider: bxinle',
+    ].join('\n') + '\n')
+
+    expect(() => prepareDesktopProfile(undefined, home, 'darwin')).not.toThrow()
   })
 
   it('marks legacy isolated Profile dependencies for one-time migration', () => {

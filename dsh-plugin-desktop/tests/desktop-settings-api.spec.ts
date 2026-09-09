@@ -79,6 +79,20 @@ function bootstrap(
     toggleDeveloperTools: () => {},
     exportDiagnostics: async () => {},
     openProfileCreator: () => {},
+    readImageVideoConfig: () => ({
+      provider: 'wanx',
+      bxinle: { apiKey: '', baseURL: '' },
+      wanx: { apiKey: '', baseURL: '' },
+      seedance: { apiKey: '', baseURL: '' },
+      defaultImageSize: '1024*1024',
+      defaultVideoDuration: 5,
+      timeoutMs: 60_000,
+      pollIntervalMs: 5_000,
+      pollTimeoutMs: 300_000,
+      retryTimes: 3,
+      outputsDir: './outputs',
+    }),
+    writeImageVideoConfig: async () => {},
     ...overrides,
   }
 }

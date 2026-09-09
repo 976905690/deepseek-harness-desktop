@@ -6,6 +6,9 @@ import {
 import type { SettingsScope } from '@deepseek-ai/dsh-client-runtime/client'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
+  DesktopImageVideoConfigView,
+  DesktopImageVideoCredentials,
+  DesktopImageVideoProvider,
   DesktopMarketProvider, DesktopProfileView, DesktopSettingsApi, DesktopSettingsView,
 } from './desktop-settings-api.ts'
 import type { DesktopSettingsLocaleKey } from './desktop-settings-locales.ts'
@@ -46,8 +49,37 @@ export type DesktopSettingsSectionProps =
   & InjectFace<DesktopSettingsSectionInjected>
 
 type Translate = DesktopSettingsSectionProps['t']
-type BusyOperation = 'load' | 'create-profile' | 'select-profile' | 'delete-profile' | 'select-market' | 'mode' | 'material' | 'notification'
+type BusyOperation = 'load' | 'create-profile' | 'select-profile' | 'delete-profile' | 'select-market' | 'mode' | 'material' | 'notification' | 'image-video'
 type RestartState = 'none' | 'restarting' | 'required'
+
+const IMAGE_VIDEO_PROVIDERS: readonly {
+  id: DesktopImageVideoProvider
+  title: DesktopSettingsLocaleKey
+  body: DesktopSettingsLocaleKey
+}[] = [
+  { id: 'bxinle', title: 'imageVideoBxinle', body: 'imageVideoBxinleBody' },
+  { id: 'wanx', title: 'imageVideoWanx', body: 'imageVideoWanxBody' },
+  { id: 'seedance', title: 'imageVideoSeedance', body: 'imageVideoSeedanceBody' },
+]
+
+const IMAGE_VIDEO_NUMERIC_FIELDS: readonly {
+  key: 'defaultVideoDuration' | 'timeoutMs' | 'pollIntervalMs' | 'pollTimeoutMs' | 'retryTimes'
+  label: DesktopSettingsLocaleKey
+}[] = [
+  { key: 'defaultVideoDuration', label: 'imageVideoDefaultVideoDuration' },
+  { key: 'timeoutMs', label: 'imageVideoTimeoutMs' },
+  { key: 'pollIntervalMs', label: 'imageVideoPollIntervalMs' },
+  { key: 'pollTimeoutMs', label: 'imageVideoPollTimeoutMs' },
+  { key: 'retryTimes', label: 'imageVideoRetryTimes' },
+]
+
+const IMAGE_VIDEO_STRING_FIELDS: readonly {
+  key: 'defaultImageSize' | 'outputsDir'
+  label: DesktopSettingsLocaleKey
+}[] = [
+  { key: 'defaultImageSize', label: 'imageVideoDefaultImageSize' },
+  { key: 'outputsDir', label: 'imageVideoOutputsDir' },
+]
 
 function useScope<T>(scope: SettingsScope<T>) {
   const subscribe = useCallback((listener: () => void) => scope.subscribe(listener), [scope])
@@ -208,13 +240,18 @@ export function DesktopSettingsSection({
   const [operationFailed, setOperationFailed] = useState(false)
   const [restart, setRestart] = useState<RestartState>('none')
   const [pendingProfileDelete, setPendingProfileDelete] = useState<string>()
+  const [imageVideo, setImageVideo] = useState<DesktopImageVideoConfigView>()
+  const [imageVideoLoadFailed, setImageVideoLoadFailed] = useState(false)
 
   const load = useCallback(async () => {
     setBusy('load')
     setLoadFailed(false)
     setOperationFailed(false)
+    setImageVideoLoadFailed(false)
     try {
-      setView(await api.read())
+      const [nextView, nextImageVideo] = await Promise.all([api.read(), api.readImageVideoConfig()])
+      setView(nextView)
+      setImageVideo(nextImageVideo)
     } catch {
       setLoadFailed(true)
     } finally {
@@ -314,6 +351,42 @@ export function DesktopSettingsSection({
 
   const setNotification = (field: keyof DesktopNotificationSettings, checked: boolean): void => {
     void run('notification', async () => { await notificationSettings.set(field, checked) })
+  }
+
+  const setImageVideoProvider = (provider: DesktopImageVideoProvider): void => {
+    setImageVideo(current => current === undefined ? current : { ...current, provider })
+  }
+
+  const setImageVideoCredentials = (
+    provider: DesktopImageVideoProvider,
+    field: keyof DesktopImageVideoCredentials,
+    value: string,
+  ): void => {
+    setImageVideo(current => current === undefined ? current : ({
+      ...current,
+      [provider]: { ...current[provider], [field]: value },
+    }))
+  }
+
+  const setImageVideoString = (field: 'defaultImageSize' | 'outputsDir', value: string): void => {
+    setImageVideo(current => current === undefined ? current : ({ ...current, [field]: value }))
+  }
+
+  const setImageVideoNumber = (
+    field: 'defaultVideoDuration' | 'timeoutMs' | 'pollIntervalMs' | 'pollTimeoutMs' | 'retryTimes',
+    value: string,
+  ): void => {
+    if (!/^\d+$/.test(value)) return
+    setImageVideo(current => current === undefined ? current : ({ ...current, [field]: Number(value) }))
+  }
+
+  const saveImageVideoConfig = (event: FormEvent): void => {
+    event.preventDefault()
+    if (imageVideo === undefined) return
+    void run('image-video', async () => {
+      const response = await api.writeImageVideoConfig(imageVideo)
+      if (response.restartRequired) requestRestart()
+    })
   }
 
   return (
@@ -551,6 +624,95 @@ export function DesktopSettingsSection({
             onChange={checked => { setNotification('notifyOnJobFailure', checked) }}
           />
         </div>
+      </section>
+
+      <section className="dshDesktopSettingsGroup" aria-labelledby="dsh-desktop-image-video-title">
+        <div>
+          <h3 id="dsh-desktop-image-video-title">{t('imageVideoTitle')}</h3>
+          <p className="dshDesktopSettingsGroupIntro">{t('imageVideoIntro')}</p>
+        </div>
+        {imageVideoLoadFailed && <p className="dshDesktopSettingsNotice">{t('imageVideoUnavailable')}</p>}
+        {imageVideo === undefined && !imageVideoLoadFailed && <p className="dshDesktopSettingsHint">{t('loading')}</p>}
+        {imageVideo !== undefined && (
+          <form className="dshDesktopSettingsForm dshDesktopSettingsImageVideoForm" onSubmit={saveImageVideoConfig}>
+            <div className="dshDesktopSettingsList" role="radiogroup" aria-labelledby="dsh-desktop-image-video-title">
+              {IMAGE_VIDEO_PROVIDERS.map(option => (
+                <Choice
+                  key={option.id}
+                  title={t(option.title)}
+                  body={t(option.body)}
+                  selected={imageVideo.provider === option.id}
+                  disabled={busy !== undefined || restart !== 'none'}
+                  action={() => { setImageVideoProvider(option.id) }}
+                  status={imageVideo.provider === option.id ? t('selected') : undefined}
+                />
+              ))}
+            </div>
+
+            <div className="dshDesktopSettingsMaterialField">
+              <span className="dshDesktopSettingsMaterialCopy">
+                <span className="dshDesktopSettingsChoiceTitle">{t('imageVideoApiKey')}</span>
+                <span className="dshDesktopSettingsChoiceBody">{t('imageVideoApiKeyBody')}</span>
+              </span>
+              <input
+                className="dshDesktopSettingsInput"
+                value={imageVideo[imageVideo.provider].apiKey}
+                autoComplete="off"
+                disabled={busy !== undefined || restart !== 'none'}
+                onChange={event => { setImageVideoCredentials(imageVideo.provider, 'apiKey', event.currentTarget.value) }}
+              />
+            </div>
+            <div className="dshDesktopSettingsMaterialField">
+              <span className="dshDesktopSettingsMaterialCopy">
+                <span className="dshDesktopSettingsChoiceTitle">{t('imageVideoBaseURL')}</span>
+                <span className="dshDesktopSettingsChoiceBody">{t('imageVideoBaseURLBody')}</span>
+              </span>
+              <input
+                className="dshDesktopSettingsInput"
+                value={imageVideo[imageVideo.provider].baseURL}
+                autoComplete="off"
+                disabled={busy !== undefined || restart !== 'none'}
+                onChange={event => { setImageVideoCredentials(imageVideo.provider, 'baseURL', event.currentTarget.value) }}
+              />
+            </div>
+
+            <div className="dshDesktopSettingsImageVideoGrid">
+              {IMAGE_VIDEO_STRING_FIELDS.map(field => (
+                <label className="dshDesktopSettingsField" key={field.key}>
+                  {t(field.label)}
+                  <input
+                    className="dshDesktopSettingsInput"
+                    value={imageVideo[field.key]}
+                    autoComplete="off"
+                    disabled={busy !== undefined || restart !== 'none'}
+                    onChange={event => { setImageVideoString(field.key, event.currentTarget.value) }}
+                  />
+                </label>
+              ))}
+              {IMAGE_VIDEO_NUMERIC_FIELDS.map(field => (
+                <label className="dshDesktopSettingsField" key={field.key}>
+                  {t(field.label)}
+                  <input
+                    className="dshDesktopSettingsInput"
+                    value={String(imageVideo[field.key])}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    disabled={busy !== undefined || restart !== 'none'}
+                    onChange={event => { setImageVideoNumber(field.key, event.currentTarget.value) }}
+                  />
+                </label>
+              ))}
+            </div>
+
+            <button
+              type="submit"
+              className="dshDesktopSettingsButton"
+              disabled={busy !== undefined || restart !== 'none'}
+            >
+              {busy === 'image-video' ? t('savingImageVideo') : t('saveImageVideo')}
+            </button>
+          </form>
+        )}
       </section>
     </div>
   )

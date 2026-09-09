@@ -114,6 +114,16 @@ const CSS = `
   align-items: flex-end;
   gap: 10px;
 }
+.dshDesktopSettingsImageVideoForm {
+  flex-direction: column;
+  align-items: stretch;
+}
+.dshDesktopSettingsImageVideoGrid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  width: 100%;
+}
 .dshDesktopSettingsField {
   display: flex;
   flex: 1;

@@ -27,27 +27,41 @@
     provider: threerouter
     model: deepseek-v4-pro
 
-# Image/Video plugin: users fill in their own provider API Key here.
+# Image/Video plugin: bundled with dsh-plugin-desktop so it appears in
+# Installed out of the box. bxinle credentials are pre-filled for convenience;
+# wanx and seedance credentials are kept empty on purpose — users fill them in
+# from the Desktop settings panel, which writes the per-profile override below.
 # The entry itself is registered by dsh-image-video's bundle patch; this row
 # only overrides config so updating the plugin via `git pull` won't conflict.
 - id: image-video
   config:
-    provider: bxinle
+    # 激活的生成服务商，bxinle | wanx | seedance
+    provider: wanx
+    # bxinle 凭证；provider=bxinle 时使用（仅支持视频生成）
     bxinle:
-      apiKey: ''
-      baseURL: ''
+      apiKey: 'sk-zerofa-1mfDj4ejFOfPwrO3dkax9ImmwiKpZ5IW'
+      baseURL: 'https://bxinle.com/v1'
+    # 万象（阿里云百炼）凭证；provider=wanx 时使用
     wanx:
       apiKey: ''
       baseURL: ''
+    # Seedance2.5（火山引擎）凭证；provider=seedance 时使用
     seedance:
       apiKey: ''
       baseURL: ''
+    # 默认图片尺寸（百炼接口要求 * 分隔，如 1024*1024）
     defaultImageSize: '1024*1024'
+    # 默认视频时长（秒），上限 10
     defaultVideoDuration: 5
+    # 单次 HTTP 请求超时（毫秒）
     timeoutMs: 60000
+    # 视频任务轮询间隔（毫秒）
     pollIntervalMs: 5000
+    # 视频任务整体超时（毫秒），超时后中止轮询
     pollTimeoutMs: 300000
+    # 可重试错误的最大重试次数
     retryTimes: 3
+    # 生成媒体落地目录（相对路径基于进程 cwd 解析）
     outputsDir: './outputs'
 
 # A desktop launch has no terminal operator waiting for the Web readiness line.

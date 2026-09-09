@@ -6,6 +6,10 @@ import type { DesktopMarketProvider } from './desktop-market.ts'
 import type DesktopSettingsController from './desktop-settings-controller.ts'
 import type { DesktopSettingsPostResponse } from './desktop-settings-controller.ts'
 import type {
+  DesktopImageVideoConfigSelectRequest,
+  DesktopImageVideoConfigView,
+  DesktopImageVideoCredentials,
+  DesktopImageVideoProvider,
   DesktopMarketSelectRequest,
   DesktopProfileCreateRequest,
   DesktopProfileDeleteRequest,
@@ -123,6 +127,10 @@ async function readJson(req: IncomingMessage): Promise<unknown> {
   return JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown
 }
 
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 function isExactRecord(value: unknown, key: string): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     && Object.keys(value).length === 1
@@ -146,6 +154,53 @@ function isMarketProvider(value: unknown): value is DesktopMarketProvider {
 function parseMarketRequest(value: unknown): DesktopMarketSelectRequest | undefined {
   if (!isExactRecord(value, 'provider') || !isMarketProvider(value.provider)) return undefined
   return { provider: value.provider }
+}
+
+function isImageVideoProvider(value: unknown): value is DesktopImageVideoProvider {
+  return value === 'bxinle' || value === 'wanx' || value === 'seedance'
+}
+
+function parseCredentials(value: unknown): DesktopImageVideoCredentials | undefined {
+  if (!isObject(value)) return undefined
+  if (typeof value.apiKey !== 'string') return undefined
+  if (typeof value.baseURL !== 'string') return undefined
+  return Object.freeze({ apiKey: value.apiKey, baseURL: value.baseURL })
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
+function parseImageVideoConfigRequest(
+  value: unknown,
+): DesktopImageVideoConfigSelectRequest | undefined {
+  if (!isObject(value)) return undefined
+  const credentialsFields = ['bxinle', 'wanx', 'seedance'] as const
+  if (!isImageVideoProvider(value.provider)) return undefined
+  for (const field of credentialsFields) {
+    const parsed = parseCredentials(value[field])
+    if (parsed === undefined) return undefined
+  }
+  if (typeof value.defaultImageSize !== 'string') return undefined
+  if (!isFiniteNumber(value.defaultVideoDuration)) return undefined
+  if (!isFiniteNumber(value.timeoutMs)) return undefined
+  if (!isFiniteNumber(value.pollIntervalMs)) return undefined
+  if (!isFiniteNumber(value.pollTimeoutMs)) return undefined
+  if (!isFiniteNumber(value.retryTimes)) return undefined
+  if (typeof value.outputsDir !== 'string') return undefined
+  return Object.freeze({
+    provider: value.provider,
+    bxinle: parseCredentials(value.bxinle) as DesktopImageVideoCredentials,
+    wanx: parseCredentials(value.wanx) as DesktopImageVideoCredentials,
+    seedance: parseCredentials(value.seedance) as DesktopImageVideoCredentials,
+    defaultImageSize: value.defaultImageSize,
+    defaultVideoDuration: value.defaultVideoDuration,
+    timeoutMs: value.timeoutMs,
+    pollIntervalMs: value.pollIntervalMs,
+    pollTimeoutMs: value.pollTimeoutMs,
+    retryTimes: value.retryTimes,
+    outputsDir: value.outputsDir,
+  }) satisfies DesktopImageVideoConfigView
 }
 
 function isEmptyRequest(value: unknown): boolean {
@@ -487,6 +542,57 @@ export async function handleDesktopProfileCreateWindowRequest(
   } catch (cause) {
     reportError('open Profile creator', cause)
     finishJson(res, 500, error('Profile creator could not be opened'))
+  }
+}
+
+/** Read the persisted dsh-image-video configuration for the active profile. */
+export async function handleDesktopImageVideoConfigRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  expectedOrigin: string,
+  controller: DesktopSettingsController,
+  reportError: (operation: string, cause: unknown) => void = () => {},
+): Promise<void> {
+  if (req.method !== 'GET') return finishJson(res, 405, error('method not allowed'), 'GET')
+  if (!isSameOriginLoopbackRequest(req, expectedOrigin, false)) {
+    return finishJson(res, 403, error('forbidden'))
+  }
+  try {
+    finishJson(res, 200, controller.readImageVideoConfig())
+  } catch (cause) {
+    reportError('read image-video config', cause)
+    finishJson(res, 500, error('image-video configuration is unavailable'))
+  }
+}
+
+/** Persist one dsh-image-video configuration for the active profile. */
+export async function handleDesktopImageVideoConfigSelectRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  expectedOrigin: string,
+  controller: DesktopSettingsController,
+  reportError: (operation: string, cause: unknown) => void = () => {},
+): Promise<void> {
+  if (req.method !== 'POST') return finishJson(res, 405, error('method not allowed'), 'POST')
+  if (!isSameOriginLoopbackRequest(req, expectedOrigin, true)) {
+    return finishJson(res, 403, error('forbidden'))
+  }
+  const value = await parsePostBody(req, res)
+  if (value === INVALID_BODY) return
+  const request = parseImageVideoConfigRequest(value)
+  if (request === undefined) return finishJson(res, 400, error('invalid image-video configuration request'))
+  try {
+    const operation = await controller.writeImageVideoConfig(request)
+    finishPostResponse(
+      res,
+      operation.response.restartRequired ? 202 : 200,
+      operation,
+      'write image-video config',
+      reportError,
+    )
+  } catch (cause) {
+    reportError('write image-video config', cause)
+    finishJson(res, 500, error('image-video configuration could not be saved'))
   }
 }
 

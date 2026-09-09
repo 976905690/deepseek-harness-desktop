@@ -64,6 +64,10 @@ import {
   selectDesktopMarketProvider,
 } from './desktop-market.ts'
 import DesktopSettingsController from './desktop-settings-controller.ts'
+import {
+  readImageVideoConfigFromPatchPath,
+  writeImageVideoConfigToPatchPath,
+} from './desktop-image-video-config.ts'
 import { DesktopStartupRecoveryController } from './startup-recovery-controller.ts'
 import {
   DesktopStartupRecoveryWindow,
@@ -424,6 +428,7 @@ async function start(): Promise<void> {
     const profileStartup = beginDesktopProfileStartup(selectionStatePath, homeDir)
     const activeProfileName = profileStartup.profileName
     const activeProfileDir = resolveProfileDir(activeProfileName, homeDir)
+    const imageVideoPatchPath = join(activeProfileDir, PROFILE_PATCH_FILENAME)
     const recoveryProfileToken = randomUUID()
     startupRecoveryProfileActions = {
       token: recoveryProfileToken,
@@ -747,6 +752,17 @@ async function start(): Promise<void> {
                 await hostCtx.desktopProfiles.select(name)
               },
             })
+          },
+          readImageVideoConfig: () => readImageVideoConfigFromPatchPath(imageVideoPatchPath),
+          writeImageVideoConfig: async next => {
+            try {
+              writeImageVideoConfigToPatchPath(imageVideoPatchPath, next)
+            } catch (cause) {
+              hostCtx.logger.error(
+                `${BIN_NAME}: failed to persist image-video configuration: ${cause instanceof Error ? cause.message : String(cause)}`,
+              )
+              throw cause instanceof Error ? cause : new Error(String(cause))
+            }
           },
         }))
         provideCmdline(hostCtx, {

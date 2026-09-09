@@ -30,6 +30,8 @@ import {
 import {
   DESKTOP_DIAGNOSTICS_EXPORT_PATH,
   DESKTOP_DEVELOPER_TOOLS_TOGGLE_PATH,
+  DESKTOP_IMAGE_VIDEO_CONFIG_PATH,
+  DESKTOP_IMAGE_VIDEO_CONFIG_SELECT_PATH,
   DESKTOP_MARKET_SELECT_PATH,
   DESKTOP_PROFILE_CREATE_PATH,
   DESKTOP_PROFILE_CREATE_WINDOW_PATH,
@@ -44,6 +46,8 @@ import {
 import {
   handleDesktopDiagnosticsExportRequest,
   handleDesktopDeveloperToolsToggleRequest,
+  handleDesktopImageVideoConfigRequest,
+  handleDesktopImageVideoConfigSelectRequest,
   handleDesktopMarketSelectRequest,
   handleDesktopProfileCreateRequest,
   handleDesktopProfileCreateWindowRequest,
@@ -243,6 +247,8 @@ export function apply(ctx: Context, config: Config): void {
       [DESKTOP_RENDERER_RELOAD_PATH, handleDesktopRendererReloadRequest],
       [DESKTOP_DEVELOPER_TOOLS_TOGGLE_PATH, handleDesktopDeveloperToolsToggleRequest],
       [DESKTOP_DIAGNOSTICS_EXPORT_PATH, handleDesktopDiagnosticsExportRequest],
+      [DESKTOP_IMAGE_VIDEO_CONFIG_PATH, handleDesktopImageVideoConfigRequest],
+      [DESKTOP_IMAGE_VIDEO_CONFIG_SELECT_PATH, handleDesktopImageVideoConfigSelectRequest],
     ] as const
     for (const [path, handler] of settingsRoutes) {
       ctx.effect(

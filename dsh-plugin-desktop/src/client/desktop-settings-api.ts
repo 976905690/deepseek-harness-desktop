@@ -12,6 +12,8 @@ const RENDERER_RELOAD_PATH = '/api/desktop/developer/reload'
 const DEVELOPER_TOOLS_TOGGLE_PATH = '/api/desktop/developer/devtools'
 const UPDATE_CHECK_PATH = '/api/desktop/updates/check'
 const DIAGNOSTICS_EXPORT_PATH = '/api/desktop/diagnostics/export'
+const IMAGE_VIDEO_CONFIG_PATH = '/api/desktop/image-video/config'
+const IMAGE_VIDEO_CONFIG_SELECT_PATH = '/api/desktop/image-video/config/select'
 const MAX_PROFILES = 256
 const MAX_PROFILE_NAME_LENGTH = 255
 
@@ -47,6 +49,30 @@ export interface DesktopRestartAcceptance {
   readonly restartRequired: boolean
 }
 
+/** Generation-scoped providers for dsh-image-video. */
+export type DesktopImageVideoProvider = 'bxinle' | 'wanx' | 'seedance'
+
+/** Credentials for one dsh-image-video provider. */
+export interface DesktopImageVideoCredentials {
+  readonly apiKey: string
+  readonly baseURL: string
+}
+
+/** Browser view of one persisted dsh-image-video configuration. */
+export interface DesktopImageVideoConfigView {
+  readonly provider: DesktopImageVideoProvider
+  readonly bxinle: DesktopImageVideoCredentials
+  readonly wanx: DesktopImageVideoCredentials
+  readonly seedance: DesktopImageVideoCredentials
+  readonly defaultImageSize: string
+  readonly defaultVideoDuration: number
+  readonly timeoutMs: number
+  readonly pollIntervalMs: number
+  readonly pollTimeoutMs: number
+  readonly retryTimes: number
+  readonly outputsDir: string
+}
+
 /** Browser operations consumed by the Desktop settings section. */
 export interface DesktopSettingsApi {
   read(): Promise<DesktopSettingsView>
@@ -61,6 +87,8 @@ export interface DesktopSettingsApi {
   toggleDeveloperTools(): Promise<void>
   checkForUpdates(): Promise<void>
   exportDiagnostics(): Promise<void>
+  readImageVideoConfig(): Promise<DesktopImageVideoConfigView>
+  writeImageVideoConfig(next: DesktopImageVideoConfigView): Promise<DesktopRestartAcceptance>
 }
 
 type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
@@ -139,6 +167,45 @@ export function parseDesktopActionAcceptance(value: unknown): void {
   }
 }
 
+function isImageVideoProvider(value: unknown): value is DesktopImageVideoProvider {
+  return value === 'bxinle' || value === 'wanx' || value === 'seedance'
+}
+
+function parseImageVideoCredentials(value: unknown): DesktopImageVideoCredentials {
+  if (!isObject(value) || typeof value.apiKey !== 'string' || typeof value.baseURL !== 'string') {
+    throw new Error('dsh-plugin-desktop: invalid image-video credentials response')
+  }
+  return Object.freeze({ apiKey: value.apiKey, baseURL: value.baseURL })
+}
+
+/** Validate the bounded dsh-image-video configuration before it reaches React state. */
+export function parseDesktopImageVideoConfigView(value: unknown): DesktopImageVideoConfigView {
+  if (!isObject(value)
+    || !isImageVideoProvider(value.provider)
+    || typeof value.defaultImageSize !== 'string'
+    || typeof value.defaultVideoDuration !== 'number'
+    || typeof value.timeoutMs !== 'number'
+    || typeof value.pollIntervalMs !== 'number'
+    || typeof value.pollTimeoutMs !== 'number'
+    || typeof value.retryTimes !== 'number'
+    || typeof value.outputsDir !== 'string') {
+    throw new Error('dsh-plugin-desktop: invalid image-video configuration response')
+  }
+  return Object.freeze({
+    provider: value.provider,
+    bxinle: parseImageVideoCredentials(value.bxinle),
+    wanx: parseImageVideoCredentials(value.wanx),
+    seedance: parseImageVideoCredentials(value.seedance),
+    defaultImageSize: value.defaultImageSize,
+    defaultVideoDuration: value.defaultVideoDuration,
+    timeoutMs: value.timeoutMs,
+    pollIntervalMs: value.pollIntervalMs,
+    pollTimeoutMs: value.pollTimeoutMs,
+    retryTimes: value.retryTimes,
+    outputsDir: value.outputsDir,
+  })
+}
+
 async function readResponse(response: Response): Promise<unknown> {
   if (!response.ok) {
     throw new Error(`dsh-plugin-desktop: Desktop settings request failed (${String(response.status)})`)
@@ -209,6 +276,19 @@ export function createDesktopSettingsApi(fetcher: FetchLike = globalThis.fetch.b
     async exportDiagnostics() {
       parseDesktopActionAcceptance(await readResponse(await post(fetcher, DIAGNOSTICS_EXPORT_PATH, {})))
     },
+    async readImageVideoConfig() {
+      const response = await fetcher(IMAGE_VIDEO_CONFIG_PATH, {
+        method: 'GET',
+        credentials: 'same-origin',
+        redirect: 'error',
+        cache: 'no-store',
+        headers: { 'Accept': 'application/json' },
+      })
+      return parseDesktopImageVideoConfigView(await readResponse(response))
+    },
+    async writeImageVideoConfig(next: DesktopImageVideoConfigView) {
+      return parseDesktopRestartAcceptance(await readResponse(await post(fetcher, IMAGE_VIDEO_CONFIG_SELECT_PATH, next)))
+    },
   })
 }
 
@@ -225,4 +305,6 @@ export const desktopSettingsPaths = Object.freeze({
   developerToolsToggle: DEVELOPER_TOOLS_TOGGLE_PATH,
   updateCheck: UPDATE_CHECK_PATH,
   diagnosticsExport: DIAGNOSTICS_EXPORT_PATH,
+  imageVideoConfig: IMAGE_VIDEO_CONFIG_PATH,
+  imageVideoConfigSelect: IMAGE_VIDEO_CONFIG_SELECT_PATH,
 })

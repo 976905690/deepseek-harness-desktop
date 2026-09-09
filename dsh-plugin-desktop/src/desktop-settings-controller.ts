@@ -7,6 +7,8 @@ import type {
 import type { DesktopProfileSummary } from './profile-manager.ts'
 import type { DesktopProfiles } from './profile-service.ts'
 import type {
+  DesktopImageVideoConfigSelectResponse,
+  DesktopImageVideoConfigView,
   DesktopMarketSelectResponse,
   DesktopDeveloperToolsToggleResponse,
   DesktopDiagnosticsExportResponse,
@@ -48,6 +50,10 @@ export interface DesktopSettingsControllerBootstrap {
   exportDiagnostics(): void | Promise<void>
   /** Open the isolated native Profile creator. */
   openProfileCreator(): void
+  /** Read the persisted dsh-image-video configuration for the active profile. */
+  readImageVideoConfig(): DesktopImageVideoConfigView
+  /** Persist one validated dsh-image-video configuration for the active profile. */
+  writeImageVideoConfig(next: DesktopImageVideoConfigView): Promise<void>
 }
 
 /** A persisted response plus work that must run only after `res.end()`. */
@@ -200,6 +206,37 @@ export class DesktopSettingsController {
   openProfileCreator(): DesktopProfileCreateWindowResponse {
     this.bootstrap.openProfileCreator()
     return Object.freeze({ accepted: true })
+  }
+
+  /** Read the persisted dsh-image-video configuration for the active profile. */
+  readImageVideoConfig(): DesktopImageVideoConfigView {
+    return this.bootstrap.readImageVideoConfig()
+  }
+
+  /** Persist the dsh-image-video configuration and queue restart once written. */
+  async writeImageVideoConfig(
+    next: DesktopImageVideoConfigView,
+  ): Promise<DesktopSettingsPostResponse<DesktopImageVideoConfigSelectResponse>> {
+    const current = this.bootstrap.readImageVideoConfig()
+    await this.bootstrap.writeImageVideoConfig(next)
+    const restartRequired = current.provider !== next.provider
+      || current.bxinle.apiKey !== next.bxinle.apiKey
+      || current.bxinle.baseURL !== next.bxinle.baseURL
+      || current.wanx.apiKey !== next.wanx.apiKey
+      || current.wanx.baseURL !== next.wanx.baseURL
+      || current.seedance.apiKey !== next.seedance.apiKey
+      || current.seedance.baseURL !== next.seedance.baseURL
+      || current.defaultImageSize !== next.defaultImageSize
+      || current.defaultVideoDuration !== next.defaultVideoDuration
+      || current.timeoutMs !== next.timeoutMs
+      || current.pollIntervalMs !== next.pollIntervalMs
+      || current.pollTimeoutMs !== next.pollTimeoutMs
+      || current.retryTimes !== next.retryTimes
+      || current.outputsDir !== next.outputsDir
+    return Object.freeze({
+      response: Object.freeze({ ...next, accepted: true, restartRequired }),
+      ...(restartRequired ? { afterResponse: () => { this.bootstrap.scheduleRestart() } } : {}),
+    })
   }
 
 }
