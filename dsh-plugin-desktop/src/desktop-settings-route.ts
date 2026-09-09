@@ -157,7 +157,7 @@ function parseMarketRequest(value: unknown): DesktopMarketSelectRequest | undefi
 }
 
 function isImageVideoProvider(value: unknown): value is DesktopImageVideoProvider {
-  return value === 'bxinle' || value === 'wanx' || value === 'seedance'
+  return value === 'threerouter' || value === 'wanx' || value === 'seedance'
 }
 
 function parseCredentials(value: unknown): DesktopImageVideoCredentials | undefined {
@@ -175,12 +175,14 @@ function parseImageVideoConfigRequest(
   value: unknown,
 ): DesktopImageVideoConfigSelectRequest | undefined {
   if (!isObject(value)) return undefined
-  const credentialsFields = ['bxinle', 'wanx', 'seedance'] as const
+  const credentialsFields = ['threerouter', 'wanx', 'seedance'] as const
   if (!isImageVideoProvider(value.provider)) return undefined
   for (const field of credentialsFields) {
     const parsed = parseCredentials(value[field])
     if (parsed === undefined) return undefined
   }
+  if (typeof value.defaultImageModel !== 'string') return undefined
+  if (typeof value.defaultVideoModel !== 'string') return undefined
   if (typeof value.defaultImageSize !== 'string') return undefined
   if (!isFiniteNumber(value.defaultVideoDuration)) return undefined
   if (!isFiniteNumber(value.timeoutMs)) return undefined
@@ -190,9 +192,11 @@ function parseImageVideoConfigRequest(
   if (typeof value.outputsDir !== 'string') return undefined
   return Object.freeze({
     provider: value.provider,
-    bxinle: parseCredentials(value.bxinle) as DesktopImageVideoCredentials,
+    threerouter: parseCredentials(value.threerouter) as DesktopImageVideoCredentials,
     wanx: parseCredentials(value.wanx) as DesktopImageVideoCredentials,
     seedance: parseCredentials(value.seedance) as DesktopImageVideoCredentials,
+    defaultImageModel: value.defaultImageModel,
+    defaultVideoModel: value.defaultVideoModel,
     defaultImageSize: value.defaultImageSize,
     defaultVideoDuration: value.defaultVideoDuration,
     timeoutMs: value.timeoutMs,

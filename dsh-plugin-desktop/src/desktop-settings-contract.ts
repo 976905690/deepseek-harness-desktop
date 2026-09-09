@@ -182,7 +182,7 @@ export interface DesktopProfileCreateWindowResponse {
 }
 
 /** Generation-scoped providers for dsh-image-video. */
-export type DesktopImageVideoProvider = 'bxinle' | 'wanx' | 'seedance'
+export type DesktopImageVideoProvider = 'threerouter' | 'wanx' | 'seedance'
 
 /** Credentials for one dsh-image-video provider. */
 export interface DesktopImageVideoCredentials {
@@ -193,9 +193,11 @@ export interface DesktopImageVideoCredentials {
 /** Browser view of one persisted dsh-image-video configuration. */
 export interface DesktopImageVideoConfigView {
   readonly provider: DesktopImageVideoProvider
-  readonly bxinle: DesktopImageVideoCredentials
+  readonly threerouter: DesktopImageVideoCredentials
   readonly wanx: DesktopImageVideoCredentials
   readonly seedance: DesktopImageVideoCredentials
+  readonly defaultImageModel: string
+  readonly defaultVideoModel: string
   readonly defaultImageSize: string
   readonly defaultVideoDuration: number
   readonly timeoutMs: number

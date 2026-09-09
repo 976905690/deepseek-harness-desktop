@@ -205,7 +205,7 @@ describe('desktop profile composition', {
       '    - id: image-video',
       '      name: dsh-image-video',
       '      config:',
-      '        provider: bxinle',
+      '        provider: threerouter',
     ].join('\n') + '\n')
 
     expect(() => prepareDesktopProfile(undefined, home, 'darwin')).not.toThrow()

@@ -14,13 +14,12 @@ const IMAGE_VIDEO_PATCH_ID = 'image-video'
 
 /** Same defaults that the bundle's own `cordis.patch.yml` declares. */
 const DEFAULT_IMAGE_VIDEO_CONFIG: DesktopImageVideoConfigView = Object.freeze({
-  provider: 'wanx',
-  bxinle: Object.freeze({
-    apiKey: 'sk-zerofa-1mfDj4ejFOfPwrO3dkax9ImmwiKpZ5IW',
-    baseURL: 'https://bxinle.com/v1',
-  }),
+  provider: 'threerouter',
+  threerouter: Object.freeze({ apiKey: '', baseURL: '' }),
   wanx: Object.freeze({ apiKey: '', baseURL: '' }),
   seedance: Object.freeze({ apiKey: '', baseURL: '' }),
+  defaultImageModel: '',
+  defaultVideoModel: '',
   defaultImageSize: '1024*1024',
   defaultVideoDuration: 5,
   timeoutMs: 60_000,
@@ -54,7 +53,7 @@ function readCredentials(
 }
 
 function isImageVideoProvider(value: unknown): value is DesktopImageVideoProvider {
-  return value === 'bxinle' || value === 'wanx' || value === 'seedance'
+  return value === 'threerouter' || value === 'wanx' || value === 'seedance'
 }
 
 /** Project a single loader patch row's config into a renderer-safe view. */
@@ -66,9 +65,11 @@ export function projectImageVideoConfig(value: unknown): DesktopImageVideoConfig
     : fallback.provider
   return Object.freeze({
     provider,
-    bxinle: readCredentials(config.bxinle, fallback.bxinle),
+    threerouter: readCredentials(config.threerouter, fallback.threerouter),
     wanx: readCredentials(config.wanx, fallback.wanx),
     seedance: readCredentials(config.seedance, fallback.seedance),
+    defaultImageModel: readString(config.defaultImageModel, fallback.defaultImageModel),
+    defaultVideoModel: readString(config.defaultVideoModel, fallback.defaultVideoModel),
     defaultImageSize: readString(config.defaultImageSize, fallback.defaultImageSize),
     defaultVideoDuration: readNumber(config.defaultVideoDuration, fallback.defaultVideoDuration),
     timeoutMs: readNumber(config.timeoutMs, fallback.timeoutMs),
@@ -107,9 +108,11 @@ function imageVideoConfigToRaw(
 ): Record<string, unknown> {
   return {
     provider: value.provider,
-    bxinle: { apiKey: value.bxinle.apiKey, baseURL: value.bxinle.baseURL },
+    threerouter: { apiKey: value.threerouter.apiKey, baseURL: value.threerouter.baseURL },
     wanx: { apiKey: value.wanx.apiKey, baseURL: value.wanx.baseURL },
     seedance: { apiKey: value.seedance.apiKey, baseURL: value.seedance.baseURL },
+    defaultImageModel: value.defaultImageModel,
+    defaultVideoModel: value.defaultVideoModel,
     defaultImageSize: value.defaultImageSize,
     defaultVideoDuration: value.defaultVideoDuration,
     timeoutMs: value.timeoutMs,

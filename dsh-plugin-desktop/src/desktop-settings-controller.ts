@@ -220,8 +220,10 @@ export class DesktopSettingsController {
     const current = this.bootstrap.readImageVideoConfig()
     await this.bootstrap.writeImageVideoConfig(next)
     const restartRequired = current.provider !== next.provider
-      || current.bxinle.apiKey !== next.bxinle.apiKey
-      || current.bxinle.baseURL !== next.bxinle.baseURL
+      || current.threerouter.apiKey !== next.threerouter.apiKey
+      || current.threerouter.baseURL !== next.threerouter.baseURL
+      || current.defaultImageModel !== next.defaultImageModel
+      || current.defaultVideoModel !== next.defaultVideoModel
       || current.wanx.apiKey !== next.wanx.apiKey
       || current.wanx.baseURL !== next.wanx.baseURL
       || current.seedance.apiKey !== next.seedance.apiKey

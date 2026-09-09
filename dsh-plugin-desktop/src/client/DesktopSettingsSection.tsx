@@ -57,7 +57,7 @@ const IMAGE_VIDEO_PROVIDERS: readonly {
   title: DesktopSettingsLocaleKey
   body: DesktopSettingsLocaleKey
 }[] = [
-  { id: 'bxinle', title: 'imageVideoBxinle', body: 'imageVideoBxinleBody' },
+  { id: 'threerouter', title: 'imageVideoThreerouter', body: 'imageVideoThreerouterBody' },
   { id: 'wanx', title: 'imageVideoWanx', body: 'imageVideoWanxBody' },
   { id: 'seedance', title: 'imageVideoSeedance', body: 'imageVideoSeedanceBody' },
 ]
@@ -368,7 +368,10 @@ export function DesktopSettingsSection({
     }))
   }
 
-  const setImageVideoString = (field: 'defaultImageSize' | 'outputsDir', value: string): void => {
+  const setImageVideoString = (
+    field: 'defaultImageModel' | 'defaultVideoModel' | 'defaultImageSize' | 'outputsDir',
+    value: string,
+  ): void => {
     setImageVideo(current => current === undefined ? current : ({ ...current, [field]: value }))
   }
 

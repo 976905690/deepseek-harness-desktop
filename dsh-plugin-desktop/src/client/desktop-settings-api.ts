@@ -50,7 +50,7 @@ export interface DesktopRestartAcceptance {
 }
 
 /** Generation-scoped providers for dsh-image-video. */
-export type DesktopImageVideoProvider = 'bxinle' | 'wanx' | 'seedance'
+export type DesktopImageVideoProvider = 'threerouter' | 'wanx' | 'seedance'
 
 /** Credentials for one dsh-image-video provider. */
 export interface DesktopImageVideoCredentials {
@@ -61,7 +61,7 @@ export interface DesktopImageVideoCredentials {
 /** Browser view of one persisted dsh-image-video configuration. */
 export interface DesktopImageVideoConfigView {
   readonly provider: DesktopImageVideoProvider
-  readonly bxinle: DesktopImageVideoCredentials
+  readonly threerouter: DesktopImageVideoCredentials
   readonly wanx: DesktopImageVideoCredentials
   readonly seedance: DesktopImageVideoCredentials
   readonly defaultImageSize: string
@@ -168,7 +168,7 @@ export function parseDesktopActionAcceptance(value: unknown): void {
 }
 
 function isImageVideoProvider(value: unknown): value is DesktopImageVideoProvider {
-  return value === 'bxinle' || value === 'wanx' || value === 'seedance'
+  return value === 'threerouter' || value === 'wanx' || value === 'seedance'
 }
 
 function parseImageVideoCredentials(value: unknown): DesktopImageVideoCredentials {
@@ -182,6 +182,8 @@ function parseImageVideoCredentials(value: unknown): DesktopImageVideoCredential
 export function parseDesktopImageVideoConfigView(value: unknown): DesktopImageVideoConfigView {
   if (!isObject(value)
     || !isImageVideoProvider(value.provider)
+    || typeof value.defaultImageModel !== 'string'
+    || typeof value.defaultVideoModel !== 'string'
     || typeof value.defaultImageSize !== 'string'
     || typeof value.defaultVideoDuration !== 'number'
     || typeof value.timeoutMs !== 'number'
@@ -193,9 +195,11 @@ export function parseDesktopImageVideoConfigView(value: unknown): DesktopImageVi
   }
   return Object.freeze({
     provider: value.provider,
-    bxinle: parseImageVideoCredentials(value.bxinle),
+    threerouter: parseImageVideoCredentials(value.threerouter),
     wanx: parseImageVideoCredentials(value.wanx),
     seedance: parseImageVideoCredentials(value.seedance),
+    defaultImageModel: value.defaultImageModel,
+    defaultVideoModel: value.defaultVideoModel,
     defaultImageSize: value.defaultImageSize,
     defaultVideoDuration: value.defaultVideoDuration,
     timeoutMs: value.timeoutMs,
