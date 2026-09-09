@@ -60,6 +60,17 @@ html:has([aria-modal="true"]) .dshDesktopSidebarSurface::before { -webkit-app-re
   .dshDesktopFrame,
   .dshDesktopResizeHandle { transition: none !important; }
 }
+
+/* ---- Desktop-owned media toolview (generate_video / generate_image) ---- */
+.dshDesktopMediaTool { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 4px 0; }
+.dshDesktopMediaTool[data-media-state="running"],
+.dshDesktopMediaTool[data-media-state="unavailable"] { font-size: 12px; line-height: 1.6; color: var(--dsw-alias-label-secondary); }
+.dshDesktopMediaPrompt { font-size: 12px; line-height: 1.6; color: var(--dsw-alias-label-secondary); overflow-wrap: anywhere; }
+.dshDesktopMediaPlayer { display: block; width: 100%; max-width: 480px; max-height: 320px; border-radius: 8px; background: var(--dsw-alias-bg-layer-1); object-fit: contain; }
+.dshDesktopMediaMeta { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; color: var(--dsw-alias-label-secondary); }
+.dshDesktopMediaPath { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dshDesktopMediaOpen { flex: none; padding: 2px 8px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 6px; background: transparent; color: inherit; font-family: inherit; font-size: 12px; line-height: 18px; cursor: pointer; }
+.dshDesktopMediaOpen:hover { background: var(--dsw-alias-bg-layer-1); }
 `
 
 /** Install shared panel styles; mode selectors keep enhanced and extended chrome independent. */

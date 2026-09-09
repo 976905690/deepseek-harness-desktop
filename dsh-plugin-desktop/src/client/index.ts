@@ -11,6 +11,7 @@ import { applyDesktopSettings } from './desktop-settings.ts'
 import { installDesktopDirectoryPickerBridge, requestDesktopDirectoryValidation } from './directory-picker.ts'
 import { parseDesktopClientEnvironment } from './environment.ts'
 import { applyExtendedShell, applyFramedShell } from './extended-shell.ts'
+import { applyMediaToolviews } from './media-toolview.tsx'
 import { installWorkspaceFolderDrop } from './workspace-folder-drop.ts'
 import { desktopWindowService, provideDesktopWindow } from './window-service.ts'
 
@@ -112,5 +113,10 @@ export function apply(ctx: ClientContext): void {
   if (environment.mode === 'extended') applyExtendedShell(ctx, environment, desktopSettings)
   if (environment.platform !== 'linux' && environment.mode === 'compatibility') {
     applyFramedShell(ctx, environment, desktopSettings)
+  }
+  // 桌面自有媒体 toolview：generate_video/generate_image 内嵌播放器，仅在
+  // advanced / extended 接入；compatibility 保持上游默认客户端（无桌面覆盖）。
+  if (environment.mode === 'advanced' || environment.mode === 'extended') {
+    applyMediaToolviews(ctx)
   }
 }
