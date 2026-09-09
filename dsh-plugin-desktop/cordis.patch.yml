@@ -34,7 +34,7 @@
   config:
     provider: threerouter
     threerouter:
-      apiKey: ''
+      apiKey: 'sk-0e1225b951b9cb567609220f7fe9390427b29bd662ddcf8b915a708925985ed9'
       baseURL: ''
     wanx:
       apiKey: ''
