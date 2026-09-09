@@ -1,7 +1,7 @@
 /** Compatibility profile composition over the official Web bundle and user plugins. */
 
 import { createRequire } from 'node:module'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { evaluate, isJsExpr, type EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
@@ -70,6 +70,7 @@ const REQUIRED_BUNDLE_SET = new Set(REQUIRED_BUNDLES)
 const DESKTOP_BUNDLED_BUNDLES: readonly string[] = ['dsh-image-video']
 const DESKTOP_BUNDLED_BUNDLE_SET = new Set(DESKTOP_BUNDLED_BUNDLES)
 const OBSOLETE_DESKTOP_BUNDLE_SET = new Set(['@deepseek-ai/dsh-desktop-app'])
+const DESKTOP_IMAGE_VIDEO_BUNDLE = 'dsh-image-video'
 const INSTALL_ANCHOR = unpackedAsarPath(fileURLToPath(new URL('../package.json', import.meta.url)))
 const DESKTOP_PATCH_PATH = fileURLToPath(new URL('../cordis.patch.yml', import.meta.url))
 const DIRECTORY_PICKER_ROW_ID = 'directory-picker'
@@ -313,18 +314,34 @@ export function ensureDesktopProfile(home: string = resolveDshHome()): string {
   }
   const current = rawBundles === undefined ? [] : rawBundles as string[]
   const bundles = desktopBundleList(current)
-  if (!sameList(current, bundles)) {
-    writeProfileManifest(dir, {
-      ...manifest,
-      dsh: {
-        ...manifest.dsh,
-        profile: {
-          ...manifest.dsh?.profile,
-          bundles,
-        },
-      },
-    })
+  // 自动注入 dsh-image-video 依赖：launcher 从 install 端解析插件包路径，
+  // 写入 profile 的 dependencies（link: 协议），同事 clone 后首次启动自动生效。
+  const installPackageUrl = pathToFileURL(INSTALL_ANCHOR).href
+  const profilePackageUrl = pathToFileURL(join(dir, 'package.json')).href
+  const overlay = findOverlayPackage(DESKTOP_IMAGE_VIDEO_BUNDLE, { installPackageUrl, profilePackageUrl })
+  const deps = (manifest.dependencies ?? {}) as Record<string, string>
+  const updated = { ...manifest }
+  let manifestChanged = false
+  if (overlay !== undefined) {
+    const videoDir = realpathSync(overlay.selected.packageDir)
+    const linkSpec = `link:${videoDir}`
+    if (deps[DESKTOP_IMAGE_VIDEO_BUNDLE] !== linkSpec) {
+      deps[DESKTOP_IMAGE_VIDEO_BUNDLE] = linkSpec
+      updated.dependencies = deps
+      manifestChanged = true
+    }
   }
+  if (!sameList(current, bundles)) {
+    updated.dsh = {
+      ...manifest.dsh,
+      profile: {
+        ...manifest.dsh?.profile,
+        bundles,
+      },
+    }
+    manifestChanged = true
+  }
+  if (manifestChanged) writeProfileManifest(dir, updated)
   return dir
 }
 
@@ -471,6 +488,13 @@ function loadRecoveryFilteredProfile(
   if (marketProvider === DESKTOP_MARKET_IDENTITIES.dshMarket.provider
     && !selectedBundles.includes(DESKTOP_MARKET_IDENTITIES.dshMarket.packageName)) {
     selectedBundles.push(DESKTOP_MARKET_IDENTITIES.dshMarket.packageName)
+  }
+  // The desktop image/video bundle ships as a launcher-owned layer so a fresh
+  // clone loads `generate_image` / `generate_video` without editing profiles.
+  // It stays a separate package: the profile loader consumes the bundle's own
+  // `dsh.bundle.patch`, never a desktop-owned copy of that file.
+  if (!selectedBundles.includes(DESKTOP_IMAGE_VIDEO_BUNDLE)) {
+    selectedBundles.push(DESKTOP_IMAGE_VIDEO_BUNDLE)
   }
   const layers: Profile['layers'] = []
   let dshMarketFailure: string | undefined
@@ -832,6 +856,7 @@ export function prepareDesktopProfile(
 
   const desktopPatches = loadOverlayPatches(BIN_NAME, DESKTOP_PATCH_PATH)
   const bundlePatches: PatchOptions[] = []
+  const imageVideoPatches: PatchOptions[] = []
   let dshMarketPatches: PatchOptions[] | undefined
   let webAppLayerInserted = false
   const providerAwareDisabledBundles = new Set(disabledBundles)
@@ -841,6 +866,13 @@ export function prepareDesktopProfile(
   for (const layer of activeDesktopProfileLayers(profile, providerAwareDisabledBundles)) {
     if (layer.packageName === DESKTOP_MARKET_IDENTITIES.dshMarket.packageName) {
       dshMarketPatches = layer.patches
+      continue
+    }
+    // The launcher-owned image/video bundle registers its own `image-video`
+    // row. Its insert must land before the desktop override for that row, so
+    // collect it separately and merge it in front of the desktop layer.
+    if (layer.packageName === DESKTOP_IMAGE_VIDEO_BUNDLE) {
+      imageVideoPatches.push(...layer.patches)
       continue
     }
     bundlePatches.push(...layer.patches)
@@ -914,6 +946,7 @@ export function prepareDesktopProfile(
     }
   }
   const patches: PatchOptions[] = [
+    ...imageVideoPatches,
     ...filteredBundles.patches,
     ...providerPatches,
     ...filteredProfile.patches,

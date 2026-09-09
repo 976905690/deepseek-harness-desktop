@@ -35,13 +35,10 @@
 # only overrides config so updating the plugin via `git pull` won't conflict.
 - id: image-video
   config:
-    # 激活的生成服务商，bxinle | wanx | seedance
-    provider: wanx
-    # bxinle 凭证；provider=bxinle 时使用（仅支持视频生成）
-    bxinle:
-      apiKey: 'sk-zerofa-1mfDj4ejFOfPwrO3dkax9ImmwiKpZ5IW'
-      baseURL: 'https://bxinle.com/v1'
-    # 万象（阿里云百炼）凭证；provider=wanx 时使用
+    provider: threerouter
+    threerouter:
+      apiKey: 'sk-0e1225b951b9cb567609220f7fe9390427b29bd662ddcf8b915a708925985ed9'
+      baseURL: ''
     wanx:
       apiKey: ''
       baseURL: ''
@@ -49,7 +46,8 @@
     seedance:
       apiKey: ''
       baseURL: ''
-    # 默认图片尺寸（百炼接口要求 * 分隔，如 1024*1024）
+    defaultImageModel: ''
+    defaultVideoModel: ''
     defaultImageSize: '1024*1024'
     # 默认视频时长（秒），上限 10
     defaultVideoDuration: 5

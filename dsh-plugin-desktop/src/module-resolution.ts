@@ -117,6 +117,20 @@ export function installProfilePackageResolver(profileBaseUrl: string): () => voi
         if (specifier.startsWith('.')) overlayModuleUrls.add(resolved.url)
         return resolved
       }
+      // A launcher-owned overlay package (for example `dsh-image-video`) may
+      // carry its own node_modules that is missing a peer it does not declare
+      // directly (Node does not install peers into a workspace). Prefer the
+      // Desktop installation tree, which owns those shared peers, before
+      // falling back to the Profile overlay. This keeps a Desktop-selected
+      // bundle's transitive imports on the same dependency graph without
+      // reaching into unrelated modules.
+      try {
+        const resolved = nextResolve(specifier, { ...context, parentURL: DESKTOP_ENTRY_URL })
+        overlayModuleUrls.add(resolved.url)
+        return resolved
+      } catch (cause) {
+        if ((cause as NodeJS.ErrnoException).code !== 'ERR_MODULE_NOT_FOUND') throw cause
+      }
       try {
         const resolved = nextResolve(specifier, context)
         overlayModuleUrls.add(resolved.url)
