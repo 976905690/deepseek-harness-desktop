@@ -164,9 +164,10 @@ export function imageModelOptions(t: MediaT, settingsT: SettingsT): ReadonlyArra
 }
 
 /**
- * 视频模型预设。wan2.2-t2v-plus 是 Threerouter 的内置默认视频模型（万象直连
- * 的默认亦为同款）；为避免同一模型 id 在两个分组重复导致选中歧义，仅列在
- * Threerouter 组下。与 host 端 VIDEO_MODEL_PROVIDER 映射键一一对应。
+ * 视频模型预设。Threerouter 组：wan2.2-t2v-plus（统一路由入口的内置默认视频
+ * 模型，万象直连默认亦为同款，故仅列在 Threerouter 组下避免同 id 双组歧义）；
+ * Wanx 组：wanx2.1-t2v-turbo（阿里云百炼直连，与图片侧 Wanx 2.1 Turbo 对称）。
+ * 与 host 端 VIDEO_MODEL_PROVIDER 映射键一一对应。
  * 导出供 settings 页默认视频模型下拉复用（同一份分组预设，见 DesktopSettingsSection）。
  */
 export function videoModelOptions(t: MediaT, settingsT: SettingsT): ReadonlyArray<SelectContent> {
@@ -175,6 +176,10 @@ export function videoModelOptions(t: MediaT, settingsT: SettingsT): ReadonlyArra
     {
       label: settingsT('imageVideoThreerouter'),
       options: [{ value: 'wan2.2-t2v-plus', label: 'Wan 2.2 Plus' }],
+    },
+    {
+      label: settingsT('imageVideoWanx'),
+      options: [{ value: 'wanx2.1-t2v-turbo', label: 'Wanx 2.1 Turbo' }],
     },
     {
       label: settingsT('imageVideoSeedance'),
