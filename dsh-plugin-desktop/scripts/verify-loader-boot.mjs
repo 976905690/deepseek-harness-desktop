@@ -13,6 +13,9 @@ import {
 import { installDesktopPnpmRuntime } from '../lib/desktop-runtime-environment.js'
 import { installProfilePackageResolver } from '../lib/module-resolution.js'
 import { prepareDesktopProfile } from '../lib/profile.js'
+// PRODUCT_NAME 经 desktopRendererUrl 进入 renderer URL 的 dsh-desktop-title
+// 参数；期望 URL 从同一常量推导，避免品牌文案调整时冒烟漂移。
+import { PRODUCT_NAME } from '../lib/index.js'
 
 const BIN_NAME = 'dsh-plugin-desktop-loader-smoke'
 const THIRD_PARTY_NAME = 'dsh-desktop-loader-smoke-plugin'
@@ -168,8 +171,10 @@ try {
   if (mountedSpec?.mode !== 'compatibility') {
     throw new Error(`desktop plugin produced an unexpected shell mode: ${String(mountedSpec?.mode)}`)
   }
-  const expectedUrl = `http://127.0.0.1:43120/?dsh-desktop-mode=compatibility&dsh-desktop-platform=darwin&dsh-desktop-version=${PRODUCT_VERSION}&dsh-desktop-material=transparent&dsh-desktop-titlebar-inset=36`
-  if (mountedSpec?.url !== expectedUrl) {
+  const expectedUrl = new URL(`http://127.0.0.1:43120/?dsh-desktop-mode=compatibility&dsh-desktop-platform=darwin&dsh-desktop-version=${PRODUCT_VERSION}&dsh-desktop-material=transparent`)
+  expectedUrl.searchParams.set('dsh-desktop-title', PRODUCT_NAME)
+  expectedUrl.searchParams.set('dsh-desktop-titlebar-inset', '36')
+  if (mountedSpec?.url !== expectedUrl.href) {
     throw new Error(`desktop plugin produced an unexpected renderer URL: ${String(mountedSpec?.url)}`)
   }
 } finally {
