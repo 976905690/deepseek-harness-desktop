@@ -1,7 +1,8 @@
 /**
  * 桌面自有高级设置对话框：把上游散落在 hero 与 composer 的两个会话级设置
  * 收进一个 Modal，入口是 composer 工具行（`conversation.input.left`）的
- * 「高级设置」芯片按钮（advanced / extended 外壳定制，compatibility 不接入）。
+ * 「高级设置」图标按钮（lucide Settings2，aria-label/title 走 locale，
+ * advanced / extended 外壳定制，compatibility 不接入）。
  *
  * 行为语义忠实复刻上游（用户要求「跟原来一样，只是收纳整理」）：
  *   - Agent 预设（上游 hero 的 Standard mode chip）：调
@@ -34,6 +35,7 @@
  */
 
 import { useEffect, useState } from 'react'
+import { Settings2 } from 'lucide-react'
 import { Modal, RiskConfirmation } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ClientContext, ISessions, SessionId, UseProjection } from '@deepseek-ai/dsh-client-runtime/client'
 import type { ConnectionHandle, IApiClient } from '@deepseek-ai/dsh-api-remotes/client'
@@ -154,9 +156,11 @@ function AdvancedSettingsEntry(props: AdvancedSettingsEntryProps) {
       <button
         type="button"
         className="dshDesktopAdvancedTrigger"
+        aria-label={props.t('open')}
+        title={props.t('open')}
         onClick={() => { setOpen(true) }}
       >
-        {props.t('open')}
+        <Settings2 aria-hidden="true" />
       </button>
       {open && (
         <AdvancedSettingsDialog
@@ -341,10 +345,12 @@ function AdvancedSettingsDialog(props: AdvancedSettingsDialogProps) {
 const ADVANCED_SETTINGS_STYLES = `
 [aria-label^='访问模式'], [aria-label^='Access mode'] { display: none; }
 .dshDesktopAdvancedTrigger {
-  padding: 2px 10px; border: none; border-radius: 999px; background: transparent;
-  color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12px;
-  line-height: 18px; font-weight: 500; white-space: nowrap; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; padding: 0; border: none; border-radius: 7px;
+  background: transparent; color: var(--dsw-alias-label-secondary);
+  font: inherit; cursor: pointer;
 }
+.dshDesktopAdvancedTrigger svg { width: 14px; height: 14px; stroke-width: 1.8; }
 .dshDesktopAdvancedTrigger:hover {
   color: var(--dsw-alias-label-primary);
   background: var(--dsw-alias-interactive-bg-hover);
