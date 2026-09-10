@@ -104,6 +104,7 @@ const DESKTOP_SETTINGS_NAMESPACE = 'dsh-desktop'
 const UI_LAYOUT_PACKAGE = '@deepseek-ai/dsh-client-ui-layout'
 const UI_SIDEBAR_PACKAGE = '@deepseek-ai/dsh-client-ui-sidebar'
 const UI_CONVERSATION_PACKAGE = '@deepseek-ai/dsh-client-ui-conversation'
+const SESSION_LOG_DOWNLOAD_PACKAGE = '@deepseek-ai/dsh-session-log-export'
 const DEFAULT_DESKTOP_MARKET_SNAPSHOT: DesktopMarketSnapshot = Object.freeze({
   requested: 'community-market',
   effective: 'community-market',
@@ -989,6 +990,10 @@ export function prepareDesktopProfile(
       { id: 'ui-sidebar', disabled: false },
       { id: 'ui-conversation', disabled: false },
     )
+    // 隐藏上游 Session log 头部按钮：桌面端 /export 导出流程作用有限。
+    if (rows.get('session-log-download')?.name === SESSION_LOG_DOWNLOAD_PACKAGE) {
+      patches.push({ id: 'session-log-download', disabled: true })
+    }
   }
   const presets = rows.get(AGENT_PRESETS_ROW_ID)
   if (presets !== undefined) {
