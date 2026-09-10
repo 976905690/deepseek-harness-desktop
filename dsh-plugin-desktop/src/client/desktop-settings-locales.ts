@@ -1,5 +1,8 @@
 /** Desktop-owned settings copy. */
 
+/** Locale namespace owned by the Desktop settings page（独立导出供 composer 等模块复用，避免双向依赖成环）. */
+export const DESKTOP_SETTINGS_LOCALE_NAMESPACE = 'desktop.settings'
+
 export const zh = {
   nav: '桌面版',
   title: 'DSH Desktop 设置',
@@ -97,8 +100,8 @@ export const zh = {
   imageVideoApiKeyBody: '所选生成服务商的 API 凭证。',
   imageVideoBaseURL: 'Base URL',
   imageVideoBaseURLBody: '生成服务商的接口地址。',
-  imageVideoDefaultImageModel: '默认图片模型名',
-  imageVideoDefaultVideoModel: '默认视频模型名',
+  imageVideoDefaultImageModel: '默认图片模型',
+  imageVideoDefaultVideoModel: '默认视频模型',
   imageVideoDefaultImageSize: '默认图片尺寸',
   imageVideoDefaultVideoDuration: '默认视频时长（秒）',
   imageVideoTimeoutMs: '单次请求超时（毫秒）',
@@ -209,8 +212,8 @@ export const en: Record<DesktopSettingsLocaleKey, string> = {
   imageVideoApiKeyBody: 'The API credential for the selected provider.',
   imageVideoBaseURL: 'Base URL',
   imageVideoBaseURLBody: 'The provider’s API endpoint.',
-  imageVideoDefaultImageModel: 'Default image model (empty uses the built-in default)',
-  imageVideoDefaultVideoModel: 'Default video model (empty uses the built-in default)',
+  imageVideoDefaultImageModel: 'Default image model',
+  imageVideoDefaultVideoModel: 'Default video model',
   imageVideoDefaultImageSize: 'Default image size',
   imageVideoDefaultVideoDuration: 'Default video duration (seconds)',
   imageVideoTimeoutMs: 'Request timeout (ms)',

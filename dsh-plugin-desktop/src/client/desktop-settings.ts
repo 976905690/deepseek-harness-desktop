@@ -6,12 +6,13 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import { DesktopSettingsSection, type DesktopNotificationSettings, type DesktopShellSettings } from './DesktopSettingsSection.tsx'
 import { DesktopTerminalSettingsAction } from './DesktopTerminalSettingsAction.tsx'
 import { createDesktopSettingsApi } from './desktop-settings-api.ts'
-import { en, zh, type DesktopSettingsLocaleKey } from './desktop-settings-locales.ts'
+import { DESKTOP_COMPOSER_MEDIA_LOCALE_NAMESPACE } from './composer-media-tabs.tsx'
+import { DESKTOP_SETTINGS_LOCALE_NAMESPACE, en, zh, type DesktopSettingsLocaleKey } from './desktop-settings-locales.ts'
 import { installDesktopSettingsStyles } from './desktop-settings-styles.ts'
 import type { DesktopClientEnvironment } from './environment.ts'
 
-/** Locale namespace owned by the Desktop settings page. */
-export const DESKTOP_SETTINGS_LOCALE_NAMESPACE = 'desktop.settings'
+/** re-export：extended-shell 等既有调用方仍从本模块取该常量。 */
+export { DESKTOP_SETTINGS_LOCALE_NAMESPACE }
 
 /** Host settings namespaces bound through the standard client settings service. */
 export const DESKTOP_SHELL_SETTINGS_NAMESPACE = 'dsh-desktop'
@@ -43,6 +44,9 @@ export function applyDesktopSettings(
   })
   const api = createDesktopSettingsApi()
   const t = ctx.locale.bind(DESKTOP_SETTINGS_LOCALE_NAMESPACE)
+  // composer 媒体命名空间绑定：settings 页默认模型下拉的「自动」项与分组头
+  // 复用 composer 侧选项构建函数，两处文案随界面语言同步。
+  const composerMediaT = ctx.locale.bind(DESKTOP_COMPOSER_MEDIA_LOCALE_NAMESPACE)
 
   ctx.effect(
     () => ctx.locale.register(DESKTOP_SETTINGS_LOCALE_NAMESPACE, { zh, en }),
@@ -65,6 +69,7 @@ export function applyDesktopSettings(
       micaSupported: environment.micaSupported,
       desktopSettings,
       notificationSettings,
+      composerMediaT,
     }),
   }, DesktopSettingsSection))
   ctx.slots.inject('settings.action', () => ctx.slots.register({

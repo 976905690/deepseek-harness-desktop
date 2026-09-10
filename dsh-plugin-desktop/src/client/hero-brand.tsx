@@ -16,11 +16,13 @@
  *    含 `_fishHitbox` 的 headline，避免误伤 ContextMeter / ApprovalPanel
  *    的同名 headline 类。
  *
- * 两段 SVG 均内联：`@deepseek-ai/*` 跨包值导入需登记在 tsdown external 并
- * 由 shell 模块表解析（ui-primitives 即平台模块，见 platform.ts
- * PLATFORM_MODULES）；跨包引用 dsh-plugin-threerouter 会连带整个 client
- * 插件入口，故不采用。上游类型一律 type-only import，构建后擦除，不进
- * client bundle。
+ * 两段 logo 均内联：DeepSeek 鱼从上游 ui-primitives FishLogo.tsx 原样抄录；
+ * Threerouter logo 用 dsh-plugin-threerouter/src/assets/logo.webp 的 base64
+ * data URI（60×60 官方品牌图）。不做跨包引用：`@deepseek-ai/*` 跨包值导入
+ * 需登记在 tsdown external 并由 shell 模块表解析（ui-primitives 即平台
+ * 模块，见 platform.ts PLATFORM_MODULES）；跨包引用 dsh-plugin-threerouter
+ * 会连带整个 client 插件入口。上游类型一律 type-only import，构建后擦除，
+ * 不进 client bundle。
  *
  * 仅在 advanced / extended 桌面外壳接入；compatibility 模式保持上游默认
  * 客户端（无桌面覆盖）。
@@ -35,6 +37,14 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 
 /** 桌面品牌标题（替换上游 hero.headline / hero.preview 文案）。 */
 const HERO_TITLE = 'Deepseek Harness for Threerouter image/video'
+
+/**
+ * Threerouter 官方 logo（dsh-plugin-threerouter/src/assets/logo.webp，
+ * 60×60）的 base64 data URI。经 [Convert]::ToBase64String 与源文件逐字节
+ * 核对；内联避免跨包引用（理由见文件头注释）。
+ */
+const THREEROUTER_LOGO_DATA_URI =
+  'data:image/webp;base64,UklGRtYDAABXRUJQVlA4IMoDAABwEwCdASo8ADwAPpE6mUoloyIhqhZroLASCWwAuzMExaeq+bHVP8N+CeCsMNXm9S22T8wHnGejPzquo+9AD9gOt1fcZlveQ8PtDTOu8SXiPmoJMF6hMDkbUsRd6ISE0AtUPNwDauzRJ+mDpnFk3rrY4pxSrDaP3zlKLwM01O/PvX+kYW/NwUnDg1gLTRRaZYwiBLqE6PLrkmaCTYwn2/eXXK7YAAD+/qsPy7lPm3kbvBEvXMhBrT9LESGXmuHKN9DdNL8R6LM9k7tJVtJKs76e1xF83UycdH8mpjrXs1ToihpgwbHtwA7AFratV31a3kHRKYkNQzs69otRVsj+t7i9hXfbWGxwBqd4G5zIA6C3SDGHL3InC4Xo78Bi11PlJYC7tsb5wofqp8KFBx4kuZPjApuR7o9HaHNvng7P1ShL6lc4A+ZPC8pfqqql5HCoYj5e6KG1/xgSR5j0e5P822wdIE3L8qIWMED35k75Mq7l+t0dKliyg+MtvS21tRoI7gIXiqEy7B40i5pVIu/qP/8j6UmlHiK9uQvxyByl/svY9tueRVMJrYm5rez8L8wt9fol4FFDv8mEz2+Ln7NzFfP/Wm04LmJHF+6sx9QlEQiJCl8BIvCV/6EIO5/g5ScrXtSdAMNcYt0DnQIgCMznPCCrzab0efi6hAU3EV/pAAGE/JeLQMtkeNK+Dvst3uzf9xaIn8ZHY4AXQEUM0bTQZixWWG0eVQUZbmyObmd6xwH3/8+bK8qjmvBchOWKWTt0e6DPXS58AfE+gTRWW5y02W/OmkUXWOnPTcmXZRqgYdTjM0kp3fMl0d/Mw5mcjTSJdKv1RRqvq6Dtb3+zqWiIJc5AQ2TyHqr/HLwgTusOcMciI1SkQm4lWs+1VijW0FwM6xOwkSAnNYvBqvkyvgv6iJmMGYnIZaN72ujrhHVt3IYR30yqo/zwloUpF28hE7WTXLTSNZ0f86PeEgRbbZf1HN/wLeS2FrRg6gjk7rGLIkrz7FD7S7ygkW8w4hk989ZUZ1hJIOyHtcRnZaVjNLI7mAE63yNsD1+tcVC8dgp626bXQ/XoM0o+5zF1IuPu/Fd1YZK3csl2RQgfnAGYo1XhONVR2wAyrKAbJwoYHoSvrBSl2WScC/B7Nf+XCXHGkX1h8qHp5VSUimMjgIOU/eD5ISpji8B0lHuApRjcN/dWepmsZuoJRN+3qO7JrwrBTDjeQeXDckKu0We/DJ7sZAagWyxcYRZFjPFlYheRd32JyETf0HezMlqwL9mqNm5aiWCGaxWVBMUVJSyMQAAA'
 
 /** owner 传参的本地结构视图（HeroBrandMarkOwnerProps），避免具名类型依赖。 */
 interface HeroBrandProps {
@@ -64,27 +74,18 @@ function DeepseekWhaleMark({ size, className }: { size: number; className?: stri
 }
 
 /**
- * Threerouter 品牌块：从 dsh-plugin-threerouter 的 ThreerouterBrandMark
- * 内联（深蓝圆角块 + 白色粗体"3"，与托盘/侧栏图标同一视觉）。
+ * Threerouter 品牌 logo：官方 logo.webp（data URI 内联，理由见文件头注释）。
+ * 装饰性图示，alt 置空并 aria-hidden，避免读屏器与标题重复播报。
  */
 function ThreerouterTileMark({ size }: { size: number }) {
   return (
-    <svg
+    <img
+      src={THREEROUTER_LOGO_DATA_URI}
       width={size}
       height={size}
-      viewBox="0 0 24 24"
-      fill="none"
+      alt=""
       aria-hidden="true"
-      role="img"
-    >
-      <rect x="1" y="1" width="22" height="22" rx="5" fill="#004FAB" />
-      {/* Bold filled "3" — matches the tray-icon visual identity */}
-      <path
-        d="M9 5h4c2.2 0 4 1.6 4 3.8 0 1.4-.7 2.6-1.8 3.2C17.4 12.7 18 14 18 15.6 18 18 16 19.8 13.5 19.8H9V5Zm2.2 2v3.8h2c1 0 1.8-.8 1.8-1.9s-.8-1.9-1.8-1.9h-2Zm0 5.8v4h2.5c1.2 0 2-.9 2-2s-.8-2-2-2h-2.5Z"
-        fill="#FFFFFF"
-        transform="translate(-0.5, -0.3)"
-      />
-    </svg>
+    />
   )
 }
 

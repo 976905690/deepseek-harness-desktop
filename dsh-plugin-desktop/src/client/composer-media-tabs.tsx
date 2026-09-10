@@ -9,10 +9,13 @@
  * + 内联 chevron + `--dsw-*` 主题 token）。
  *
  * 参数生效机制（与 dsh-image-video 的 runtime-defaults 模块配套）：
- *   - 下拉变更立即 POST 同源 `/image-video/defaults`（插件回环路由，仅写内存
- *     运行时覆盖值，不落盘、不触发宿主重启）；
+ *   - 下拉变更立即 POST 同源 `/image-video/defaults`（插件回环路由），host 返回
+ *     「运行时覆盖 ?? settings 持久默认」合并视图，逐字段 stale 守卫回写实际
+ *     生效值（选「自动」清空覆盖后落位 settings 持久默认）；仅写内存运行时
+ *     覆盖值，不落盘、不触发宿主重启；
  *   - 生成工具按「工具显式参数 > 运行时覆盖值 > settings 持久值」取参；
- *   - 挂载时 GET 回显当前覆盖值；插件重载后运行时值清空，回落 settings。
+ *   - 挂载时 GET 回显同一合并视图（覆盖值未设时直接显示 settings 持久默认）；
+ *     插件重载后运行时值清空，回落 settings。
  *
  * 文本模式不渲染参数组：聊天模型继续使用上游右侧模型选择器
  * （conversation.input.model seat），桌面不做覆盖。
@@ -32,10 +35,12 @@
  * @module dsh-plugin-desktop/client/composer-media-tabs
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
-import { DESKTOP_SETTINGS_LOCALE_NAMESPACE } from './desktop-settings.ts'
+// settings 命名空间常量现居 desktop-settings-locales.ts（从 desktop-settings.ts
+// 迁出以打破 desktop-settings ↔ composer-media-tabs 循环导入）。
+import { DESKTOP_SETTINGS_LOCALE_NAMESPACE } from './desktop-settings-locales.ts'
 // 仅拉类型面（'conversation.input.left' slot augment 与 locale 服务声明），
 // 不导入具名类型；配合 tsconfig.client.json 的 skipLibCheck（与 media-toolview
 // 相同的理由）。
@@ -51,6 +56,8 @@ const zh = {
   tabImage: '图片',
   tabVideo: '视频',
   auto: '自动',
+  placeholderImage: '描述您想要的图片',
+  placeholderVideo: '描述您想要的视频',
   fieldModel: '模型',
   fieldAspect: '比例',
   fieldStyle: '风格',
@@ -77,6 +84,8 @@ const en: Record<DesktopComposerMediaLocaleKey, string> = {
   tabImage: 'Image',
   tabVideo: 'Video',
   auto: 'Auto',
+  placeholderImage: 'Describe the image you want',
+  placeholderVideo: 'Describe the video you want',
   fieldModel: 'Model',
   fieldAspect: 'Aspect',
   fieldStyle: 'Style',
@@ -100,27 +109,27 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 }
 
 /** 本模块命名空间的翻译函数（slot 的 `locale` 字段自动注入 `t`）。 */
-type MediaT = TranslateNS<'desktop.composerMedia'>
+export type MediaT = TranslateNS<'desktop.composerMedia'>
 /** settings 命名空间翻译函数（复用服务商文案，保证与设置页逐字一致）。 */
-type SettingsT = TranslateNS<'desktop.settings'>
+export type SettingsT = TranslateNS<'desktop.settings'>
 
 /** defaults 回环路由（dsh-image-video DEFAULTS_ROUTE_PATH；渲染进程同源直呼）。 */
 const DEFAULTS_ROUTE = '/image-video/defaults'
 
 /** 下拉选项：value 为协议值（'' = 自动，跟随 settings），label 为展示文案。 */
-interface SelectOption {
+export interface SelectOption {
   value: string
   label: string
 }
 
 /** 分组下拉项（optgroup）：组头文案 = settings 里的服务商名，模型归属显性化。 */
-interface SelectGroup {
+export interface SelectGroup {
   label: string
   options: ReadonlyArray<SelectOption>
 }
 
 /** 下拉内容：扁平项或服务商分组（分组内不得再嵌套）。 */
-type SelectContent = SelectOption | SelectGroup
+export type SelectContent = SelectOption | SelectGroup
 
 /** 「自动」占位项：清除运行时覆盖，回落 settings 持久值。 */
 function autoOption(t: MediaT): SelectOption {
@@ -131,8 +140,9 @@ function autoOption(t: MediaT): SelectOption {
  * 图像模型预设（'' = 跟随 settings/provider 默认）。按服务商分组：
  * Threerouter 是统一路由入口（内置默认 wan2.1-image），万象直连阿里云百炼，
  * Seedance 直连火山引擎。与 host 端 IMAGE_MODEL_PROVIDER 映射键一一对应。
+ * 导出供 settings 页默认模型下拉复用（同一份分组预设，见 DesktopSettingsSection）。
  */
-function imageModelOptions(t: MediaT, settingsT: SettingsT): ReadonlyArray<SelectContent> {
+export function imageModelOptions(t: MediaT, settingsT: SettingsT): ReadonlyArray<SelectContent> {
   return [
     autoOption(t),
     {
@@ -157,8 +167,9 @@ function imageModelOptions(t: MediaT, settingsT: SettingsT): ReadonlyArray<Selec
  * 视频模型预设。wan2.2-t2v-plus 是 Threerouter 的内置默认视频模型（万象直连
  * 的默认亦为同款）；为避免同一模型 id 在两个分组重复导致选中歧义，仅列在
  * Threerouter 组下。与 host 端 VIDEO_MODEL_PROVIDER 映射键一一对应。
+ * 导出供 settings 页默认视频模型下拉复用（同一份分组预设，见 DesktopSettingsSection）。
  */
-function videoModelOptions(t: MediaT, settingsT: SettingsT): ReadonlyArray<SelectContent> {
+export function videoModelOptions(t: MediaT, settingsT: SettingsT): ReadonlyArray<SelectContent> {
   return [
     autoOption(t),
     {
@@ -265,16 +276,21 @@ async function readDefaults(): Promise<DefaultsView | undefined> {
   }
 }
 
-/** 写入运行时覆盖值；失败静默——tab 选择仍是本地 UI 状态，不影响输入。 */
-async function writeDefaults(patch: Record<string, string | number>): Promise<void> {
+/**
+ * 写入运行时覆盖值并回读合并视图（运行时覆盖 ?? settings 持久默认，host 端
+ * GET/POST 同语义）；失败静默——tab 选择仍是本地 UI 状态，不影响输入。
+ */
+async function writeDefaults(patch: Record<string, string | number>): Promise<DefaultsView | undefined> {
   try {
-    await fetch(DEFAULTS_ROUTE, {
+    const res = await fetch(DEFAULTS_ROUTE, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(patch),
     })
+    return res.ok ? (await res.json() as DefaultsView) : undefined
   } catch {
     // 非桌面宿主（无 webServer）或回环路由未注册：静默忽略
+    return undefined
   }
 }
 
@@ -326,7 +342,43 @@ function ComposerMediaTabs(props: ComposerMediaTabsProps) {
   const [image, setImage] = useState<ImageSelection>({ model: '', size: '', style: '' })
   const [video, setVideo] = useState<VideoSelection>({ model: '', aspect: '', duration: '' })
 
-  // 挂载时回显 host 端当前运行时覆盖值（其他入口写入的也能看到）
+  /**
+   * 图片/视频模式下覆盖同卡输入框的 placeholder（用户要求：图片→「描述您
+   * 想要的图片」，视频→「描述您想要的视频」，随界面语言切换）。上游把
+   * hero/default 文案硬编码在受控 textarea 上，conversation 命名空间无法
+   * 经 locale 按键覆盖（重复注册还会抛错），因此走 DOM 覆盖：React 只在
+   * 自身 prop diff 时重写 placeholder，手改后 prop 不变即稳定生效；语言
+   * 切换时上游 prop 变化会短暂写回，mediaPlaceholder 随之变化触发本 effect
+   * 重跑（晚于 commit），重新覆盖。切回文本模式恢复覆盖前的 React 原值，
+   * 避免错杀 steer/plan 等动态提示。
+   */
+  const mediaPlaceholder =
+    mode === 'image' ? t('placeholderImage')
+    : mode === 'video' ? t('placeholderVideo')
+    : null
+  const composerRef = useRef<HTMLDivElement | null>(null)
+  const reactPlaceholderRef = useRef<string | null>(null)
+  const lastOverrideRef = useRef<string | null>(null)
+  useEffect(() => {
+    const textarea = composerRef.current?.closest('[data-composer-card]')?.querySelector('textarea')
+    if (!textarea) return
+    if (mediaPlaceholder === null) {
+      if (lastOverrideRef.current !== null && reactPlaceholderRef.current !== null) {
+        textarea.placeholder = reactPlaceholderRef.current
+      }
+      reactPlaceholderRef.current = null
+      lastOverrideRef.current = null
+      return
+    }
+    // DOM 值与上次写入不一致 => React 刚重写过（如语言切换），记录其最新值
+    if (textarea.placeholder !== lastOverrideRef.current) {
+      reactPlaceholderRef.current = textarea.placeholder
+    }
+    lastOverrideRef.current = mediaPlaceholder
+    textarea.placeholder = mediaPlaceholder
+  }, [mediaPlaceholder])
+
+  // 挂载时回显 host 端合并视图（运行时覆盖 ?? settings 持久默认，其他入口写入的也能看到）
   useEffect(() => {
     let cancelled = false
     readDefaults().then((view) => {
@@ -345,29 +397,50 @@ function ComposerMediaTabs(props: ComposerMediaTabsProps) {
     return () => { cancelled = true }
   }, [])
 
+  // 外层快照 + POST 响应回写：host 返回「运行时覆盖 ?? settings 持久默认」合并
+  // 视图，逐字段 stale 守卫（仅当该字段自写入后未被再次改动才回显），避免晚到的
+  // 旧响应覆盖新选择；选「自动」（''）清空覆盖后落位到 settings 持久默认。
   const updateImage = (patch: Partial<ImageSelection>): void => {
-    setImage((prev) => {
-      const next = { ...prev, ...patch }
-      void writeDefaults({ imageModel: next.model, imageSize: next.size, imageStyle: next.style })
-      return next
+    const next = { ...image, ...patch }
+    setImage(next)
+    void writeDefaults({ imageModel: next.model, imageSize: next.size, imageStyle: next.style }).then((view) => {
+      if (view === undefined) return
+      setImage((prev) => ({
+        ...prev,
+        model: prev.model === next.model ? view.imageModel ?? '' : prev.model,
+        size: prev.size === next.size ? view.imageSize ?? '' : prev.size,
+        style: prev.style === next.style ? view.imageStyle ?? '' : prev.style,
+      }))
     })
   }
 
+  // 与 updateImage 同构：外层快照 + 合并视图逐字段 stale 守卫回写；
+  // duration：'' = 自动（host 归一化 null），数字串转整数，回显时 null 还原 ''。
   const updateVideo = (patch: Partial<VideoSelection>): void => {
-    setVideo((prev) => {
-      const next = { ...prev, ...patch }
-      // duration：'' = 自动（host 归一化 null），数字串转整数
-      void writeDefaults({
-        videoModel: next.model,
-        videoAspectRatio: next.aspect,
-        videoDuration: next.duration === '' ? '' : Number(next.duration),
-      })
-      return next
+    const next = { ...video, ...patch }
+    setVideo(next)
+    void writeDefaults({
+      videoModel: next.model,
+      videoAspectRatio: next.aspect,
+      videoDuration: next.duration === '' ? '' : Number(next.duration),
+    }).then((view) => {
+      if (view === undefined) return
+      setVideo((prev) => ({
+        ...prev,
+        model: prev.model === next.model ? view.videoModel ?? '' : prev.model,
+        aspect: prev.aspect === next.aspect ? view.videoAspectRatio ?? '' : prev.aspect,
+        duration:
+          prev.duration === next.duration
+            ? view.videoDuration === null || view.videoDuration === undefined
+              ? ''
+              : String(view.videoDuration)
+            : prev.duration,
+      }))
     })
   }
 
   return (
-    <div className="dshDesktopComposerMedia" data-mode={mode}>
+    <div ref={composerRef} className="dshDesktopComposerMedia" data-mode={mode}>
       <div className="dshDesktopComposerSeg" role="tablist" aria-label={t('modeLabel')}>
         {(['text', 'image', 'video'] as const).map((entry) => (
           <button

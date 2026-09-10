@@ -13,6 +13,9 @@ import type {
 } from './desktop-settings-api.ts'
 import type { DesktopSettingsLocaleKey } from './desktop-settings-locales.ts'
 import type { DesktopClientPlatform } from './environment.ts'
+// composer 媒体模块的模型选项构建函数与文案类型：settings 页默认模型下拉与
+// composer 下拉共用同一份分组预设（含「自动」项），保证两处选项逐字一致。
+import { imageModelOptions, videoModelOptions, type MediaT } from './composer-media-tabs.tsx'
 
 /** Browser view of the Host `dsh-desktop` settings namespace. */
 export interface DesktopShellSettings {
@@ -40,6 +43,8 @@ export interface DesktopSettingsSectionInjected {
   readonly micaSupported: boolean
   readonly desktopSettings: SettingsScope<DesktopShellSettings>
   readonly notificationSettings: SettingsScope<DesktopNotificationSettings>
+  /** composer 媒体命名空间文案（默认模型下拉的「自动」项标签专用）。 */
+  readonly composerMediaT: MediaT
 }
 
 /** Renderer-composed props for the official settings section entry. */
@@ -230,6 +235,7 @@ export function DesktopSettingsSection({
   micaSupported,
   desktopSettings,
   notificationSettings,
+  composerMediaT,
 }: DesktopSettingsSectionProps) {
   const desktop = useScope(desktopSettings)
   const notifications = useScope(notificationSettings)
@@ -680,6 +686,46 @@ export function DesktopSettingsSection({
             </div>
 
             <div className="dshDesktopSettingsImageVideoGrid">
+              {/* 默认模型下拉：与 composer 侧同一份分组预设（含「自动」项），
+                  保证设置页与输入框下拉的选项、分组、文案逐字一致。 */}
+              <label className="dshDesktopSettingsField">
+                {t('imageVideoDefaultImageModel')}
+                <select
+                  className="dshDesktopSettingsSelect"
+                  value={imageVideo.defaultImageModel}
+                  disabled={busy !== undefined || restart !== 'none'}
+                  onChange={event => { setImageVideoString('defaultImageModel', event.currentTarget.value) }}
+                >
+                  {imageModelOptions(composerMediaT, t).map(item => 'options' in item ? (
+                    <optgroup key={item.label} label={item.label}>
+                      {item.options.map(option => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </optgroup>
+                  ) : (
+                    <option key={item.value} value={item.value}>{item.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="dshDesktopSettingsField">
+                {t('imageVideoDefaultVideoModel')}
+                <select
+                  className="dshDesktopSettingsSelect"
+                  value={imageVideo.defaultVideoModel}
+                  disabled={busy !== undefined || restart !== 'none'}
+                  onChange={event => { setImageVideoString('defaultVideoModel', event.currentTarget.value) }}
+                >
+                  {videoModelOptions(composerMediaT, t).map(item => 'options' in item ? (
+                    <optgroup key={item.label} label={item.label}>
+                      {item.options.map(option => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </optgroup>
+                  ) : (
+                    <option key={item.value} value={item.value}>{item.label}</option>
+                  ))}
+                </select>
+              </label>
               {IMAGE_VIDEO_STRING_FIELDS.map(field => (
                 <label className="dshDesktopSettingsField" key={field.key}>
                   {t(field.label)}
