@@ -64,8 +64,8 @@ export interface DesktopImageVideoConfigView {
   readonly threerouter: DesktopImageVideoCredentials
   readonly wanx: DesktopImageVideoCredentials
   readonly seedance: DesktopImageVideoCredentials
-  readonly defaultImageModel: string
-  readonly defaultVideoModel: string
+  readonly defaultImageProvider: DesktopImageVideoProvider | ''
+  readonly defaultVideoProvider: DesktopImageVideoProvider | ''
   readonly defaultImageSize: string
   readonly defaultVideoDuration: number
   readonly timeoutMs: number
@@ -173,6 +173,10 @@ function isImageVideoProvider(value: unknown): value is DesktopImageVideoProvide
   return value === 'threerouter' || value === 'wanx' || value === 'seedance'
 }
 
+function isImageVideoDefaultProvider(value: unknown): value is DesktopImageVideoProvider | '' {
+  return value === '' || isImageVideoProvider(value)
+}
+
 function parseImageVideoCredentials(value: unknown): DesktopImageVideoCredentials {
   if (!isObject(value) || typeof value.apiKey !== 'string' || typeof value.baseURL !== 'string') {
     throw new Error('dsh-plugin-desktop: invalid image-video credentials response')
@@ -184,8 +188,8 @@ function parseImageVideoCredentials(value: unknown): DesktopImageVideoCredential
 export function parseDesktopImageVideoConfigView(value: unknown): DesktopImageVideoConfigView {
   if (!isObject(value)
     || !isImageVideoProvider(value.provider)
-    || typeof value.defaultImageModel !== 'string'
-    || typeof value.defaultVideoModel !== 'string'
+    || !isImageVideoDefaultProvider(value.defaultImageProvider)
+    || !isImageVideoDefaultProvider(value.defaultVideoProvider)
     || typeof value.defaultImageSize !== 'string'
     || typeof value.defaultVideoDuration !== 'number'
     || typeof value.timeoutMs !== 'number'
@@ -200,8 +204,8 @@ export function parseDesktopImageVideoConfigView(value: unknown): DesktopImageVi
     threerouter: parseImageVideoCredentials(value.threerouter),
     wanx: parseImageVideoCredentials(value.wanx),
     seedance: parseImageVideoCredentials(value.seedance),
-    defaultImageModel: value.defaultImageModel,
-    defaultVideoModel: value.defaultVideoModel,
+    defaultImageProvider: value.defaultImageProvider,
+    defaultVideoProvider: value.defaultVideoProvider,
     defaultImageSize: value.defaultImageSize,
     defaultVideoDuration: value.defaultVideoDuration,
     timeoutMs: value.timeoutMs,

@@ -50,7 +50,7 @@ function makeFixture() {
     '    seedance:',
     "      apiKey: ''",
     "      baseURL: ''",
-    "    defaultImageModel: ''",
+    "    defaultImageProvider: ''",
     "    outputsDir: './outputs'",
     '',
     '# tail comment',

@@ -13,9 +13,9 @@ import type {
 } from './desktop-settings-api.ts'
 import type { DesktopSettingsLocaleKey } from './desktop-settings-locales.ts'
 import type { DesktopClientPlatform } from './environment.ts'
-// composer 媒体模块的模型选项构建函数与文案类型：settings 页默认模型下拉与
-// composer 下拉共用同一份分组预设（含「自动」项），保证两处选项逐字一致。
-import { imageModelOptions, videoModelOptions, type MediaT } from './composer-media-tabs.tsx'
+// composer 媒体模块的服务商选项构建函数与文案类型：settings 页默认服务商
+// 下拉与 composer 下拉共用同一份预设（含「自动」项），保证两处选项逐字一致。
+import { providerOptions, type MediaT } from './composer-media-tabs.tsx'
 
 /** Browser view of the Host `dsh-desktop` settings namespace. */
 export interface DesktopShellSettings {
@@ -375,7 +375,7 @@ export function DesktopSettingsSection({
   }
 
   const setImageVideoString = (
-    field: 'defaultImageModel' | 'defaultVideoModel' | 'defaultImageSize' | 'outputsDir',
+    field: 'defaultImageSize' | 'outputsDir',
     value: string,
   ): void => {
     setImageVideo(current => current === undefined ? current : ({ ...current, [field]: value }))
@@ -686,43 +686,38 @@ export function DesktopSettingsSection({
             </div>
 
             <div className="dshDesktopSettingsImageVideoGrid">
-              {/* 默认模型下拉：与 composer 侧同一份分组预设（含「自动」项），
-                  保证设置页与输入框下拉的选项、分组、文案逐字一致。 */}
+              {/* 默认服务商下拉：与 composer 侧同一份预设（含「自动」项），
+                  保证设置页与输入框下拉的选项、文案逐字一致；选中即用该服务商
+                  内置默认模型，「自动」跟随激活服务商。 */}
               <label className="dshDesktopSettingsField">
-                {t('imageVideoDefaultImageModel')}
+                {t('imageVideoDefaultImageProvider')}
                 <select
                   className="dshDesktopSettingsSelect"
-                  value={imageVideo.defaultImageModel}
+                  value={imageVideo.defaultImageProvider}
                   disabled={busy !== undefined || restart !== 'none'}
-                  onChange={event => { setImageVideoString('defaultImageModel', event.currentTarget.value) }}
+                  onChange={(event) => {
+                    const next = event.currentTarget.value as DesktopImageVideoProvider | ''
+                    setImageVideo(current => current === undefined ? current : ({ ...current, defaultImageProvider: next }))
+                  }}
                 >
-                  {imageModelOptions(composerMediaT, t).map(item => 'options' in item ? (
-                    <optgroup key={item.label} label={item.label}>
-                      {item.options.map(option => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </optgroup>
-                  ) : (
-                    <option key={item.value} value={item.value}>{item.label}</option>
+                  {providerOptions(composerMediaT, t).map(option => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
                   ))}
                 </select>
               </label>
               <label className="dshDesktopSettingsField">
-                {t('imageVideoDefaultVideoModel')}
+                {t('imageVideoDefaultVideoProvider')}
                 <select
                   className="dshDesktopSettingsSelect"
-                  value={imageVideo.defaultVideoModel}
+                  value={imageVideo.defaultVideoProvider}
                   disabled={busy !== undefined || restart !== 'none'}
-                  onChange={event => { setImageVideoString('defaultVideoModel', event.currentTarget.value) }}
+                  onChange={(event) => {
+                    const next = event.currentTarget.value as DesktopImageVideoProvider | ''
+                    setImageVideo(current => current === undefined ? current : ({ ...current, defaultVideoProvider: next }))
+                  }}
                 >
-                  {videoModelOptions(composerMediaT, t).map(item => 'options' in item ? (
-                    <optgroup key={item.label} label={item.label}>
-                      {item.options.map(option => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </optgroup>
-                  ) : (
-                    <option key={item.value} value={item.value}>{item.label}</option>
+                  {providerOptions(composerMediaT, t).map(option => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
                   ))}
                 </select>
               </label>

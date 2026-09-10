@@ -222,8 +222,8 @@ export class DesktopSettingsController {
     const restartRequired = current.provider !== next.provider
       || current.threerouter.apiKey !== next.threerouter.apiKey
       || current.threerouter.baseURL !== next.threerouter.baseURL
-      || current.defaultImageModel !== next.defaultImageModel
-      || current.defaultVideoModel !== next.defaultVideoModel
+      || current.defaultImageProvider !== next.defaultImageProvider
+      || current.defaultVideoProvider !== next.defaultVideoProvider
       || current.wanx.apiKey !== next.wanx.apiKey
       || current.wanx.baseURL !== next.wanx.baseURL
       || current.seedance.apiKey !== next.seedance.apiKey

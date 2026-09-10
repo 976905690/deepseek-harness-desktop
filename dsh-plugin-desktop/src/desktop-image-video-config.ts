@@ -18,8 +18,8 @@ const DEFAULT_IMAGE_VIDEO_CONFIG: DesktopImageVideoConfigView = Object.freeze({
   threerouter: Object.freeze({ apiKey: '', baseURL: '' }),
   wanx: Object.freeze({ apiKey: '', baseURL: '' }),
   seedance: Object.freeze({ apiKey: '', baseURL: '' }),
-  defaultImageModel: '',
-  defaultVideoModel: '',
+  defaultImageProvider: '',
+  defaultVideoProvider: '',
   defaultImageSize: '1024*1024',
   defaultVideoDuration: 5,
   timeoutMs: 60_000,
@@ -56,6 +56,10 @@ function isImageVideoProvider(value: unknown): value is DesktopImageVideoProvide
   return value === 'threerouter' || value === 'wanx' || value === 'seedance'
 }
 
+function readDefaultProvider(value: unknown): DesktopImageVideoProvider | '' {
+  return value === '' || isImageVideoProvider(value) ? value : ''
+}
+
 /** Project a single loader patch row's config into a renderer-safe view. */
 export function projectImageVideoConfig(value: unknown): DesktopImageVideoConfigView {
   const config = isPlainObject(value) ? value : {}
@@ -68,8 +72,8 @@ export function projectImageVideoConfig(value: unknown): DesktopImageVideoConfig
     threerouter: readCredentials(config.threerouter, fallback.threerouter),
     wanx: readCredentials(config.wanx, fallback.wanx),
     seedance: readCredentials(config.seedance, fallback.seedance),
-    defaultImageModel: readString(config.defaultImageModel, fallback.defaultImageModel),
-    defaultVideoModel: readString(config.defaultVideoModel, fallback.defaultVideoModel),
+    defaultImageProvider: readDefaultProvider(config.defaultImageProvider),
+    defaultVideoProvider: readDefaultProvider(config.defaultVideoProvider),
     defaultImageSize: readString(config.defaultImageSize, fallback.defaultImageSize),
     defaultVideoDuration: readNumber(config.defaultVideoDuration, fallback.defaultVideoDuration),
     timeoutMs: readNumber(config.timeoutMs, fallback.timeoutMs),
@@ -111,8 +115,8 @@ function imageVideoConfigToRaw(
     threerouter: { apiKey: value.threerouter.apiKey, baseURL: value.threerouter.baseURL },
     wanx: { apiKey: value.wanx.apiKey, baseURL: value.wanx.baseURL },
     seedance: { apiKey: value.seedance.apiKey, baseURL: value.seedance.baseURL },
-    defaultImageModel: value.defaultImageModel,
-    defaultVideoModel: value.defaultVideoModel,
+    defaultImageProvider: value.defaultImageProvider,
+    defaultVideoProvider: value.defaultVideoProvider,
     defaultImageSize: value.defaultImageSize,
     defaultVideoDuration: value.defaultVideoDuration,
     timeoutMs: value.timeoutMs,

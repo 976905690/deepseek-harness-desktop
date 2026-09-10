@@ -13,24 +13,24 @@
  *     「运行时覆盖 ?? settings 持久默认」合并视图，逐字段 stale 守卫回写实际
  *     生效值（选「自动」清空覆盖后落位 settings 持久默认）；仅写内存运行时
  *     覆盖值，不落盘、不触发宿主重启；
- *   - 生成工具按「工具显式参数 > 运行时覆盖值 > settings 持久值」取参；
+ *   - 生成工具按「工具显式参数 > 运行时覆盖服务商 > settings 持久默认服务商
+ *     > 激活服务商」取参；
  *   - 挂载时 GET 回显同一合并视图（覆盖值未设时直接显示 settings 持久默认）；
  *     插件重载后运行时值清空，回落 settings。
  *
  * 文本模式不渲染参数组：聊天模型继续使用上游右侧模型选择器
  * （conversation.input.model seat），桌面不做覆盖。
  *
- * 下拉的模型/尺寸/比例取值必须与 dsh-image-video src/runtime-defaults.ts 的
- * 白名单一致（该处为协议校验源，此处为展示源），改动需两仓同步；模型下拉
- * 额外按 settings 的三个生成服务商分组：组名复用 `desktop.settings` 命名
- * 空间的 imageVideoThreerouter / imageVideoWanx / imageVideoSeedance 三键，
- * 与设置页逐字一致且随界面语言同步；host 端 runtime-defaults.ts 的
- * model→provider 映射键与本处选项一一对应：选中某服务商分组下的模型后，
- * 生成工具自动路由到该服务商（用其凭证）。
+ * 下拉的尺寸/比例取值必须与 dsh-image-video src/runtime-defaults.ts 的白名单
+ * 一致（该处为协议校验源，此处为展示源），改动需两仓同步；服务商下拉复用
+ * `desktop.settings` 命名空间的 imageVideoThreerouter / imageVideoWanx /
+ * imageVideoSeedance 三键，与设置页逐字一致且随界面语言同步。下拉只列服务商
+ * 不列模型：选中某服务商即用其内置默认模型出片（需该服务商 API Key），「自动」
+ * 跟随 settings 持久默认服务商；模型粒度选项已收敛，host 端 model→provider
+ * 映射仅供生成工具显式 model 参数路由。
  *
  * 文案走 `desktop.composerMedia` locale 命名空间（zh/en 字典在本文件注册，
- * 随上游界面语言切换），避免中英混排；品牌名（Wanx 2.1 Turbo、Seedream 3.0
- * 等）为语言无关产品名，不进字典。
+ * 随上游界面语言切换），避免中英混排。
  *
  * @module dsh-plugin-desktop/client/composer-media-tabs
  */
@@ -58,11 +58,10 @@ const zh = {
   auto: '自动',
   placeholderImage: '描述您想要的图片',
   placeholderVideo: '描述您想要的视频',
-  fieldModel: '模型',
+  fieldProvider: '服务商',
   fieldAspect: '比例',
   fieldStyle: '风格',
   fieldDuration: '时长',
-  modelWanImage: 'Wan 2.1 图像',
   stylePhoto: '摄影',
   styleIllustration: '插画',
   style3d: '3D 渲染',
@@ -86,11 +85,10 @@ const en: Record<DesktopComposerMediaLocaleKey, string> = {
   auto: 'Auto',
   placeholderImage: 'Describe the image you want',
   placeholderVideo: 'Describe the video you want',
-  fieldModel: 'Model',
+  fieldProvider: 'Provider',
   fieldAspect: 'Aspect',
   fieldStyle: 'Style',
   fieldDuration: 'Duration',
-  modelWanImage: 'Wan 2.1 Image',
   stylePhoto: 'Photography',
   styleIllustration: 'Illustration',
   style3d: '3D Render',
@@ -122,72 +120,23 @@ export interface SelectOption {
   label: string
 }
 
-/** 分组下拉项（optgroup）：组头文案 = settings 里的服务商名，模型归属显性化。 */
-export interface SelectGroup {
-  label: string
-  options: ReadonlyArray<SelectOption>
-}
-
-/** 下拉内容：扁平项或服务商分组（分组内不得再嵌套）。 */
-export type SelectContent = SelectOption | SelectGroup
-
 /** 「自动」占位项：清除运行时覆盖，回落 settings 持久值。 */
 function autoOption(t: MediaT): SelectOption {
   return { value: '', label: t('auto') }
 }
 
 /**
- * 图像模型预设（'' = 跟随 settings/provider 默认）。按服务商分组：
- * Threerouter 是统一路由入口（内置默认 wan2.1-image），万象直连阿里云百炼，
- * Seedance 直连火山引擎。与 host 端 IMAGE_MODEL_PROVIDER 映射键一一对应。
- * 导出供 settings 页默认模型下拉复用（同一份分组预设，见 DesktopSettingsSection）。
+ * 生成服务商预设（'' = 自动，跟随 settings 持久默认服务商）。三个服务商与
+ * 设置页一致：Threerouter 统一路由入口、万象直连阿里云百炼、Seedance 直连
+ * 火山引擎；选中即用该服务商的内置默认模型出片/出图。图片与视频下拉共用
+ * 同一份选项；导出供 settings 页默认服务商下拉复用（见 DesktopSettingsSection）。
  */
-export function imageModelOptions(t: MediaT, settingsT: SettingsT): ReadonlyArray<SelectContent> {
+export function providerOptions(t: MediaT, settingsT: SettingsT): ReadonlyArray<SelectOption> {
   return [
     autoOption(t),
-    {
-      label: settingsT('imageVideoThreerouter'),
-      options: [{ value: 'wan2.1-image', label: t('modelWanImage') }],
-    },
-    {
-      label: settingsT('imageVideoWanx'),
-      options: [{ value: 'wanx2.1-t2i-turbo', label: 'Wanx 2.1 Turbo' }],
-    },
-    {
-      label: settingsT('imageVideoSeedance'),
-      options: [
-        { value: 'doubao-seedream-3-0-t2i-250415', label: 'Seedream 3.0' },
-        { value: 'doubao-seedream-4-0-250828', label: 'Seedream 4.0' },
-      ],
-    },
-  ]
-}
-
-/**
- * 视频模型预设。Threerouter 组：wan2.2-t2v-plus（统一路由入口的内置默认视频
- * 模型，万象直连默认亦为同款，故仅列在 Threerouter 组下避免同 id 双组歧义）；
- * Wanx 组：wanx2.1-t2v-turbo（阿里云百炼直连，与图片侧 Wanx 2.1 Turbo 对称）。
- * 与 host 端 VIDEO_MODEL_PROVIDER 映射键一一对应。
- * 导出供 settings 页默认视频模型下拉复用（同一份分组预设，见 DesktopSettingsSection）。
- */
-export function videoModelOptions(t: MediaT, settingsT: SettingsT): ReadonlyArray<SelectContent> {
-  return [
-    autoOption(t),
-    {
-      label: settingsT('imageVideoThreerouter'),
-      options: [{ value: 'wan2.2-t2v-plus', label: 'Wan 2.2 Plus' }],
-    },
-    {
-      label: settingsT('imageVideoWanx'),
-      options: [{ value: 'wanx2.1-t2v-turbo', label: 'Wanx 2.1 Turbo' }],
-    },
-    {
-      label: settingsT('imageVideoSeedance'),
-      options: [
-        { value: 'doubao-seedance-1-0-pro-250428', label: 'Seedance 1.0 Pro' },
-        { value: 'doubao-seedance-1-0-lite-t2v-250428', label: 'Seedance 1.0 Lite' },
-      ],
-    },
+    { value: 'threerouter', label: settingsT('imageVideoThreerouter') },
+    { value: 'wanx', label: settingsT('imageVideoWanx') },
+    { value: 'seedance', label: settingsT('imageVideoSeedance') },
   ]
 }
 
@@ -240,24 +189,24 @@ function imageStyleOptions(t: MediaT): ReadonlyArray<SelectOption> {
 
 /** GET /image-video/defaults 响应视图（null = 未覆盖）。 */
 interface DefaultsView {
-  imageModel: string | null
+  imageProvider: string | null
   imageSize: string | null
   imageStyle: string | null
-  videoModel: string | null
+  videoProvider: string | null
   videoAspectRatio: string | null
   videoDuration: number | null
 }
 
 /** 图像组下拉状态（'' = 自动）。 */
 interface ImageSelection {
-  model: string
+  provider: string
   size: string
   style: string
 }
 
 /** 视频组下拉状态（duration 为字符串，POST 时转数字）。 */
 interface VideoSelection {
-  model: string
+  provider: string
   aspect: string
   duration: string
 }
@@ -305,7 +254,7 @@ interface ComposerMediaTabsProps {
   input: unknown
   /** 本模块命名空间文案（slot `locale` 字段自动注入）。 */
   t: MediaT
-  /** settings 命名空间文案（inject 工厂注入，服务商分组头专用）。 */
+  /** settings 命名空间文案（inject 工厂注入，服务商选项文案专用）。 */
   settingsT: SettingsT
 }
 
@@ -313,7 +262,7 @@ interface ComposerMediaTabsProps {
 function ComposerSelect(props: {
   label: string
   value: string
-  options: ReadonlyArray<SelectContent>
+  options: ReadonlyArray<SelectOption>
   onChange: (value: string) => void
 }) {
   return (
@@ -323,14 +272,8 @@ function ComposerSelect(props: {
         value={props.value}
         onChange={(event) => { props.onChange(event.target.value) }}
       >
-        {props.options.map((item) => 'options' in item ? (
-          <optgroup key={item.label} label={item.label}>
-            {item.options.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </optgroup>
-        ) : (
-          <option key={item.value} value={item.value}>{item.label}</option>
+        {props.options.map(option => (
+          <option key={option.value} value={option.value}>{option.label}</option>
         ))}
       </select>
     </label>
@@ -344,8 +287,8 @@ function ComposerSelect(props: {
 function ComposerMediaTabs(props: ComposerMediaTabsProps) {
   const { t, settingsT } = props
   const [mode, setMode] = useState<MediaMode>('text')
-  const [image, setImage] = useState<ImageSelection>({ model: '', size: '', style: '' })
-  const [video, setVideo] = useState<VideoSelection>({ model: '', aspect: '', duration: '' })
+  const [image, setImage] = useState<ImageSelection>({ provider: '', size: '', style: '' })
+  const [video, setVideo] = useState<VideoSelection>({ provider: '', aspect: '', duration: '' })
 
   /**
    * 图片/视频模式下覆盖同卡输入框的 placeholder（用户要求：图片→「描述您
@@ -389,12 +332,12 @@ function ComposerMediaTabs(props: ComposerMediaTabsProps) {
     readDefaults().then((view) => {
       if (cancelled || view === undefined) return
       setImage({
-        model: view.imageModel ?? '',
+        provider: view.imageProvider ?? '',
         size: view.imageSize ?? '',
         style: view.imageStyle ?? '',
       })
       setVideo({
-        model: view.videoModel ?? '',
+        provider: view.videoProvider ?? '',
         aspect: view.videoAspectRatio ?? '',
         duration: view.videoDuration === null || view.videoDuration === undefined ? '' : String(view.videoDuration),
       })
@@ -408,11 +351,11 @@ function ComposerMediaTabs(props: ComposerMediaTabsProps) {
   const updateImage = (patch: Partial<ImageSelection>): void => {
     const next = { ...image, ...patch }
     setImage(next)
-    void writeDefaults({ imageModel: next.model, imageSize: next.size, imageStyle: next.style }).then((view) => {
+    void writeDefaults({ imageProvider: next.provider, imageSize: next.size, imageStyle: next.style }).then((view) => {
       if (view === undefined) return
       setImage((prev) => ({
         ...prev,
-        model: prev.model === next.model ? view.imageModel ?? '' : prev.model,
+        provider: prev.provider === next.provider ? view.imageProvider ?? '' : prev.provider,
         size: prev.size === next.size ? view.imageSize ?? '' : prev.size,
         style: prev.style === next.style ? view.imageStyle ?? '' : prev.style,
       }))
@@ -425,14 +368,14 @@ function ComposerMediaTabs(props: ComposerMediaTabsProps) {
     const next = { ...video, ...patch }
     setVideo(next)
     void writeDefaults({
-      videoModel: next.model,
+      videoProvider: next.provider,
       videoAspectRatio: next.aspect,
       videoDuration: next.duration === '' ? '' : Number(next.duration),
     }).then((view) => {
       if (view === undefined) return
       setVideo((prev) => ({
         ...prev,
-        model: prev.model === next.model ? view.videoModel ?? '' : prev.model,
+        provider: prev.provider === next.provider ? view.videoProvider ?? '' : prev.provider,
         aspect: prev.aspect === next.aspect ? view.videoAspectRatio ?? '' : prev.aspect,
         duration:
           prev.duration === next.duration
@@ -464,10 +407,10 @@ function ComposerMediaTabs(props: ComposerMediaTabsProps) {
       {mode === 'image' && (
         <div className="dshDesktopComposerParams">
           <ComposerSelect
-            label={t('fieldModel')}
-            value={image.model}
-            options={imageModelOptions(t, settingsT)}
-            onChange={(model) => { updateImage({ model }) }}
+            label={t('fieldProvider')}
+            value={image.provider}
+            options={providerOptions(t, settingsT)}
+            onChange={(provider) => { updateImage({ provider }) }}
           />
           <ComposerSelect
             label={t('fieldAspect')}
@@ -486,10 +429,10 @@ function ComposerMediaTabs(props: ComposerMediaTabsProps) {
       {mode === 'video' && (
         <div className="dshDesktopComposerParams">
           <ComposerSelect
-            label={t('fieldModel')}
-            value={video.model}
-            options={videoModelOptions(t, settingsT)}
-            onChange={(model) => { updateVideo({ model }) }}
+            label={t('fieldProvider')}
+            value={video.provider}
+            options={providerOptions(t, settingsT)}
+            onChange={(provider) => { updateVideo({ provider }) }}
           />
           <ComposerSelect
             label={t('fieldAspect')}
@@ -562,7 +505,7 @@ function installComposerMediaTabsStyles(): () => void {
  * 注册桌面 composer 媒体模式 tab。`ctx.slots.inject` 的控制器归属调用方
  * fiber，插件卸载时随 apply fiber 自动级联注销（与 media-toolview /
  * hero-brand 一致）；全局样式与 locale 字典经 ctx.effect 挂载并随 disposer
- * 卸载。服务商分组头复用 `desktop.settings` 命名空间文案（该命名空间由
+ * 卸载。服务商选项文案复用 `desktop.settings` 命名空间（该命名空间由
  * applyDesktopSettings 在所有桌面模式下无条件注册，绑定安全）。
  * @param ctx - 浏览器 Cordis 上下文。
  */

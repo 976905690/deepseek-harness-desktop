@@ -181,8 +181,10 @@ function parseImageVideoConfigRequest(
     const parsed = parseCredentials(value[field])
     if (parsed === undefined) return undefined
   }
-  if (typeof value.defaultImageModel !== 'string') return undefined
-  if (typeof value.defaultVideoModel !== 'string') return undefined
+  const defaultImageProvider = value.defaultImageProvider
+  const defaultVideoProvider = value.defaultVideoProvider
+  if (!(defaultImageProvider === '' || isImageVideoProvider(defaultImageProvider))) return undefined
+  if (!(defaultVideoProvider === '' || isImageVideoProvider(defaultVideoProvider))) return undefined
   if (typeof value.defaultImageSize !== 'string') return undefined
   if (!isFiniteNumber(value.defaultVideoDuration)) return undefined
   if (!isFiniteNumber(value.timeoutMs)) return undefined
@@ -195,8 +197,8 @@ function parseImageVideoConfigRequest(
     threerouter: parseCredentials(value.threerouter) as DesktopImageVideoCredentials,
     wanx: parseCredentials(value.wanx) as DesktopImageVideoCredentials,
     seedance: parseCredentials(value.seedance) as DesktopImageVideoCredentials,
-    defaultImageModel: value.defaultImageModel,
-    defaultVideoModel: value.defaultVideoModel,
+    defaultImageProvider,
+    defaultVideoProvider,
     defaultImageSize: value.defaultImageSize,
     defaultVideoDuration: value.defaultVideoDuration,
     timeoutMs: value.timeoutMs,

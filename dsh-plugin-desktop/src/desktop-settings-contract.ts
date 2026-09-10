@@ -196,8 +196,8 @@ export interface DesktopImageVideoConfigView {
   readonly threerouter: DesktopImageVideoCredentials
   readonly wanx: DesktopImageVideoCredentials
   readonly seedance: DesktopImageVideoCredentials
-  readonly defaultImageModel: string
-  readonly defaultVideoModel: string
+  readonly defaultImageProvider: DesktopImageVideoProvider | ''
+  readonly defaultVideoProvider: DesktopImageVideoProvider | ''
   readonly defaultImageSize: string
   readonly defaultVideoDuration: number
   readonly timeoutMs: number

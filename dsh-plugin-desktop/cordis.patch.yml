@@ -46,8 +46,8 @@
     seedance:
       apiKey: ''
       baseURL: ''
-    defaultImageModel: ''
-    defaultVideoModel: ''
+    defaultImageProvider: ''
+    defaultVideoProvider: ''
     defaultImageSize: '1024*1024'
     # 默认视频时长（秒），上限 10
     defaultVideoDuration: 5
