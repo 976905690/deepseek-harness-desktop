@@ -16,10 +16,11 @@
  *    含 `_fishHitbox` 的 headline，避免误伤 ContextMeter / ApprovalPanel
  *    的同名 headline 类。
  *
- * 两段 SVG 均内联：client bundle purity gate 要求 `@deepseek-ai/*` 值导入
- * 登记在 `dsh.client.external`（桌面未引入 ui-primitives），而跨包引用
- * dsh-plugin-threerouter 会连带整个 client 插件入口。上游类型一律
- * type-only import，构建后擦除，不进 client bundle。
+ * 两段 SVG 均内联：`@deepseek-ai/*` 跨包值导入需登记在 tsdown external 并
+ * 由 shell 模块表解析（ui-primitives 即平台模块，见 platform.ts
+ * PLATFORM_MODULES）；跨包引用 dsh-plugin-threerouter 会连带整个 client
+ * 插件入口，故不采用。上游类型一律 type-only import，构建后擦除，不进
+ * client bundle。
  *
  * 仅在 advanced / extended 桌面外壳接入；compatibility 模式保持上游默认
  * 客户端（无桌面覆盖）。

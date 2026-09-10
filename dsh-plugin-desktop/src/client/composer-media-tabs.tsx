@@ -18,7 +18,10 @@
  * （conversation.input.model seat），桌面不做覆盖。
  *
  * 下拉的模型/尺寸/比例取值必须与 dsh-image-video src/runtime-defaults.ts 的
- * 白名单一致（该处为协议校验源，此处为展示源），改动需两仓同步。
+ * 白名单一致（该处为协议校验源，此处为展示源），改动需两仓同步；模型下拉
+ * 额外按 settings 的三个生成服务商分组（组名对齐 settings 的服务商文案），
+ * host 端 runtime-defaults.ts 的 model→provider 映射键与本处选项一一对应：
+ * 选中某服务商分组下的模型后，生成工具自动路由到该服务商（用其凭证）。
  *
  * @module dsh-plugin-desktop/client/composer-media-tabs
  */
@@ -38,24 +41,67 @@ interface SelectOption {
   label: string
 }
 
+/** 分组下拉项（optgroup）：组头文案 = settings 里的服务商名，模型归属显性化。 */
+interface SelectGroup {
+  label: string
+  options: ReadonlyArray<SelectOption>
+}
+
+/** 下拉内容：扁平项或服务商分组（分组内不得再嵌套）。 */
+type SelectContent = SelectOption | SelectGroup
+
 /** 「自动」占位项：清除运行时覆盖，回落 settings 持久值。 */
 const AUTO_OPTION: SelectOption = { value: '', label: '自动' }
 
-/** 图像模型预设（标注来源服务商；'' = 跟随 settings/provider 默认）。 */
-const IMAGE_MODEL_OPTIONS: ReadonlyArray<SelectOption> = [
+/** 服务商分组头（与 settings「图片与视频生成」的服务商文案逐字一致）。 */
+const PROVIDER_GROUPS = {
+  threerouter: 'Threerouter',
+  wanx: '万象（阿里云百炼）',
+  seedance: 'Seedance 2.5（火山引擎）',
+} as const
+
+/**
+ * 图像模型预设（'' = 跟随 settings/provider 默认）。按服务商分组：
+ * Threerouter 是统一路由入口（内置默认 wan2.1-image），万象直连阿里云百炼，
+ * Seedance 直连火山引擎。与 host 端 IMAGE_MODEL_PROVIDER 映射键一一对应。
+ */
+const IMAGE_MODEL_OPTIONS: ReadonlyArray<SelectContent> = [
   AUTO_OPTION,
-  { value: 'wan2.1-image', label: 'Wan 2.1 图像' },
-  { value: 'wanx2.1-t2i-turbo', label: 'Wanx 2.1 Turbo' },
-  { value: 'doubao-seedream-3-0-t2i-250415', label: 'Seedream 3.0' },
-  { value: 'doubao-seedream-4-0-250828', label: 'Seedream 4.0' },
+  {
+    label: PROVIDER_GROUPS.threerouter,
+    options: [{ value: 'wan2.1-image', label: 'Wan 2.1 图像' }],
+  },
+  {
+    label: PROVIDER_GROUPS.wanx,
+    options: [{ value: 'wanx2.1-t2i-turbo', label: 'Wanx 2.1 Turbo' }],
+  },
+  {
+    label: PROVIDER_GROUPS.seedance,
+    options: [
+      { value: 'doubao-seedream-3-0-t2i-250415', label: 'Seedream 3.0' },
+      { value: 'doubao-seedream-4-0-250828', label: 'Seedream 4.0' },
+    ],
+  },
 ]
 
-/** 视频模型预设。 */
-const VIDEO_MODEL_OPTIONS: ReadonlyArray<SelectOption> = [
+/**
+ * 视频模型预设。wan2.2-t2v-plus 是 Threerouter 的内置默认视频模型（万象直连
+ * 的默认亦为同款）；为避免同一模型 id 在两个分组重复导致选中歧义，仅列在
+ * Threerouter 组下。与 host 端 VIDEO_MODEL_PROVIDER 映射键一一对应。
+ */
+const VIDEO_MODEL_OPTIONS: ReadonlyArray<SelectContent> = [
   AUTO_OPTION,
-  { value: 'wan2.2-t2v-plus', label: 'Wan 2.2 Plus' },
-  { value: 'doubao-seedance-1-0-pro-250428', label: 'Seedance 1.0 Pro' },
-  { value: 'doubao-seedance-1-0-lite-t2v-250428', label: 'Seedance 1.0 Lite' },
+  {
+    label: PROVIDER_GROUPS.threerouter,
+    options: [{ value: 'wan2.2-t2v-plus', label: 'Wan 2.2 Plus' }],
+  },
+  {
+    label: PROVIDER_GROUPS.seedance,
+    options: [
+      { value: 'doubao-seedance-1-0-pro-250428', label: 'Seedance 1.0 Pro' },
+      { value: 'doubao-seedance-1-0-lite-t2v-250428', label: 'Seedance 1.0 Lite' },
+    ],
+  },
 ]
 
 /** 图像尺寸预设：label 为比例，value 为尺寸串（host 白名单校验）。 */
@@ -162,7 +208,7 @@ interface ComposerMediaTabsProps {
 function ComposerSelect(props: {
   label: string
   value: string
-  options: ReadonlyArray<SelectOption>
+  options: ReadonlyArray<SelectContent>
   onChange: (value: string) => void
 }) {
   return (
@@ -172,8 +218,14 @@ function ComposerSelect(props: {
         value={props.value}
         onChange={(event) => { props.onChange(event.target.value) }}
       >
-        {props.options.map((option) => (
-          <option key={option.value} value={option.value}>{option.label}</option>
+        {props.options.map((item) => 'options' in item ? (
+          <optgroup key={item.label} label={item.label}>
+            {item.options.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </optgroup>
+        ) : (
+          <option key={item.value} value={item.value}>{item.label}</option>
         ))}
       </select>
     </label>
@@ -313,7 +365,7 @@ const COMPOSER_MEDIA_TABS_STYLES = `
 }
 .dshDesktopComposerSegBtn:hover { color: var(--dsw-alias-label-primary); }
 .dshDesktopComposerSegBtn[data-active='true'] {
-  background: var(--dsw-specific-selector); color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-button-info-fill); color: #fff; font-weight: 600;
 }
 .dshDesktopComposerParams { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .dshDesktopComposerField { display: inline-flex; align-items: center; gap: 2px; min-width: 0; }

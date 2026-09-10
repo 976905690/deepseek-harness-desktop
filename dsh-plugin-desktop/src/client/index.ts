@@ -12,6 +12,7 @@ import { installDesktopDirectoryPickerBridge, requestDesktopDirectoryValidation 
 import { parseDesktopClientEnvironment } from './environment.ts'
 import { applyExtendedShell, applyFramedShell } from './extended-shell.ts'
 import { applyHeroBrand } from './hero-brand.tsx'
+import { applyAdvancedSettings } from './advanced-settings.tsx'
 import { applyComposerMediaTabs } from './composer-media-tabs.tsx'
 import { applyMediaToolviews } from './media-toolview.tsx'
 import { installWorkspaceFolderDrop } from './workspace-folder-drop.ts'
@@ -118,11 +119,13 @@ export function apply(ctx: ClientContext): void {
   }
   // 桌面自有媒体 toolview：generate_video/generate_image 内嵌播放器，仅在
   // advanced / extended 接入；compatibility 保持上游默认客户端（无桌面覆盖）。
-  // hero 品牌区（双 logo + 桌面标题）与 composer 媒体模式 tab（文本/图片/视频
-  // 分段 + 参数下拉热更新）同属桌面外壳定制，接入条件一致。
+  // hero 品牌区（双 logo + 桌面标题）、composer 媒体模式 tab（文本/图片/视频
+  // 分段 + 参数下拉热更新）与高级设置对话框（收纳上游 agent preset chip 与
+  // Workspace Write 选择器）同属桌面外壳定制，接入条件一致。
   if (environment.mode === 'advanced' || environment.mode === 'extended') {
     applyMediaToolviews(ctx)
     applyHeroBrand(ctx)
     applyComposerMediaTabs(ctx)
+    applyAdvancedSettings(ctx)
   }
 }
