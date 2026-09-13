@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { mediaBasename, mediaViewFromBlock } from '../src/client/media-toolview-model.ts'
+import { mediaBasename, mediaModeLabel, mediaViewFromBlock } from '../src/client/media-toolview-model.ts'
 
 describe('媒体 toolview 视图状态推导', () => {
   it('未结算的调用块推导为 running', () => {
@@ -37,6 +37,54 @@ describe('媒体 toolview 视图状态推导', () => {
   it('空 prompt 不写入 media 状态', () => {
     const state = mediaViewFromBlock({ kind: 'tool-result', meta: { localPath: 'C:\\o\\v.mp4', prompt: '' } })
     expect(state).toEqual({ kind: 'media', src: '/outputs/v.mp4', localPath: 'C:\\o\\v.mp4' })
+  })
+
+  it('meta 携带 model/mode/notes 时逐字段透出（2026-09 插件透明字段）', () => {
+    const state = mediaViewFromBlock({
+      kind: 'tool-result',
+      meta: {
+        localPath: '/o/a.png',
+        prompt: '赛博朋克猫',
+        model: 'gpt-image-2',
+        mode: 'image-to-image',
+        notes: ['候选回退：threerouter → wanx'],
+      },
+    })
+    expect(state).toEqual({
+      kind: 'media',
+      src: '/outputs/a.png',
+      localPath: '/o/a.png',
+      prompt: '赛博朋克猫',
+      model: 'gpt-image-2',
+      mode: 'image-to-image',
+      notes: ['候选回退：threerouter → wanx'],
+    })
+  })
+
+  it('model/mode/notes 类型不符或为空时逐字段省略，不影响媒体本体', () => {
+    const state = mediaViewFromBlock({
+      kind: 'tool-result',
+      meta: { localPath: '/o/v.mp4', model: 42, mode: '', notes: ['x', 7, null, ''] },
+    })
+    expect(state).toEqual({
+      kind: 'media',
+      src: '/outputs/v.mp4',
+      localPath: '/o/v.mp4',
+      notes: ['x'],
+    })
+    // 全部无效 → 无 notes 键
+    const bare = mediaViewFromBlock({ kind: 'tool-result', meta: { localPath: '/o/v.mp4', notes: [7, null] } })
+    expect(bare).toEqual({ kind: 'media', src: '/outputs/v.mp4', localPath: '/o/v.mp4' })
+  })
+
+  it('mediaModeLabel：四种模式转中文，未知值原样，空值 undefined', () => {
+    expect(mediaModeLabel('image-to-image')).toBe('图生图')
+    expect(mediaModeLabel('text-to-image')).toBe('文生图')
+    expect(mediaModeLabel('image-to-video')).toBe('图生视频')
+    expect(mediaModeLabel('text-to-video')).toBe('文生视频')
+    expect(mediaModeLabel('future-mode')).toBe('future-mode')
+    expect(mediaModeLabel(undefined)).toBeUndefined()
+    expect(mediaModeLabel('')).toBeUndefined()
   })
 })
 

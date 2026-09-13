@@ -66,6 +66,10 @@ html:has([aria-modal="true"]) .dshDesktopSidebarSurface::before { -webkit-app-re
 .dshDesktopMediaTool[data-media-state="running"],
 .dshDesktopMediaTool[data-media-state="unavailable"] { font-size: 12px; line-height: 1.6; color: var(--dsw-alias-label-secondary); }
 .dshDesktopMediaPrompt { font-size: 12px; line-height: 1.6; color: var(--dsw-alias-label-secondary); overflow-wrap: anywhere; }
+.dshDesktopMediaFacts { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.dshDesktopMediaFact { font-size: 12px; line-height: 1.6; color: var(--dsw-alias-label-secondary); }
+.dshDesktopMediaNotes { display: flex; flex-direction: column; gap: 2px; }
+.dshDesktopMediaNote { font-size: 12px; line-height: 1.6; color: var(--dsw-alias-label-tertiary); overflow-wrap: anywhere; }
 .dshDesktopMediaPlayer { display: block; width: 100%; max-width: 480px; max-height: 320px; border-radius: 8px; background: var(--dsw-alias-bg-layer-1); object-fit: contain; }
 .dshDesktopMediaMeta { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; color: var(--dsw-alias-label-secondary); }
 .dshDesktopMediaPath { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -20,7 +20,7 @@ import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 // 合并进场的 conversation slot augment 引为约束，单独纳入桌面编译会在
 // node_modules 内部报约束错误，而上游自家 tsconfig.base 也开 skipLibCheck。
 import type {} from '@deepseek-ai/dsh-client-ui-tool/client'
-import { mediaBasename, mediaViewFromBlock } from './media-toolview-model.ts'
+import { mediaBasename, mediaModeLabel, mediaViewFromBlock } from './media-toolview-model.ts'
 
 /**
  * 上游 ToolCallViewProps 的本地结构视图（组件仅消费 toolName / block /
@@ -62,7 +62,7 @@ export function MediaToolview({ toolName, block, openFile }: MediaToolviewProps)
         className="dshDesktopMediaOpen"
         onClick={() => { openFile(state.localPath) }}
       >
-        在系统播放器中打开
+        在系统${toolName === 'generate_video' ? '播放器' : '看图工具'}中打开
       </button>
     </div>
   ) : null
@@ -77,6 +77,21 @@ export function MediaToolview({ toolName, block, openFile }: MediaToolviewProps)
   return (
     <div className="dshDesktopMediaTool" data-media-state="ready">
       {state.prompt === undefined ? null : <div className="dshDesktopMediaPrompt">{state.prompt}</div>}
+      {state.model === undefined && state.mode === undefined ? null : (
+        <div className="dshDesktopMediaFacts">
+          {state.model === undefined ? null : <span className="dshDesktopMediaFact">模型：{state.model}</span>}
+          {state.mode === undefined ? null : (
+            <span className="dshDesktopMediaFact">模式：{mediaModeLabel(state.mode)}</span>
+          )}
+        </div>
+      )}
+      {state.notes === undefined ? null : (
+        <div className="dshDesktopMediaNotes">
+          {state.notes.map((note, i) => (
+            <div key={i} className="dshDesktopMediaNote">ℹ {note}</div>
+          ))}
+        </div>
+      )}
       {toolName === 'generate_video'
         ? (
             <video
