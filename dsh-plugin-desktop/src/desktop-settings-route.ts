@@ -157,7 +157,7 @@ function parseMarketRequest(value: unknown): DesktopMarketSelectRequest | undefi
 }
 
 function isImageVideoProvider(value: unknown): value is DesktopImageVideoProvider {
-  return value === 'threerouter' || value === 'wanx' || value === 'seedance'
+  return value === 'threerouter' || value === 'wanx' || value === 'minimax' || value === 'seedance'
 }
 
 function parseCredentials(value: unknown): DesktopImageVideoCredentials | undefined {
@@ -175,7 +175,7 @@ function parseImageVideoConfigRequest(
   value: unknown,
 ): DesktopImageVideoConfigSelectRequest | undefined {
   if (!isObject(value)) return undefined
-  const credentialsFields = ['threerouter', 'wanx', 'seedance'] as const
+  const credentialsFields = ['threerouter', 'wanx', 'minimax', 'seedance'] as const
   if (!isImageVideoProvider(value.provider)) return undefined
   for (const field of credentialsFields) {
     const parsed = parseCredentials(value[field])
@@ -196,6 +196,7 @@ function parseImageVideoConfigRequest(
     provider: value.provider,
     threerouter: parseCredentials(value.threerouter) as DesktopImageVideoCredentials,
     wanx: parseCredentials(value.wanx) as DesktopImageVideoCredentials,
+    minimax: parseCredentials(value.minimax) as DesktopImageVideoCredentials,
     seedance: parseCredentials(value.seedance) as DesktopImageVideoCredentials,
     defaultImageProvider,
     defaultVideoProvider,

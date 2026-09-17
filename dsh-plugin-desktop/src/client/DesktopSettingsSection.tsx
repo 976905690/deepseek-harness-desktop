@@ -64,6 +64,7 @@ const IMAGE_VIDEO_PROVIDERS: readonly {
 }[] = [
   { id: 'threerouter', title: 'imageVideoThreerouter', body: 'imageVideoThreerouterBody' },
   { id: 'wanx', title: 'imageVideoWanx', body: 'imageVideoWanxBody' },
+  { id: 'minimax', title: 'imageVideoMinimax', body: 'imageVideoMinimaxBody' },
   { id: 'seedance', title: 'imageVideoSeedance', body: 'imageVideoSeedanceBody' },
 ]
 

@@ -50,7 +50,7 @@ export interface DesktopRestartAcceptance {
 }
 
 /** Generation-scoped providers for dsh-image-video. */
-export type DesktopImageVideoProvider = 'threerouter' | 'wanx' | 'seedance'
+export type DesktopImageVideoProvider = 'threerouter' | 'wanx' | 'minimax' | 'seedance'
 
 /** Credentials for one dsh-image-video provider. */
 export interface DesktopImageVideoCredentials {
@@ -63,8 +63,9 @@ export interface DesktopImageVideoConfigView {
   readonly provider: DesktopImageVideoProvider
   readonly threerouter: DesktopImageVideoCredentials
   readonly wanx: DesktopImageVideoCredentials
+  readonly minimax: DesktopImageVideoCredentials
   readonly seedance: DesktopImageVideoCredentials
-  readonly defaultImageProvider: DesktopImageVideoProvider | ''
+  readonly defaultImageProvider: Exclude<DesktopImageVideoProvider, 'minimax'> | 'minimax' | ''
   readonly defaultVideoProvider: DesktopImageVideoProvider | ''
   readonly defaultImageSize: string
   readonly defaultVideoDuration: number
@@ -170,7 +171,7 @@ export function parseDesktopActionAcceptance(value: unknown): void {
 }
 
 function isImageVideoProvider(value: unknown): value is DesktopImageVideoProvider {
-  return value === 'threerouter' || value === 'wanx' || value === 'seedance'
+  return value === 'threerouter' || value === 'wanx' || value === 'minimax' || value === 'seedance'
 }
 
 function isImageVideoDefaultProvider(value: unknown): value is DesktopImageVideoProvider | '' {
@@ -203,6 +204,7 @@ export function parseDesktopImageVideoConfigView(value: unknown): DesktopImageVi
     provider: value.provider,
     threerouter: parseImageVideoCredentials(value.threerouter),
     wanx: parseImageVideoCredentials(value.wanx),
+    minimax: parseImageVideoCredentials(value.minimax),
     seedance: parseImageVideoCredentials(value.seedance),
     defaultImageProvider: value.defaultImageProvider,
     defaultVideoProvider: value.defaultVideoProvider,

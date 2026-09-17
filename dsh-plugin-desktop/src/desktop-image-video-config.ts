@@ -17,6 +17,7 @@ const DEFAULT_IMAGE_VIDEO_CONFIG: DesktopImageVideoConfigView = Object.freeze({
   provider: 'threerouter',
   threerouter: Object.freeze({ apiKey: '', baseURL: '' }),
   wanx: Object.freeze({ apiKey: '', baseURL: '' }),
+  minimax: Object.freeze({ apiKey: '', baseURL: '' }),
   seedance: Object.freeze({ apiKey: '', baseURL: '' }),
   defaultImageProvider: '',
   defaultVideoProvider: '',
@@ -24,7 +25,7 @@ const DEFAULT_IMAGE_VIDEO_CONFIG: DesktopImageVideoConfigView = Object.freeze({
   defaultVideoDuration: 5,
   timeoutMs: 60_000,
   pollIntervalMs: 5_000,
-  pollTimeoutMs: 300_000,
+  pollTimeoutMs: 600_000,
   retryTimes: 3,
   outputsDir: './outputs',
 })
@@ -53,7 +54,7 @@ function readCredentials(
 }
 
 function isImageVideoProvider(value: unknown): value is DesktopImageVideoProvider {
-  return value === 'threerouter' || value === 'wanx' || value === 'seedance'
+  return value === 'threerouter' || value === 'wanx' || value === 'minimax' || value === 'seedance'
 }
 
 function readDefaultProvider(value: unknown): DesktopImageVideoProvider | '' {
@@ -71,6 +72,7 @@ export function projectImageVideoConfig(value: unknown): DesktopImageVideoConfig
     provider,
     threerouter: readCredentials(config.threerouter, fallback.threerouter),
     wanx: readCredentials(config.wanx, fallback.wanx),
+    minimax: readCredentials(config.minimax, fallback.minimax),
     seedance: readCredentials(config.seedance, fallback.seedance),
     defaultImageProvider: readDefaultProvider(config.defaultImageProvider),
     defaultVideoProvider: readDefaultProvider(config.defaultVideoProvider),
@@ -114,6 +116,7 @@ function imageVideoConfigToRaw(
     provider: value.provider,
     threerouter: { apiKey: value.threerouter.apiKey, baseURL: value.threerouter.baseURL },
     wanx: { apiKey: value.wanx.apiKey, baseURL: value.wanx.baseURL },
+    minimax: { apiKey: value.minimax.apiKey, baseURL: value.minimax.baseURL },
     seedance: { apiKey: value.seedance.apiKey, baseURL: value.seedance.baseURL },
     defaultImageProvider: value.defaultImageProvider,
     defaultVideoProvider: value.defaultVideoProvider,

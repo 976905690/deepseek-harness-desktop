@@ -182,7 +182,7 @@ export interface DesktopProfileCreateWindowResponse {
 }
 
 /** Generation-scoped providers for dsh-image-video. */
-export type DesktopImageVideoProvider = 'threerouter' | 'wanx' | 'seedance'
+export type DesktopImageVideoProvider = 'threerouter' | 'wanx' | 'minimax' | 'seedance'
 
 /** Credentials for one dsh-image-video provider. */
 export interface DesktopImageVideoCredentials {
@@ -195,6 +195,7 @@ export interface DesktopImageVideoConfigView {
   readonly provider: DesktopImageVideoProvider
   readonly threerouter: DesktopImageVideoCredentials
   readonly wanx: DesktopImageVideoCredentials
+  readonly minimax: DesktopImageVideoCredentials
   readonly seedance: DesktopImageVideoCredentials
   readonly defaultImageProvider: DesktopImageVideoProvider | ''
   readonly defaultVideoProvider: DesktopImageVideoProvider | ''

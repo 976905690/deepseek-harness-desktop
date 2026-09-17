@@ -73,6 +73,8 @@ const zh = {
   duration6: '6 秒',
   duration8: '8 秒',
   duration10: '10 秒',
+  duration15: '15 秒',
+  duration30: '30 秒',
 } as const
 
 export type DesktopComposerMediaLocaleKey = keyof typeof zh
@@ -100,6 +102,8 @@ const en: Record<DesktopComposerMediaLocaleKey, string> = {
   duration6: '6s',
   duration8: '8s',
   duration10: '10s',
+  duration15: '15s',
+  duration30: '30s',
 }
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -136,6 +140,7 @@ export function providerOptions(t: MediaT, settingsT: SettingsT): ReadonlyArray<
     autoOption(t),
     { value: 'threerouter', label: settingsT('imageVideoThreerouter') },
     { value: 'wanx', label: settingsT('imageVideoWanx') },
+    { value: 'minimax', label: settingsT('imageVideoMinimax') },
     { value: 'seedance', label: settingsT('imageVideoSeedance') },
   ]
 }
@@ -172,6 +177,8 @@ function videoDurationOptions(t: MediaT): ReadonlyArray<SelectOption> {
     { value: '6', label: t('duration6') },
     { value: '8', label: t('duration8') },
     { value: '10', label: t('duration10') },
+    { value: '15', label: t('duration15') },
+    { value: '30', label: t('duration30') },
   ]
 }
 
