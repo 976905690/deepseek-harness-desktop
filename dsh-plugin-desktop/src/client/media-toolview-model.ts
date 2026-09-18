@@ -21,6 +21,12 @@ export type MediaViewState =
       model?: string
       /** 生成模式（presentationMeta.mode），展示时经 mediaModeLabel 转中文。 */
       mode?: string
+      /** 提交传输方式（presentationMeta.transport）：async=网关异步任务，sync=同步单次提交。 */
+      transport?: string
+      /** 物理提交次数（presentationMeta.submitAttempts）：正常恒为 1。 */
+      submitAttempts?: number
+      /** 后处理链路（presentationMeta.postprocess，如品牌水印）。 */
+      postprocess?: string[]
       /** 透明告知（presentationMeta.notes）：时长被丢弃、候选回退链等。 */
       notes?: string[]
     }
@@ -52,11 +58,27 @@ export function mediaViewFromBlock(block: unknown): MediaViewState {
   if (!('meta' in block) || typeof block.meta !== 'object' || block.meta === null) {
     return { kind: 'unavailable' }
   }
-  const meta = block.meta as { localPath?: unknown; prompt?: unknown; model?: unknown; mode?: unknown; notes?: unknown }
+  const meta = block.meta as {
+    localPath?: unknown
+    prompt?: unknown
+    model?: unknown
+    mode?: unknown
+    transport?: unknown
+    submitAttempts?: unknown
+    postprocess?: unknown
+    notes?: unknown
+  }
   const { localPath, prompt } = meta
   if (typeof localPath !== 'string' || localPath === '') return { kind: 'unavailable' }
   const model = typeof meta.model === 'string' && meta.model !== '' ? meta.model : undefined
   const mode = typeof meta.mode === 'string' && meta.mode !== '' ? meta.mode : undefined
+  const transport = typeof meta.transport === 'string' && meta.transport !== '' ? meta.transport : undefined
+  const submitAttempts = typeof meta.submitAttempts === 'number' && Number.isInteger(meta.submitAttempts) && meta.submitAttempts >= 0
+    ? meta.submitAttempts
+    : undefined
+  const postprocess = Array.isArray(meta.postprocess)
+    ? meta.postprocess.filter((p): p is string => typeof p === 'string' && p !== '')
+    : undefined
   const notes = Array.isArray(meta.notes)
     ? meta.notes.filter((n): n is string => typeof n === 'string' && n !== '')
     : undefined
@@ -67,6 +89,9 @@ export function mediaViewFromBlock(block: unknown): MediaViewState {
     ...(typeof prompt === 'string' && prompt !== '' ? { prompt } : {}),
     ...(model ? { model } : {}),
     ...(mode ? { mode } : {}),
+    ...(transport ? { transport } : {}),
+    ...(submitAttempts !== undefined ? { submitAttempts } : {}),
+    ...(postprocess !== undefined && postprocess.length > 0 ? { postprocess } : {}),
     ...(notes !== undefined && notes.length > 0 ? { notes } : {}),
   }
 }

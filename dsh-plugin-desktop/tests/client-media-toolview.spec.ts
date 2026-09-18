@@ -61,6 +61,41 @@ describe('媒体 toolview 视图状态推导', () => {
     })
   })
 
+  it('meta 携带传输/提交次数/后处理时逐字段透出（生图事务自证字段）', () => {
+    const state = mediaViewFromBlock({
+      kind: 'tool-result',
+      meta: {
+        localPath: '/o/final.png',
+        model: 'qwen-image-3.0',
+        mode: 'image-to-image',
+        transport: 'async',
+        submitAttempts: 1,
+        postprocess: ['品牌水印 Threerouter（bottom-right）'],
+        notes: ['调用前预检查通过：传输=async'],
+      },
+    })
+    expect(state).toEqual({
+      kind: 'media',
+      src: '/outputs/final.png',
+      localPath: '/o/final.png',
+      model: 'qwen-image-3.0',
+      mode: 'image-to-image',
+      transport: 'async',
+      submitAttempts: 1,
+      postprocess: ['品牌水印 Threerouter（bottom-right）'],
+      notes: ['调用前预检查通过：传输=async'],
+    })
+  })
+
+  it('提交次数必须是非负整数，非法值省略', () => {
+    expect(mediaViewFromBlock({ kind: 'tool-result', meta: { localPath: '/o/a.png', submitAttempts: 1.5 } }))
+      .toEqual({ kind: 'media', src: '/outputs/a.png', localPath: '/o/a.png' })
+    expect(mediaViewFromBlock({ kind: 'tool-result', meta: { localPath: '/o/a.png', submitAttempts: -1 } }))
+      .toEqual({ kind: 'media', src: '/outputs/a.png', localPath: '/o/a.png' })
+    expect(mediaViewFromBlock({ kind: 'tool-result', meta: { localPath: '/o/a.png', submitAttempts: 0 } }))
+      .toEqual({ kind: 'media', src: '/outputs/a.png', localPath: '/o/a.png', submitAttempts: 0 })
+  })
+
   it('model/mode/notes 类型不符或为空时逐字段省略，不影响媒体本体', () => {
     const state = mediaViewFromBlock({
       kind: 'tool-result',

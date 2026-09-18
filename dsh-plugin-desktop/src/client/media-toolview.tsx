@@ -77,11 +77,21 @@ export function MediaToolview({ toolName, block, openFile }: MediaToolviewProps)
   return (
     <div className="dshDesktopMediaTool" data-media-state="ready">
       {state.prompt === undefined ? null : <div className="dshDesktopMediaPrompt">{state.prompt}</div>}
-      {state.model === undefined && state.mode === undefined ? null : (
+      {state.model === undefined && state.mode === undefined && state.transport === undefined
+        && state.submitAttempts === undefined && state.postprocess === undefined ? null : (
         <div className="dshDesktopMediaFacts">
           {state.model === undefined ? null : <span className="dshDesktopMediaFact">模型：{state.model}</span>}
           {state.mode === undefined ? null : (
             <span className="dshDesktopMediaFact">模式：{mediaModeLabel(state.mode)}</span>
+          )}
+          {state.transport === undefined ? null : (
+            <span className="dshDesktopMediaFact">传输：{state.transport === 'async' ? '异步任务' : '同步'}</span>
+          )}
+          {state.submitAttempts === undefined ? null : (
+            <span className="dshDesktopMediaFact">提交次数：{state.submitAttempts}</span>
+          )}
+          {state.postprocess === undefined ? null : (
+            <span className="dshDesktopMediaFact">后处理：{state.postprocess.join(' + ')}</span>
           )}
         </div>
       )}
