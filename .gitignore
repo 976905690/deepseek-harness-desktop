@@ -1,4 +1,8 @@
 .DS_Store
+.hypit/
+outputs/
+packages/*/dist/
+hypit/assets/
 .yarn/*
 !.yarn/patches
 !.yarn/plugins

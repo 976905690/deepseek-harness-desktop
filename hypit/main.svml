@@ -1,0 +1,20 @@
+<?svml using="@hypit/markup@1"?>
+<svml>
+  <import as="text" from="@hypit/text@1"/>
+  <import as="media" from="@hypit/media@1"/>
+  <import as="h3" from="@local/minimax-h3@1"/>
+
+  <!-- The source clip. MiniMax-H3 receives it as a motion reference. -->
+  <media:Video id="source" src="./assets/source-video.mp4"/>
+
+  <!-- The character reference image the user supplied. -->
+  <media:Image id="hero" src="./assets/reference-image.png"/>
+
+  <text:Value id="direction">Use the supplied reference video as the exact performance, camera and timing source. Replace the dog with the man in the reference image. Preserve the original shot composition, pose changes, action beats, camera movement, pacing, framing, background, lighting, colour grade and realism. Map the dog's motion naturally onto a human body while keeping the man's face, hairstyle, body proportions and clothing consistent throughout. Remove every dog-specific feature, including ears, muzzle, fur and tail. Do not add text, watermarks, subtitles or extra people.</text:Value>
+
+  <h3:ReferenceVideo id="replacement" prompt={direction}
+    duration="15" resolution="768P" aspect-ratio="adaptive">
+    <h3:Reference image={hero}/>
+    <h3:Reference video={source}/>
+  </h3:ReferenceVideo>
+</svml>

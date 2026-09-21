@@ -1,0 +1,29 @@
+{
+  "format": "hypit.runtime-local@1",
+  "dataRoot": ".hypit/runtimes/local",
+  "credentials": {
+    "env": {
+      "use": "@hypit/credential-store-env"
+    }
+  },
+  "endpoints": {
+    "threerouter.default": {
+      "use": "@local/hypit-provider-threerouter",
+      "pool": "threerouter.default",
+      "config": {
+        "baseUrl": "https://api.threerouter.com/v1",
+        "apiKey": {
+          "store": "env",
+          "key": "THREEROUTER_MEDIA_API_KEY"
+        },
+        "defaultConcurrency": 1,
+        "pollIntervalMs": 5000,
+        "requestTimeoutMs": 600000
+      }
+    }
+  },
+  "bindings": {
+    "@local/wan3-video@1#wan3.0-video": "threerouter.default",
+    "@local/minimax-h3@1#MiniMax-H3": "threerouter.default"
+  }
+}
