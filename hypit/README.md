@@ -44,6 +44,23 @@ hypit get <build-id> --output replacement.video \
   --workspace . --to outputs/replacement.mp4
 ```
 
+## 导出对比视频
+
+每次复刻都出一个「原片 / 成片」对比，方便核对替换范围：
+
+```bash
+./hypit/scripts/compare.sh <原片> <成片> outputs/compare.mp4
+```
+
+对比方向按源片比例自动选择，保证成品不超宽：
+
+| 源片比例 | 对比方向 |
+|---|---|
+| 3:4 / 9:16（竖屏） | 左右拼接 |
+| 4:3 / 16:9（横屏） | 上下拼接 |
+
+对比只走本地 ffmpeg 合帧，不调用任何模型接口，**不产生费用**。
+
 ## 修改人物和提示词
 
 编辑 `hypit/main.svml`：

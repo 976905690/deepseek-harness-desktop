@@ -2,19 +2,23 @@
 <svml>
   <import as="text" from="@hypit/text@1"/>
   <import as="media" from="@hypit/media@1"/>
-  <import as="h3" from="@local/minimax-h3@1"/>
+  <import as="wan" from="@local/wan3-video@1"/>
 
   <!-- The source clip. MiniMax-H3 receives it as a motion reference. -->
-  <media:Video id="source" src="./assets/source-video.mp4"/>
+  <media:Video id="source" src="./assets/source-video-15s.mp4"/>
 
   <!-- The character reference image the user supplied. -->
-  <media:Image id="hero" src="./assets/reference-image.png"/>
+  <media:Image id="hero" src="./assets/reference-image.jpg"/>
 
-  <text:Value id="direction">Use the supplied reference video as the exact performance, camera and timing source. Replace the dog with the man in the reference image. Preserve the original shot composition, pose changes, action beats, camera movement, pacing, framing, background, lighting, colour grade and realism. Map the dog's motion naturally onto a human body while keeping the man's face, hairstyle, body proportions and clothing consistent throughout. Remove every dog-specific feature, including ears, muzzle, fur and tail. Do not add text, watermarks, subtitles or extra people.</text:Value>
+  <text:Value id="direction">Use the supplied reference video as the exact performance, camera and timing source. Replace only the male character with the person shown in the reference image, matching that character's face, hairstyle, clothing and body proportions consistently through every shot. The reference image is a multi-view character sheet: use it as the identity and costume reference for the male character only.
 
-  <h3:ReferenceVideo id="replacement" prompt={direction}
-    duration="15" resolution="768P" aspect-ratio="adaptive">
-    <h3:Reference image={hero}/>
-    <h3:Reference video={source}/>
-  </h3:ReferenceVideo>
+Keep everything else in the video completely unchanged: the cartoon female lead (her design, face, outfits, expressions and performance must stay exactly as in the source), the plot, the dialogue, every expression and gesture, the cuts, camera movement, pacing, framing, background, props, lighting and colour grade.
+
+Only the male character's appearance changes. Preserve his exact blocking, poses, actions, timing and reactions so the scene reads identically. Do not alter the female character in any way. Do not add or remove characters. Do not add text, watermarks or subtitles.</text:Value>
+
+  <wan:ReferenceVideo id="replacement" prompt={direction}
+    duration="15" resolution="1080p" aspect-ratio="16:9">
+    <wan:Reference image={hero}/>
+    <wan:Reference video={source}/>
+  </wan:ReferenceVideo>
 </svml>

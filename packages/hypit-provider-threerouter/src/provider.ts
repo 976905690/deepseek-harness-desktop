@@ -218,6 +218,18 @@ function serviceBaseUrl(value: string | undefined): string {
   return raw;
 }
 
+/**
+ * Wan's upstream (DashScope) validates `parameters.resolution` against
+ * upper-case tiers (`480P` / `720P` / `1080P`), while the authoring surface
+ * and the rest of the gateway use lower-case (`480p` / `720p` / `1080p`).
+ * Normalize at the provider boundary so the authored value stays consistent
+ * with the model package's own vocabulary. Other models keep their value.
+ */
+function normalizeResolution(model: string, value: string | number | boolean): string | number | boolean {
+  if (model !== wan3VideoCapability.name || typeof value !== "string") return value;
+  return value.toUpperCase();
+}
+
 function mediaExtension(mediaType: string): string {
   switch (mediaType.toLowerCase()) {
     case "video/mp4": return "mp4";
@@ -400,7 +412,7 @@ function prepareBody(
   const duration = scalar(request, "duration");
   if (duration !== undefined) body.duration = duration;
   const resolution = scalar(request, "resolution");
-  if (resolution !== undefined) body.resolution = resolution;
+  if (resolution !== undefined) body.resolution = normalizeResolution(model, resolution);
   const ratio = scalar(request, "aspectRatio");
   if (ratio !== undefined) body.ratio = ratio;
   const seed = scalar(request, "seed");
